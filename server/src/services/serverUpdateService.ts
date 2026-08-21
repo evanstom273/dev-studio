@@ -92,26 +92,23 @@ export class ServerUpdateService {
 	}
 
 	private scheduleRestart(installPath: string): void {
-		const restartCmd = this.config.restartCommand
-		const cwd = resolve(installPath)
+	const restartCmd = this.config.restartCommand
+	const cwd = resolve(installPath)  // add resolve to the path import
 
-		if (process.platform === 'win32') {
-			// Pass args separately — quoted "start \"\" /D ..." strings break and Windows looks for "\\"
-			spawn('cmd.exe', ['/c', 'start', '/D', cwd, 'cmd', '/k', restartCmd], {
-				detached: true,
-				stdio: 'ignore',
-			}).unref()
-		} else {
-			spawn('sh', ['-c', `sleep 2 && cd "${cwd}" && ${restartCmd}`], {
-				detached: true,
-				stdio: 'ignore',
-			}).unref()
-		}
-
-		setTimeout(() => {
-			process.exit(0)
-		}, 1500)
+	if (process.platform === 'win32') {
+		spawn('cmd.exe', ['/c', 'start', '/D', cwd, 'cmd', '/k', restartCmd], {
+			detached: true,
+			stdio: 'ignore',
+		}).unref()
+	} else {
+		spawn('sh', ['-c', `sleep 2 && cd "${cwd}" && ${restartCmd}`], {
+			detached: true,
+			stdio: 'ignore',
+		}).unref()
 	}
+
+	setTimeout(() => process.exit(0), 1500)
+}
 }
 
 function tailOutput(text: string, maxLines = 12): string {
