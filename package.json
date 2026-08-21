@@ -14,6 +14,7 @@
 		"build:server": "npm run build -w server",
 		"build:all": "npm run build:server && npm run build",
 		"start:server": "npm run start -w server",
+		"laptop": "powershell -ExecutionPolicy Bypass -File scripts/start-laptop.ps1",
 		"lint": "oxlint",
 		"preview": "vite preview"
 	},
