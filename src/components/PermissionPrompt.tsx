@@ -5,9 +5,10 @@ import '../styles/connection.css'
 
 type PermissionPromptProps = {
 	projectId: string
+	incoming?: PermissionRequest[]
 }
 
-export function PermissionPrompt({ projectId }: PermissionPromptProps) {
+export function PermissionPrompt({ projectId, incoming = [] }: PermissionPromptProps) {
 	const [pending, setPending] = useState<PermissionRequest[]>([])
 
 	useEffect(() => {
@@ -21,9 +22,23 @@ export function PermissionPrompt({ projectId }: PermissionPromptProps) {
 		}
 
 		void poll()
-		const interval = setInterval(() => void poll(), 2000)
+		const interval = setInterval(() => void poll(), 1000)
 		return () => clearInterval(interval)
 	}, [projectId])
+
+	useEffect(() => {
+		if (incoming.length === 0) return
+		setPending((prev) => {
+			const merged = [...prev]
+			for (const item of incoming) {
+				if (item.status !== 'pending') continue
+				if (!merged.some((p) => p.id === item.id)) {
+					merged.push(item)
+				}
+			}
+			return merged
+		})
+	}, [incoming])
 
 	if (pending.length === 0) return null
 

@@ -42,6 +42,33 @@ export class ProjectService {
 		return project?.path ?? null
 	}
 
+	async ensureAgentWorkspace(id: string, token?: string): Promise<{ path: string; project: Project }> {
+		let project = await this.getById(id)
+		if (!project) {
+			throw new Error('Project not found')
+		}
+
+		if (project.githubFullName) {
+			const [owner, repo] = project.githubFullName.split('/')
+			if (owner && repo) {
+				const isRepo = await this.git.isRepo(project.path)
+				if (!isRepo) {
+					if (!token) {
+						throw new Error('GitHub token required — add it in Settings to clone this repository')
+					}
+					project = await this.openFromGitHub(owner, repo, token)
+				}
+			}
+		}
+
+		const isRepo = await this.git.isRepo(project.path)
+		if (!isRepo) {
+			throw new Error(`Project workspace is not a git repository: ${project.path}`)
+		}
+
+		return { path: project.path, project }
+	}
+
 	async register(path: string, name?: string): Promise<Project> {
 		await this.registry.register(path)
 		const project = await this.toProject(path, name)

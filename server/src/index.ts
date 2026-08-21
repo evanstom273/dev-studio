@@ -33,7 +33,7 @@ app.use('/api', authMiddleware(config))
 
 app.use('/api', createHealthRouter(config))
 app.use('/api/projects', createProjectsRouter(projects, config))
-app.use('/api/agent', createAgentRouter(projects, agy, sessions, permissions))
+app.use('/api/agent', createAgentRouter(projects, agy, sessions, permissions, config))
 app.use('/api/run', createRunRouter(projects))
 app.use('/api/git', createGitRouter(projects))
 app.use('/api/files', createFilesRouter(projects))
@@ -44,6 +44,7 @@ app.use(errorHandler)
 async function main(): Promise<void> {
 	await projects.init()
 	await sessions.init()
+	await agy.init()
 
 	app.listen(config.port, config.host, () => {
 		console.log(`Dev Studio backend listening on http://${config.host}:${config.port}`)

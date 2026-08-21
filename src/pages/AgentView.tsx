@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AgentMode, ConversationItem, StreamEvent } from '@shared/types/agent'
+import type { AgentMode, ConversationItem, PermissionRequest, StreamEvent } from '@shared/types/agent'
 import type { Project } from '@shared/types/project'
 import { Conversation } from '../components/Conversation'
 import { ModeSelector } from '../components/ModeSelector'
@@ -20,6 +20,7 @@ export function AgentView({ project }: AgentViewProps) {
 	const [mode, setMode] = useState<AgentMode>('agent')
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
+	const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([])
 	const viewport = useVisualViewport()
 
 	const loadSession = useCallback(async () => {
@@ -95,6 +96,12 @@ export function AgentView({ project }: AgentViewProps) {
 				if (event.type === 'activity') {
 					appendActivity(event.label, event.status)
 				}
+				if (event.type === 'permission_request') {
+					setPermissionRequests((prev) => {
+						if (prev.some((p) => p.id === event.permission.id)) return prev
+						return [...prev, event.permission]
+					})
+				}
 				if (event.type === 'error') {
 					setError(event.message)
 				}
@@ -145,7 +152,7 @@ export function AgentView({ project }: AgentViewProps) {
 
 			<Conversation items={items} />
 			{error && <div className="agent-error">{error}</div>}
-			<PermissionPrompt projectId={project.id} />
+			<PermissionPrompt projectId={project.id} incoming={permissionRequests} />
 			<PromptComposer
 				value={prompt}
 				onChange={setPrompt}
