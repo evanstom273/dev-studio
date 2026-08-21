@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { appendFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -77,9 +77,16 @@ export class PermissionQueue extends EventEmitter {
 	}
 }
 
+type ActiveProcess = {
+	child: ChildProcessWithoutNullStreams
+	stopped?: boolean
+}
+
 export class AgyService {
 	private agyPermissions = new AgyPermissionService()
 	private logPath = join(process.env.DEV_STUDIO_DATA_DIR ?? join(homedir(), '.dev-studio'), 'agy.log')
+	private cachedModels: string[] | null = null
+	private activeProcesses = new Map<string, ActiveProcess>()
 
 	constructor(
 		private config: ServerConfig,
@@ -91,8 +98,55 @@ export class AgyService {
 		await this.agyPermissions.init()
 	}
 
-	resetProjectSession(_projectId: string): void {
-		// Per-turn agy processes; nothing persistent to kill. Session reset clears conversationId in the route.
+	async getAvailableModels(): Promise<string[]> {
+		if (this.cachedModels) return this.cachedModels
+
+		return new Promise((resolve) => {
+			execFile(
+				this.config.agyPath,
+				['--model', '__query_models__', '-p', 'test'],
+				{ env: { ...process.env, FORCE_COLOR: '0' } },
+				(_err: Error | null, stdout: string, stderr: string) => {
+					const text = `${stdout || ''}\n${stderr || ''}`
+					const match = text.match(/Available models:\s*([\s\S]+)$/i)
+					if (match) {
+						const models = match[1]
+							.split('\n')
+							.map((line) => line.trim())
+							.filter(
+								(line) =>
+									line.length > 0 &&
+									!line.startsWith('Usage') &&
+									!line.startsWith('Flags:') &&
+									!line.startsWith('agy.exe'),
+							)
+						if (models.length > 0) {
+							this.cachedModels = models
+							resolve(models)
+							return
+						}
+					}
+					resolve([])
+				},
+			)
+		})
+	}
+
+	stopTurn(projectId: string): boolean {
+		const active = this.activeProcesses.get(projectId)
+		if (!active) return false
+		active.stopped = true
+		active.child.kill()
+		this.activeProcesses.delete(projectId)
+		return true
+	}
+
+	resetProjectSession(projectId: string): void {
+		const active = this.activeProcesses.get(projectId)
+		if (active) {
+			active.child.kill()
+			this.activeProcesses.delete(projectId)
+		}
 	}
 
 	async runPrompt(
@@ -100,6 +154,7 @@ export class AgyService {
 		projectId: string,
 		content: string,
 		mode: AgentMode,
+		model: string | undefined,
 		onEvent: (event: StreamEvent) => void,
 	): Promise<void> {
 		await this.agyPermissions.ensureTrustedWorkspace(projectPath)
@@ -117,6 +172,9 @@ export class AgyService {
 		}
 		session.items.push(userItem)
 		session.mode = mode
+		if (model) {
+			session.model = model
+		}
 		await this.sessions.save(session)
 
 		const prompt = `${MODE_PREFIX[mode]}${content}`
@@ -134,6 +192,7 @@ export class AgyService {
 				prompt,
 				mode,
 				session.conversationId,
+				model || session.model,
 				onEvent,
 			)
 			agentContent = turnResult.agentContent
@@ -194,6 +253,7 @@ export class AgyService {
 		prompt: string,
 		mode: AgentMode,
 		conversationId: string | null,
+		model: string | undefined,
 		onEvent: (event: StreamEvent) => void,
 	): Promise<{ agentContent: string; conversationId: string; failed: boolean }> {
 		const useStdin = Buffer.byteLength(prompt, 'utf8') > STDIN_PROMPT_BYTES
@@ -201,6 +261,9 @@ export class AgyService {
 		const args = ['--add-dir', projectPath, '--output-format', 'stream-json', '--print-timeout', AGY_PRINT_TIMEOUT]
 		if (this.config.autoApproveTools) {
 			args.push('--dangerously-skip-permissions')
+		}
+		if (model) {
+			args.push('--model', model)
 		}
 		if (conversationId) {
 			args.push('--conversation', conversationId)
@@ -220,16 +283,20 @@ export class AgyService {
 			windowsHide: true,
 		})
 
+		const activeProcess: ActiveProcess = { child }
+		this.activeProcesses.set(projectId, activeProcess)
+
 		if (useStdin) {
 			child.stdin.write(prompt)
 			child.stdin.end()
 		}
 
-		return this.consumeAgyStream(child, projectId, mode, onEvent)
+		return this.consumeAgyStream(child, activeProcess, projectId, mode, onEvent)
 	}
 
 	private async consumeAgyStream(
 		child: ChildProcessWithoutNullStreams,
+		activeProcess: ActiveProcess,
 		projectId: string,
 		mode: AgentMode,
 		onEvent: (event: StreamEvent) => void,
@@ -279,6 +346,9 @@ export class AgyService {
 				if (settled) return
 				settled = true
 				clearTimeout(turnTimeout)
+				if (this.activeProcesses.get(projectId)?.child === child) {
+					this.activeProcesses.delete(projectId)
+				}
 				resolve(result)
 			}
 
@@ -424,6 +494,12 @@ export class AgyService {
 				void this.logAgy(`turn exit code=${code ?? 'null'} stderr=${stderrBuffer.trim().slice(0, 500)}`)
 
 				if (settled) return
+
+				if (activeProcess.stopped || child.killed) {
+					onEvent({ type: 'done', conversationId: conversationId ?? '', status: 'STOPPED' })
+					finish({ agentContent, conversationId, failed: false })
+					return
+				}
 
 				if (code !== 0 && code !== null) {
 					fail(formatAgyError(`Antigravity exited with code ${code}`, stderrBuffer))
