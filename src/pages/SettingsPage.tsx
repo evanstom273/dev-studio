@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ServerUpdateResult } from '@shared/types/system'
 import { useConnection } from '../hooks/useConnection'
+import { usePwaInstall } from '../hooks/usePwaInstall'
 import { ConnectionBanner } from '../components/ConnectionBanner'
 import { systemApi } from '../services/systemApi'
 import '../styles/settings.css'
@@ -11,6 +12,7 @@ type SettingsPageProps = {
 
 export function SettingsPage({ onBack }: SettingsPageProps) {
 	const { config, connect, disconnect, state } = useConnection()
+	const { isInstallable, isInstalled, install } = usePwaInstall()
 	const [backendUrl, setBackendUrl] = useState(config.backendUrl)
 	const [token, setToken] = useState(config.token)
 	const [githubToken, setGithubToken] = useState(config.githubToken)
@@ -203,6 +205,26 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 					)}
 				</section>
 			)}
+
+			<section className="settings-section">
+				<h2 className="settings-section__title">Progressive Web App (PWA)</h2>
+				<p className="settings-section__desc">
+					Install Dev Studio on your home screen or desktop for full-screen standalone mode and offline caching.
+				</p>
+				{isInstalled ? (
+					<p className="settings-update-ok">✓ Dev Studio is installed and running in standalone app mode.</p>
+				) : isInstallable ? (
+					<div className="settings-actions">
+						<button type="button" className="btn btn--primary" onClick={() => void install()}>
+							Install Dev Studio App
+						</button>
+					</div>
+				) : (
+					<p className="settings-section__desc" style={{ color: 'var(--text-muted)' }}>
+						To install on mobile, tap your browser menu (⋮ or Share) and select "Add to Home Screen" or "Install App".
+					</p>
+				)}
+			</section>
 		</main>
 	)
 }

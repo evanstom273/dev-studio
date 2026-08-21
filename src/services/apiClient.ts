@@ -119,7 +119,25 @@ export async function apiFetch<T>(
 	return response.json() as Promise<T>
 }
 
-export async function checkHealth(): Promise<BackendHealth> {
+export async function checkHealth(customBase?: string): Promise<BackendHealth> {
+	if (customBase) {
+		const base = customBase.replace(/\/$/, '')
+		const controller = new AbortController()
+		const timeout = setTimeout(() => controller.abort(), 3000)
+		try {
+			const res = await fetch(`${base}/api/health`, {
+				signal: controller.signal,
+				headers: getAuthHeaders({ json: false }),
+			})
+			if (!res.ok) throw new ApiClientError(`Health check failed (${res.status})`, res.status)
+			return (await res.json()) as BackendHealth
+		} catch (err) {
+			if (err instanceof ApiClientError) throw err
+			throw new ApiClientError(err instanceof Error ? err.message : 'Probe failed', 0)
+		} finally {
+			clearTimeout(timeout)
+		}
+	}
 	return apiFetch<BackendHealth>('/api/health')
 }
 
