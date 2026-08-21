@@ -5,6 +5,8 @@ export type ChangedFile = {
 	status: ChangeStatus
 	oldPath?: string
 	staged: boolean
+	additions?: number
+	deletions?: number
 }
 
 export type FileDiff = {

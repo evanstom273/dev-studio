@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ConversationItem } from '@shared/types/agent'
+import { ActivityItem } from './ActivityItem'
 import { IconCheck, IconCopy } from './Icons'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import '../styles/agent.css'
@@ -24,7 +25,12 @@ function MessageCard({ item }: { item: Extract<ConversationItem, { kind: 'messag
 	return (
 		<article className={`message message--${item.role}`}>
 			<div className="message__header">
-				<time className="message__time">{item.timestamp}</time>
+				<div className="message__meta">
+					<span className="message__role-tag">
+						{item.role === 'user' ? 'You' : 'Dev Studio'}
+					</span>
+					<time className="message__time">{item.timestamp}</time>
+				</div>
 				<button
 					type="button"
 					className="message__copy-btn"
@@ -47,23 +53,22 @@ function MessageCard({ item }: { item: Extract<ConversationItem, { kind: 'messag
 }
 
 export function Conversation({ items }: ConversationProps) {
+	const endRef = useRef<HTMLDivElement>(null)
+
+	useEffect(() => {
+		endRef.current?.scrollIntoView({ behavior: 'smooth' })
+	}, [items])
+
 	return (
 		<div className="conversation" role="log" aria-label="Agent conversation">
 			{items.map((item) => {
 				if (item.kind === 'activity') {
-					return (
-						<div key={item.id} className="activity">
-							<span
-								className={`activity__indicator activity__indicator--${item.status}`}
-								aria-hidden="true"
-							/>
-							<span className="activity__label">{item.label}</span>
-						</div>
-					)
+					return <ActivityItem key={item.id} item={item} />
 				}
 
 				return <MessageCard key={item.id} item={item} />
 			})}
+			<div ref={endRef} style={{ height: 1 }} />
 		</div>
 	)
 }

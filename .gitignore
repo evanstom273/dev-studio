@@ -25,3 +25,4 @@ dist-ssr
 server/dist
 shared/types/*.js
 shared/types/*.d.ts
+.dev-studio

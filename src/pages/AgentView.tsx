@@ -7,15 +7,20 @@ import { PermissionPrompt } from '../components/PermissionPrompt'
 import { PromptComposer } from '../components/PromptComposer'
 import { useVisualViewport } from '../hooks/useVisualViewport'
 import { agentApi } from '../services/agentApi'
-import { RUN_COMMANDS } from '../types/index'
 import { mergeTurnStatus, type LiveTurnStatus } from '../utils/turnStatus'
 import '../styles/agent.css'
 
-type AgentViewProps = {
-	project: Project
+export type AgentActions = {
+	runCommand: (command: string, label: string) => Promise<void>
+	clearChat: () => Promise<void>
 }
 
-export function AgentView({ project }: AgentViewProps) {
+type AgentViewProps = {
+	project: Project
+	onRegisterActions?: (actions: AgentActions) => void
+}
+
+export function AgentView({ project, onRegisterActions }: AgentViewProps) {
 	const [items, setItems] = useState<ConversationItem[]>([])
 	const [prompt, setPrompt] = useState('')
 	const [mode, setMode] = useState<AgentMode>('agent')
@@ -243,20 +248,23 @@ export function AgentView({ project }: AgentViewProps) {
 		}
 	}
 
-	const runCommand = async (command: string, label: string) => {
-		appendActivity(label, 'running')
-		try {
-			const result = await agentApi.runCommand({ projectId: project.id, command, label })
-			appendActivity(
-				result.exitCode === 0 ? `${label} passed` : `${label} failed (exit ${result.exitCode})`,
-				result.exitCode === 0 ? 'complete' : 'error',
-			)
-		} catch (err) {
-			appendActivity(err instanceof Error ? err.message : 'Command failed', 'error')
-		}
-	}
+	const runCommand = useCallback(
+		async (command: string, label: string) => {
+			appendActivity(label, 'running')
+			try {
+				const result = await agentApi.runCommand({ projectId: project.id, command, label })
+				appendActivity(
+					result.exitCode === 0 ? `${label} passed` : `${label} failed (exit ${result.exitCode})`,
+					result.exitCode === 0 ? 'complete' : 'error',
+				)
+			} catch (err) {
+				appendActivity(err instanceof Error ? err.message : 'Command failed', 'error')
+			}
+		},
+		[project.id],
+	)
 
-	const clearChat = async () => {
+	const clearChat = useCallback(async () => {
 		if (loading) return
 		if (!confirm('Clear this chat? The conversation history will be reset.')) return
 
@@ -275,7 +283,14 @@ export function AgentView({ project }: AgentViewProps) {
 		} finally {
 			setLoading(false)
 		}
-	}
+	}, [loading, project.id])
+
+	useEffect(() => {
+		onRegisterActions?.({
+			runCommand,
+			clearChat,
+		})
+	}, [onRegisterActions, runCommand, clearChat])
 
 	const shellStyle = viewport.keyboardOpen
 		? { height: `${viewport.height}px`, transform: `translateY(${viewport.offsetTop}px)` }
@@ -283,32 +298,6 @@ export function AgentView({ project }: AgentViewProps) {
 
 	return (
 		<div className="workspace-pane agent-view" style={shellStyle}>
-			<div className="agent-toolbar">
-				<div className="agent-toolbar__row">
-					<button
-						type="button"
-						className="btn btn--ghost btn--sm"
-						onClick={() => void clearChat()}
-						disabled={loading || items.length === 0}
-					>
-						Clear chat
-					</button>
-					<div className="agent-toolbar__commands">
-						{RUN_COMMANDS.map((cmd) => (
-							<button
-								key={cmd.id}
-								type="button"
-								className="btn btn--ghost btn--sm"
-								onClick={() => void runCommand(cmd.command, cmd.label)}
-								disabled={loading}
-							>
-								{cmd.label}
-							</button>
-						))}
-					</div>
-				</div>
-			</div>
-
 			<AgentStatusBar status={turnStatus} />
 			<Conversation items={items} />
 			{error && <div className="agent-error">{error}</div>}

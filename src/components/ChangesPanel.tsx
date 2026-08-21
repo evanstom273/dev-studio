@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { ChangeStatus, ChangedFile, FileDiff } from '@shared/types/git'
+import type { ChangedFile, FileDiff } from '@shared/types/git'
 import type { GitHubPullRequest } from '@shared/types/github'
 import { Field, GhInput, GhSelect, GhTextarea, GhToggle, Sheet, SheetActions } from './github/GitHubUi'
 import '../styles/panels.css'
@@ -12,13 +12,15 @@ type ChangesListProps = {
 	busy?: boolean
 }
 
-const STATUS_LABELS: Record<ChangeStatus, string> = {
-	modified: 'Modified',
-	added: 'Added',
-	deleted: 'Deleted',
-	renamed: 'Renamed',
-	untracked: 'New',
-	conflicted: 'Conflict',
+function splitPath(fullPath: string): { filename: string; dirname: string } {
+	const lastSlash = fullPath.lastIndexOf('/')
+	if (lastSlash === -1) {
+		return { filename: fullPath, dirname: '' }
+	}
+	return {
+		filename: fullPath.slice(lastSlash + 1),
+		dirname: fullPath.slice(0, lastSlash),
+	}
 }
 
 export function ChangesList({
@@ -44,40 +46,62 @@ export function ChangesList({
 			<div className="changes-section">
 				<div className="changes-section__header">
 					<span className="changes-section__title">
-						Changed Files ({files.length})
+						Files ({files.length})
 					</span>
 				</div>
-				{files.map((file) => (
-					<div
-						key={file.path}
-						className="changes-list__row"
-					>
-						<button
-							type="button"
-							className={`changes-list__item${selectedPath === file.path ? ' is-selected' : ''}`}
-							onClick={() => onSelect(file.path)}
-							role="listitem"
+				{files.map((file) => {
+					const { filename, dirname } = splitPath(file.path)
+					const isSelected = selectedPath === file.path
+
+					return (
+						<div
+							key={file.path}
+							className={`changes-list__row${isSelected ? ' is-selected' : ''}`}
 						>
-							<span className={`changes-list__status changes-list__status--${file.status}`}>
-								{STATUS_LABELS[file.status] ?? file.status}
-							</span>
-							<span className="changes-list__path">{file.path}</span>
-						</button>
-						<div className="changes-list__actions">
-							{onDiscard && (
-								<button
-									type="button"
-									className="btn btn--ghost btn--xs"
-									onClick={() => onDiscard(file.path)}
-									disabled={busy}
-									title="Discard changes to this file"
-								>
-									Discard
-								</button>
-							)}
+							<button
+								type="button"
+								className="changes-list__item"
+								onClick={() => onSelect(file.path)}
+								role="listitem"
+							>
+								<span className={`changes-list__status-tag changes-list__status-tag--${file.status}`}>
+									{file.status[0]?.toUpperCase() || 'M'}
+								</span>
+
+								<div className="changes-list__names">
+									<span className="changes-list__filename">{filename}</span>
+									{dirname && (
+										<span className="changes-list__dirname">{dirname}</span>
+									)}
+								</div>
+
+								<div className="changes-list__stats">
+									{file.additions !== undefined && file.additions > 0 && (
+										<span className="changes-list__additions">+{file.additions}</span>
+									)}
+									{file.deletions !== undefined && file.deletions > 0 && (
+										<span className="changes-list__deletions">-{file.deletions}</span>
+									)}
+								</div>
+							</button>
+
+							<div className="changes-list__actions">
+								{onDiscard && (
+									<button
+										type="button"
+										className="changes-list__discard-btn"
+										onClick={() => onDiscard(file.path)}
+										disabled={busy}
+										title={`Discard ${filename}`}
+										aria-label={`Discard changes to ${filename}`}
+									>
+										Discard
+									</button>
+								)}
+							</div>
 						</div>
-					</div>
-				))}
+					)
+				})}
 			</div>
 		</div>
 	)
@@ -91,7 +115,7 @@ export function DiffView({ diff }: DiffViewProps) {
 	if (!diff) {
 		return (
 			<div className="empty-state">
-				<p className="empty-state__text">Select a changed file to view its diff</p>
+				<p className="empty-state__text">Select a file to inspect changes</p>
 			</div>
 		)
 	}
@@ -103,22 +127,24 @@ export function DiffView({ diff }: DiffViewProps) {
 			</div>
 			{diff.hunks.length === 0 ? (
 				<div className="empty-state">
-					<p className="empty-state__text">No diff available</p>
+					<p className="empty-state__text">No diff available for this file</p>
 				</div>
 			) : (
 				diff.hunks.map((hunk, index) => (
 					<div key={index} className="diff-hunk">
 						<div className="diff-hunk__header">{hunk.header}</div>
-						{hunk.lines.map((line, lineIndex) => (
-							<div
-								key={lineIndex}
-								className={`diff-line diff-line--${line.type === 'context' ? 'context' : line.type}`}
-							>
-								<span className="diff-line__num">{line.oldLineNumber ?? ''}</span>
-								<span className="diff-line__num">{line.newLineNumber ?? ''}</span>
-								<span className="diff-line__content">{line.content}</span>
-							</div>
-						))}
+						<div className="diff-hunk__lines">
+							{hunk.lines.map((line, lineIndex) => (
+								<div
+									key={lineIndex}
+									className={`diff-line diff-line--${line.type === 'context' ? 'context' : line.type}`}
+								>
+									<span className="diff-line__num">{line.oldLineNumber ?? ''}</span>
+									<span className="diff-line__num">{line.newLineNumber ?? ''}</span>
+									<span className="diff-line__content">{line.content}</span>
+								</div>
+							))}
+						</div>
 					</div>
 				))
 			)}
