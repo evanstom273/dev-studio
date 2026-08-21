@@ -154,7 +154,8 @@ export function PromptComposer({
 					ref={fileInputRef}
 					type="file"
 					multiple
-					className="composer__file-input"
+					className="composer__file-input sr-only"
+					style={{ display: 'none' }}
 					tabIndex={-1}
 					aria-hidden="true"
 					onChange={handleFileSelect}
