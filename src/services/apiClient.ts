@@ -57,9 +57,13 @@ export class ApiClientError extends Error {
 	}
 }
 
-const REQUEST_TIMEOUT_MS = 15000
+const REQUEST_TIMEOUT_MS = 120000
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(
+	path: string,
+	init?: RequestInit,
+	options?: { timeoutMs?: number },
+): Promise<T> {
 	const base = getApiBase()
 	if (!base) {
 		throw new ApiClientError('Backend URL not configured', 0, 'NOT_CONFIGURED')
@@ -68,13 +72,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 	const method = init?.method ?? 'GET'
 	const hasBody = init?.body !== undefined && init?.body !== null
 	const controller = new AbortController()
-	const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+	const timeoutMs = options?.timeoutMs ?? REQUEST_TIMEOUT_MS
+	const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
 	let response: Response
 	try {
 		response = await fetch(`${base}${path}`, {
 			...init,
-			signal: controller.signal,
+			signal: init?.signal ?? controller.signal,
 			headers: {
 				...getAuthHeaders({ json: hasBody || method !== 'GET' }),
 				...init?.headers,
@@ -82,7 +87,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 		})
 	} catch (error) {
 		if (error instanceof Error && error.name === 'AbortError') {
-			throw new ApiClientError('Request timed out — is the laptop server running?', 0, 'TIMEOUT')
+			throw new ApiClientError('Request timed out — operation took too long', 0, 'TIMEOUT')
 		}
 		throw new ApiClientError(
 			error instanceof Error ? error.message : 'Network request failed',
@@ -94,17 +99,21 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 	}
 
 	if (!response.ok) {
-		let errorBody: { error?: string; code?: string } = {}
+		let errorBody: { error?: string; message?: string; code?: string } = {}
+		let rawText = ''
 		try {
-			errorBody = await response.json()
+			const text = await response.text()
+			rawText = text
+			errorBody = JSON.parse(text)
 		} catch {
-			// ignore
+			// not json
 		}
-		throw new ApiClientError(
-			errorBody.error ?? `Request failed (${response.status})`,
-			response.status,
-			errorBody.code,
-		)
+		const message =
+			errorBody.error ||
+			errorBody.message ||
+			rawText.trim() ||
+			`Request failed with status ${response.status}`
+		throw new ApiClientError(message, response.status, errorBody.code)
 	}
 
 	return response.json() as Promise<T>

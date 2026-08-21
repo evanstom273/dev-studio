@@ -32,8 +32,16 @@ export const gitApi = {
 		return apiFetch(`/api/git/${projectId}/stage`, { method: 'POST', body: JSON.stringify(body) })
 	},
 
+	stageAll(projectId: string): Promise<void> {
+		return apiFetch(`/api/git/${projectId}/stage-all`, { method: 'POST' })
+	},
+
 	unstage(projectId: string, body: StageRequest): Promise<void> {
 		return apiFetch(`/api/git/${projectId}/unstage`, { method: 'POST', body: JSON.stringify(body) })
+	},
+
+	unstageAll(projectId: string): Promise<void> {
+		return apiFetch(`/api/git/${projectId}/unstage-all`, { method: 'POST' })
 	},
 
 	commit(projectId: string, body: CommitRequest): Promise<{ hash: string }> {

@@ -13,10 +13,50 @@ import type {
 import { runShell } from '../utils/exec.js'
 
 const IGNORE_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage'])
+const GIT_TIMEOUT_MS = 180000
 
 export class GitService {
 	private git(cwd: string): SimpleGit {
-		return simpleGit({ baseDir: cwd })
+		return simpleGit({ baseDir: cwd, timeout: { block: GIT_TIMEOUT_MS } })
+	}
+
+	async getAuthenticatedRemoteUrl(
+		projectPath: string,
+		remote = 'origin',
+		token?: string,
+	): Promise<string | null> {
+		if (!token) return null
+		try {
+			const remotes = await this.git(projectPath).getRemotes(true)
+			const found = remotes.find((r) => r.name === remote)
+			const rawUrl = found?.refs?.push || found?.refs?.fetch
+			if (!rawUrl) return null
+			const ghMatch = rawUrl.match(/(?:github\.com[:/])([^/]+)\/([^/.]+)(?:\.git)?$/i)
+			if (ghMatch) {
+				const owner = ghMatch[1]
+				const repo = ghMatch[2]
+				return `https://x-access-token:${encodeURIComponent(token)}@github.com/${owner}/${repo}.git`
+			}
+			return null
+		} catch {
+			return null
+		}
+	}
+
+	async syncRemoteToken(
+		projectPath: string,
+		remote = 'origin',
+		token?: string,
+	): Promise<void> {
+		if (!token) return
+		const authUrl = await this.getAuthenticatedRemoteUrl(projectPath, remote, token)
+		if (authUrl) {
+			try {
+				await this.git(projectPath).remote(['set-url', remote, authUrl])
+			} catch {
+				// ignore if remote setting fails
+			}
+		}
 	}
 
 	async isRepo(path: string): Promise<boolean> {
@@ -146,8 +186,16 @@ export class GitService {
 		await this.git(projectPath).add(paths)
 	}
 
+	async stageAll(projectPath: string): Promise<void> {
+		await this.git(projectPath).add(['-A'])
+	}
+
 	async unstage(projectPath: string, paths: string[]): Promise<void> {
 		await this.git(projectPath).reset(['HEAD', '--', ...paths])
+	}
+
+	async unstageAll(projectPath: string): Promise<void> {
+		await this.git(projectPath).reset(['HEAD'])
 	}
 
 	async commit(projectPath: string, message: string): Promise<string> {
@@ -155,11 +203,19 @@ export class GitService {
 		return result.commit
 	}
 
-	async fetch(projectPath: string, remote = 'origin'): Promise<void> {
+	async fetch(projectPath: string, remote = 'origin', token?: string): Promise<void> {
+		await this.syncRemoteToken(projectPath, remote, token)
 		await this.git(projectPath).fetch(remote)
 	}
 
-	async pull(projectPath: string, remote = 'origin', branch?: string, rebase = false): Promise<void> {
+	async pull(
+		projectPath: string,
+		remote = 'origin',
+		branch?: string,
+		rebase = false,
+		token?: string,
+	): Promise<void> {
+		await this.syncRemoteToken(projectPath, remote, token)
 		const git = this.git(projectPath)
 		if (rebase) {
 			await git.pull(remote, branch, { '--rebase': null })
@@ -168,7 +224,14 @@ export class GitService {
 		}
 	}
 
-	async push(projectPath: string, remote = 'origin', branch?: string, force = false): Promise<void> {
+	async push(
+		projectPath: string,
+		remote = 'origin',
+		branch?: string,
+		force = false,
+		token?: string,
+	): Promise<void> {
+		await this.syncRemoteToken(projectPath, remote, token)
 		const git = this.git(projectPath)
 		if (force) {
 			await git.push(remote, branch, { '--force': null })

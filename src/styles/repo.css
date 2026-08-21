@@ -63,8 +63,16 @@
 	margin-bottom: var(--space-xl);
 }
 
+.repo-section__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: var(--space-md);
+	gap: var(--space-sm);
+}
+
 .repo-section h3 {
-	margin: 0 0 var(--space-md);
+	margin: 0;
 	font-size: 14px;
 	font-weight: 600;
 }
