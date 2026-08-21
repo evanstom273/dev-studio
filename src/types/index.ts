@@ -2,7 +2,7 @@ export type { AgentMode, AgentSession, BackendHealth, ConversationItem, MessageR
 export type { ConnectionConfig, ConnectionState, ApiError } from '@shared/types/connection'
 export type { AppRoute, CloneRepoRequest, InitRepoRequest, Project, RegisterProjectRequest, RepoTab, WorkspaceView } from '@shared/types/project'
 export type { BranchRequest, ChangedFile, ChangeStatus, CommitRequest, DiffHunk, DiffLine, DiscardRequest, FileDiff, FileTreeNode, GitBranch, GitCommit, GitStatus, MergeConflict, MergeRequest, PullRequest, PushRequest, RemoteRequest, RevertRequest, StageRequest } from '@shared/types/git'
-export type { CreateGitHubRepoRequest, CreatePullRequestRequest, DeleteRepoRequest, GitHubAuthStatus, GitHubPullRequest, GitHubRepo, GitHubRepoInfo, MergePullRequestRequest, UpdateRepoRequest } from '@shared/types/github'
+export type { CreateGitHubRepoRequest, CreatePullRequestRequest, ClosePullRequestRequest, DeleteRepoRequest, GitHubAuthStatus, GitHubPullRequest, GitHubPullRequestDetail, GitHubPullRequestState, GitHubRepo, GitHubRepoDetails, GitHubRepoInfo, LinkRemoteRequest, MergePullRequestRequest, UpdatePullRequestRequest, UpdateRepoRequest } from '@shared/types/github'
 
 export type NavItem = {
 	id: WorkspaceView

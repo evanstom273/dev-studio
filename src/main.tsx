@@ -6,6 +6,7 @@ import './styles/layout.css'
 import './styles/connection.css'
 import './styles/settings.css'
 import './styles/repo.css'
+import './styles/github.css'
 
 createRoot(document.getElementById('root')!).render(
 	<StrictMode>
