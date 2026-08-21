@@ -9,6 +9,7 @@
 		"start": "node dist/index.js"
 	},
 	"dependencies": {
+		"agy-cli-usage": "^0.4.5",
 		"cors": "^2.8.5",
 		"express": "^4.21.2",
 		"simple-git": "^3.27.0",
