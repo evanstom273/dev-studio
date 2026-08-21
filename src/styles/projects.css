@@ -28,6 +28,209 @@
 	font-size: 14px;
 }
 
+.projects-page__header-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--space-sm);
+}
+
+.hub-status {
+	font-size: 12px;
+	font-weight: 600;
+	padding: 4px 10px;
+	border-radius: var(--radius-full);
+}
+
+.hub-status--ok {
+	background: color-mix(in srgb, var(--accent) 18%, transparent);
+	color: var(--accent);
+}
+
+.hub-actions {
+	margin-bottom: var(--space-md);
+}
+
+.hub-tabs {
+	display: flex;
+	gap: var(--space-xs);
+	margin-bottom: var(--space-md);
+	padding: 4px;
+	background: var(--bg-surface);
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border-subtle);
+}
+
+.hub-tabs__btn {
+	flex: 1;
+	padding: 10px var(--space-md);
+	border-radius: var(--radius-sm);
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--text-secondary);
+	min-height: var(--touch-target);
+}
+
+.hub-tabs__btn.is-active {
+	background: var(--bg-hover);
+	color: var(--text-primary);
+}
+
+.hub-search {
+	width: 100%;
+	margin-bottom: var(--space-md);
+	padding: 12px var(--space-md);
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+	color: var(--text-primary);
+	font-size: 16px;
+}
+
+.hub-repo-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm);
+}
+
+.hub-repo-list__hint {
+	color: var(--text-muted);
+	font-size: 14px;
+	padding: var(--space-lg);
+	text-align: center;
+}
+
+.hub-repo-item {
+	width: 100%;
+	text-align: left;
+	padding: var(--space-lg);
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-lg);
+	min-height: var(--touch-target);
+}
+
+.hub-repo-item:active {
+	background: var(--bg-active);
+}
+
+.hub-repo-item__top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-sm);
+	margin-bottom: var(--space-xs);
+}
+
+.hub-repo-item__name {
+	font-size: 15px;
+	font-weight: 600;
+	font-family: var(--font-mono);
+}
+
+.hub-repo-item__desc {
+	margin: 0 0 var(--space-xs);
+	font-size: 13px;
+	color: var(--text-secondary);
+	line-height: 1.4;
+}
+
+.hub-repo-item__meta {
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.hub-badge {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	padding: 2px 8px;
+	border-radius: var(--radius-full);
+	background: var(--bg-hover);
+	color: var(--text-muted);
+}
+
+.hub-badge--private {
+	background: color-mix(in srgb, #a855f7 20%, transparent);
+	color: #c084fc;
+}
+
+.hub-badge--cache {
+	background: color-mix(in srgb, var(--accent) 15%, transparent);
+	color: var(--accent);
+}
+
+.hub-empty {
+	text-align: center;
+	padding: var(--space-xl) var(--space-lg);
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-lg);
+	margin-top: var(--space-md);
+}
+
+.hub-empty--compact {
+	padding: var(--space-lg);
+}
+
+.hub-empty__title {
+	margin: 0 0 var(--space-sm);
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.hub-empty__desc {
+	margin: 0 0 var(--space-lg);
+	color: var(--text-secondary);
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+.hub-sheet__intro {
+	margin: 0 0 var(--space-lg);
+	color: var(--text-secondary);
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+.hub-checkbox {
+	display: flex;
+	align-items: center;
+	gap: var(--space-sm);
+	margin-bottom: var(--space-lg);
+	font-size: 14px;
+	color: var(--text-secondary);
+}
+
+.project-card-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-xs);
+}
+
+.project-card__row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-sm);
+	width: 100%;
+	margin-bottom: var(--space-xs);
+}
+
+.project-card__remove {
+	align-self: flex-start;
+	margin-left: var(--space-sm);
+	padding: 6px 10px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.project-card__remove:hover {
+	color: #f87171;
+}
+
 .project-list {
 	display: flex;
 	flex-direction: column;
@@ -63,7 +266,6 @@
 .project-card__name {
 	font-size: 16px;
 	font-weight: 600;
-	margin-bottom: var(--space-xs);
 }
 
 .project-card__repo {

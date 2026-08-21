@@ -1,3 +1,5 @@
+export type ProjectStorage = 'local' | 'github-cache'
+
 export type Project = {
 	id: string
 	name: string
@@ -7,6 +9,8 @@ export type Project = {
 	isGitRepo: boolean
 	hasRemote: boolean
 	defaultBranch?: string
+	storage?: ProjectStorage
+	githubFullName?: string
 }
 
 export type AppRoute = 'projects' | 'workspace' | 'settings'
@@ -29,4 +33,15 @@ export type CloneRepoRequest = {
 	url: string
 	path?: string
 	name?: string
+}
+
+export type OpenGitHubRepoRequest = {
+	owner: string
+	repo: string
+}
+
+export type CreateAndOpenRepoRequest = {
+	name: string
+	description?: string
+	private?: boolean
 }

@@ -37,6 +37,10 @@ export function createGitHubRouter(projects: ProjectService, config: ServerConfi
 		res.json(await githubFor(req).authStatus())
 	}))
 
+	router.get('/repos', asyncHandler(async (req, res) => {
+		res.json(await githubFor(req).listUserRepos())
+	}))
+
 	router.get('/:projectId/repo', asyncHandler(async (req, res) => {
 		const { projectPath, remoteUrl, github } = await getProjectContext(param(req, 'projectId'), req)
 		const details = await github.getRepoDetails(projectPath, remoteUrl)

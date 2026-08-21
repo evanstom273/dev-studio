@@ -24,6 +24,10 @@ export const githubApi = {
 		return apiFetch('/api/github/auth')
 	},
 
+	listUserRepos(): Promise<import('@shared/types/github').GitHubRepoSummary[]> {
+		return apiFetch('/api/github/repos')
+	},
+
 	getRepo(projectId: string): Promise<GitHubRepoDetails | null> {
 		return apiFetch(`${projectPath(projectId)}/repo`)
 	},

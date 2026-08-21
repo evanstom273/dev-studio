@@ -12,7 +12,7 @@ import type {
 	RevertRequest,
 	StageRequest,
 } from '@shared/types/git'
-import type { CloneRepoRequest, InitRepoRequest, Project, RegisterProjectRequest } from '@shared/types/project'
+import type { CloneRepoRequest, CreateAndOpenRepoRequest, InitRepoRequest, OpenGitHubRepoRequest, Project, RegisterProjectRequest } from '@shared/types/project'
 import { apiFetch } from './apiClient'
 
 export const gitApi = {
@@ -88,6 +88,18 @@ export const projectsApi = {
 
 	clone(body: CloneRepoRequest): Promise<Project> {
 		return apiFetch('/api/projects/clone', { method: 'POST', body: JSON.stringify(body) })
+	},
+
+	openFromGitHub(body: OpenGitHubRepoRequest): Promise<Project> {
+		return apiFetch('/api/projects/open-github', { method: 'POST', body: JSON.stringify(body) })
+	},
+
+	createOnGitHub(body: CreateAndOpenRepoRequest): Promise<Project> {
+		return apiFetch('/api/projects/create-github', { method: 'POST', body: JSON.stringify(body) })
+	},
+
+	removeLocalCopy(id: string): Promise<void> {
+		return apiFetch(`/api/projects/${id}/remove-local`, { method: 'POST' })
 	},
 
 	unregister(id: string): Promise<void> {

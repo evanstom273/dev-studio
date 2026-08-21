@@ -1,3 +1,14 @@
+export type GitHubRepoSummary = {
+	id: number
+	name: string
+	fullName: string
+	private: boolean
+	url: string
+	description: string
+	updatedAt: string
+	defaultBranch: string
+}
+
 export type GitHubAuthStatus = {
 	authenticated: boolean
 	username?: string

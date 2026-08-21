@@ -3,6 +3,7 @@ import type { GitHubAuthStatus } from '../types/github.js'
 const GITHUB_API = 'https://api.github.com'
 
 export type GitHubApiRepo = {
+	id: number
 	name: string
 	full_name: string
 	html_url: string
@@ -104,6 +105,7 @@ export class GitHubRestClient {
 		name: string
 		description?: string
 		private?: boolean
+		auto_init?: boolean
 	}): Promise<GitHubApiRepo> {
 		const { data } = await this.request<GitHubApiRepo>('/user/repos', {
 			method: 'POST',
@@ -111,9 +113,16 @@ export class GitHubRestClient {
 				name: body.name,
 				description: body.description,
 				private: body.private ?? false,
-				auto_init: false,
+				auto_init: body.auto_init ?? false,
 			}),
 		})
+		return data
+	}
+
+	async listUserRepos(perPage = 100): Promise<GitHubApiRepo[]> {
+		const { data } = await this.request<GitHubApiRepo[]>(
+			`/user/repos?sort=updated&per_page=${Math.min(perPage, 100)}`,
+		)
 		return data
 	}
 
