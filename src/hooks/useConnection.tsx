@@ -40,8 +40,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
 	}, [refresh])
 
 	const disconnect = useCallback(() => {
-		saveConnectionConfig({ backendUrl: '', token: '' })
-		setConfig({ backendUrl: '', token: '' })
+		saveConnectionConfig({ backendUrl: '', token: '', githubToken: '' })
+		setConfig({ backendUrl: '', token: '', githubToken: '' })
 		setState({ status: 'disconnected' })
 	}, [])
 

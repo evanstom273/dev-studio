@@ -1,6 +1,7 @@
 export type ConnectionConfig = {
 	backendUrl: string
 	token: string
+	githubToken: string
 }
 
 export type ConnectionState =

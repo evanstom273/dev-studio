@@ -76,7 +76,7 @@ export class GitHubRestClient {
 		if (!this.token) {
 			return {
 				authenticated: false,
-				message: 'Set DEV_STUDIO_GITHUB_TOKEN on your laptop',
+				message: 'Add your GitHub token in Settings',
 			}
 		}
 
@@ -255,7 +255,7 @@ export class GitHubRestClient {
 		init: RequestInit = {},
 	): Promise<{ data: T; scopes?: string[] }> {
 		if (!this.token) {
-			throw new GitHubApiError('DEV_STUDIO_GITHUB_TOKEN is not configured', 401)
+			throw new GitHubApiError('GitHub token not configured — add it in Settings on your phone', 401)
 		}
 
 		const headers = new Headers(init.headers)
@@ -314,7 +314,7 @@ export async function checkGitHubApi(token: string): Promise<{
 			available: false,
 			path: 'GitHub REST API',
 			authenticated: false,
-			message: 'Set DEV_STUDIO_GITHUB_TOKEN on your laptop',
+			message: 'Add your GitHub token in Settings',
 		}
 	}
 

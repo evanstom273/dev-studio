@@ -1,5 +1,4 @@
 import { simpleGit } from 'simple-git'
-import type { ServerConfig } from '../config.js'
 import type {
 	ClosePullRequestRequest,
 	CreateGitHubRepoRequest,
@@ -68,8 +67,8 @@ export class GitHubService {
 	private git = new GitService()
 	private client: GitHubRestClient
 
-	constructor(config: ServerConfig) {
-		this.client = new GitHubRestClient(config.githubToken)
+	constructor(token: string) {
+		this.client = new GitHubRestClient(token)
 	}
 
 	async authStatus(): Promise<GitHubAuthStatus> {
@@ -158,7 +157,7 @@ export class GitHubService {
 		branch: string,
 	): Promise<void> {
 		if (!this.client.hasToken()) {
-			throw new Error('DEV_STUDIO_GITHUB_TOKEN is not configured')
+			throw new Error('GitHub token not configured — add it in Settings on your phone')
 		}
 
 		const pushUrl = this.client.authenticatedRemoteUrl(owner, repo)

@@ -11,12 +11,17 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 	const { config, connect, disconnect, state } = useConnection()
 	const [backendUrl, setBackendUrl] = useState(config.backendUrl)
 	const [token, setToken] = useState(config.token)
+	const [githubToken, setGithubToken] = useState(config.githubToken)
 	const [saving, setSaving] = useState(false)
 
 	const handleSave = async () => {
 		setSaving(true)
 		try {
-			await connect({ backendUrl: backendUrl.trim(), token: token.trim() })
+			await connect({
+				backendUrl: backendUrl.trim(),
+				token: token.trim(),
+				githubToken: githubToken.trim(),
+			})
 		} finally {
 			setSaving(false)
 		}
@@ -36,8 +41,8 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 			<section className="settings-section">
 				<h2 className="settings-section__title">Laptop Backend</h2>
 				<p className="settings-section__desc">
-					Enter your laptop&apos;s Tailscale URL. Example:{' '}
-					<code>http://my-laptop.tail-xxxxx.ts.net:3847</code>
+					Your laptop runs the Dev Studio server, Antigravity (<code>agy</code>), and git.
+					Enter its Tailscale address below.
 				</p>
 
 				<label className="field">
@@ -52,13 +57,13 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 				</label>
 
 				<label className="field">
-					<span className="field__label">Access Token</span>
+					<span className="field__label">Access Token (optional)</span>
 					<input
 						className="field__input"
 						type="password"
 						value={token}
 						onChange={(e) => setToken(e.target.value)}
-						placeholder="Same as DEV_STUDIO_TOKEN on laptop"
+						placeholder="Leave blank unless you set DEV_STUDIO_TOKEN on laptop"
 					/>
 				</label>
 
@@ -68,6 +73,32 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 					</button>
 					<button type="button" className="btn btn--ghost" onClick={disconnect}>
 						Disconnect
+					</button>
+				</div>
+			</section>
+
+			<section className="settings-section">
+				<h2 className="settings-section__title">GitHub</h2>
+				<p className="settings-section__desc">
+					Your fine-grained PAT stays on this phone. It is sent to your laptop over Tailscale
+					only when you use GitHub features — it is not saved on the laptop.
+				</p>
+
+				<label className="field">
+					<span className="field__label">GitHub Personal Access Token</span>
+					<input
+						className="field__input"
+						type="password"
+						value={githubToken}
+						onChange={(e) => setGithubToken(e.target.value)}
+						placeholder="github_pat_…"
+						autoComplete="off"
+					/>
+				</label>
+
+				<div className="settings-actions">
+					<button type="button" className="btn btn--primary" onClick={() => void handleSave()} disabled={saving}>
+						{saving ? 'Saving...' : 'Save GitHub Token'}
 					</button>
 				</div>
 			</section>
@@ -83,8 +114,8 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 						<li className={`status-list__item${state.health.git.available ? ' is-ok' : ''}`}>
 							Git: {state.health.git.available ? 'Available' : 'Not found'}
 						</li>
-						<li className={`status-list__item${state.health.github.available ? ' is-ok' : ''}`}>
-							GitHub API: {state.health.github.authenticated ? `@${state.health.github.version}` : state.health.github.message ?? 'Not configured'}
+						<li className={`status-list__item${state.health.github.authenticated ? ' is-ok' : ''}`}>
+							GitHub API: {state.health.github.authenticated ? `@${state.health.github.version}` : state.health.github.message ?? 'Add token above'}
 						</li>
 					</ul>
 				</section>

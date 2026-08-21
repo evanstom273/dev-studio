@@ -124,7 +124,7 @@ export function GitHubView({ project }: GitHubViewProps) {
 			<div className="gh-panel">
 				<div className="gh-empty">
 					<p className="gh-empty__title">GitHub not connected</p>
-					<p className="gh-empty__desc">Set <code>DEV_STUDIO_GITHUB_TOKEN</code> on your laptop, then refresh.</p>
+					<p className="gh-empty__desc">Add your GitHub token in Settings, then refresh.</p>
 					<button type="button" className="btn btn--ghost btn--sm" onClick={() => void refresh()} disabled={busy}>
 						Refresh
 					</button>

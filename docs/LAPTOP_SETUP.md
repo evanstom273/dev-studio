@@ -12,9 +12,9 @@ Phone (Dev Studio PWA)
   → Your local repositories
 ```
 
-**Credentials stay on the laptop.** The phone only stores:
-- Backend URL (Tailscale hostname)
-- Access token (optional shared secret)
+**Credentials:**
+- **Phone:** Tailscale URL, GitHub PAT, optional backend access token
+- **Laptop:** Antigravity (`agy`) Google sign-in; optional `DEV_STUDIO_TOKEN` if you want API password protection
 
 ---
 
@@ -63,28 +63,28 @@ Important:
 
 ---
 
-## 4. GitHub Personal Access Token
+## 4. GitHub Personal Access Token (on your phone)
 
-Create a **Personal Access Token (classic)** on GitHub:
+Create a **fine-grained** Personal Access Token on GitHub:
 
-1. GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
-2. **Generate new token (classic)**
-3. Enable the **`repo`** scope (required for private repos, PRs, and repo management)
-4. Copy the token — you won't see it again
+1. GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**
+2. **Generate new token**
+3. **Resource owner:** your account
+4. **Repository access:** All repositories (or select the ones you use)
+5. **Permissions:**
+   - **Metadata:** Read
+   - **Contents:** Read and write
+   - **Pull requests:** Read and write
+   - **Commit statuses:** Read
+   - **Administration:** Read and write *(optional — only for delete repo / visibility changes)*
 
-Set it on your laptop only (never in the phone app):
+Enter the token in the Dev Studio app on your phone:
 
-```bash
-export DEV_STUDIO_GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
-```
+**Settings → GitHub Personal Access Token**
 
-Or add it to your `.env` file (see section 6).
+The token stays on your phone. It is sent to your laptop over Tailscale when you use GitHub features. It is **not** stored in a file on the laptop.
 
-Verify the backend can reach GitHub:
-
-```bash
-curl -H "Authorization: Bearer $DEV_STUDIO_GITHUB_TOKEN" https://api.github.com/user
-```
+*(Optional fallback: you can still set `DEV_STUDIO_GITHUB_TOKEN` on the laptop if you prefer.)*
 
 ---
 
@@ -111,11 +111,8 @@ The backend only runs when your laptop is awake:
 Create a `.env` file in the project root (or export these variables):
 
 ```bash
-# Required: shared secret between phone and laptop
-DEV_STUDIO_TOKEN=your-long-random-token-here
-
-# Required for GitHub repos/PRs (PAT — laptop only, never on phone)
-DEV_STUDIO_GITHUB_TOKEN=ghp_xxxxxxxxxxxx
+# Optional: password-protect the backend API
+# DEV_STUDIO_TOKEN=your-long-random-token-here
 
 # Optional (defaults shown)
 DEV_STUDIO_HOST=0.0.0.0
@@ -128,7 +125,7 @@ AGY_PATH=agy
 # DEV_STUDIO_AUTO_APPROVE=true
 ```
 
-Generate a token:
+Generate an access token (only if you want one):
 
 ```bash
 openssl rand -hex 32
@@ -140,12 +137,11 @@ openssl rand -hex 32
 
 ```bash
 # Development (auto-reload)
-export DEV_STUDIO_TOKEN="your-token"
 npm run dev:server
 
 # Production
 npm run build:server
-DEV_STUDIO_TOKEN="your-token" npm run start:server
+npm run start:server
 ```
 
 You should see:
@@ -174,8 +170,9 @@ curl -H "Authorization: Bearer your-token" http://my-laptop.tail-abc123.ts.net:3
 1. Open Dev Studio: https://evanstom273.github.io/dev-studio/
 2. Tap **Settings**
 3. Enter backend URL: `http://my-laptop.tail-abc123.ts.net:3847`
-4. Enter the same access token as `DEV_STUDIO_TOKEN`
-5. Tap **Save & Connect**
+4. *(Optional)* Enter access token if you set `DEV_STUDIO_TOKEN` on the laptop
+5. Enter your GitHub PAT under **GitHub Personal Access Token**
+6. Tap **Save & Connect**
 
 The status panel should show:
 - Antigravity CLI: available + authenticated
@@ -234,7 +231,7 @@ DEV_STUDIO_AUTO_APPROVE=true
 | Phone can't connect | Check Tailscale on both devices, verify laptop hostname and port |
 | 401 Unauthorized | Token mismatch between phone and `DEV_STUDIO_TOKEN` |
 | agy not authenticated | Run `agy` interactively and sign in with Google |
-| GitHub API not configured | Set `DEV_STUDIO_GITHUB_TOKEN` with a PAT that has `repo` scope |
+| GitHub API not configured | Add your GitHub PAT in phone Settings |
 | Agent produces no output | Ensure `agy` works headless: `agy -p "test" --output-format stream-json` |
 | Empty project list | Check `DEV_STUDIO_PROJECTS_ROOT` contains git repos |
 
