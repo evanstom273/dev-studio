@@ -1,3 +1,17 @@
+export type TokenUsage = {
+	inputTokens?: number
+	outputTokens?: number
+	thinkingTokens?: number
+	totalTokens?: number
+	cacheReadTokens?: number
+}
+
+export type TurnToolEntry = {
+	name: string
+	label: string
+	durationMs?: number
+}
+
 export type AgentMode = 'agent' | 'ask' | 'plan'
 
 export type MessageRole = 'user' | 'agent' | 'system'
@@ -46,9 +60,18 @@ export type PermissionRequest = {
 
 export type StreamEvent =
 	| { type: 'message_delta'; content: string }
+	| {
+			type: 'turn_status'
+			status: 'running' | 'complete'
+			label: string
+			durationMs?: number
+			usage?: TokenUsage
+			tokensPerSecond?: number
+			tool?: TurnToolEntry
+	  }
 	| { type: 'activity'; status: 'running' | 'complete' | 'error'; label: string; toolName?: string }
 	| { type: 'permission_request'; permission: PermissionRequest }
-	| { type: 'done'; conversationId: string; status: string }
+	| { type: 'done'; conversationId: string; status: string; durationMs?: number; usage?: TokenUsage; tokensPerSecond?: number }
 	| { type: 'error'; message: string }
 
 export type BackendHealth = {

@@ -6,6 +6,8 @@ import type {
 	ConversationItem,
 	PermissionRequest,
 	StreamEvent,
+	TokenUsage,
+	TurnToolEntry,
 } from '../types/agent.js'
 import type { ServerConfig } from '../config.js'
 import { SessionStore } from '../store.js'
@@ -121,7 +123,7 @@ export class AgyService {
 		await this.sessions.save(session)
 
 		const prompt = `${MODE_PREFIX[mode]}${content}`
-		onEvent({ type: 'activity', status: 'running', label: 'Thinking...' })
+		onEvent({ type: 'turn_status', status: 'running', label: 'Thinking…' })
 
 		let agentContent = ''
 		let conversationId = session.conversationId ?? ''
@@ -149,6 +151,20 @@ export class AgyService {
 		await this.sessions.save(session)
 
 		onEvent({ type: 'done', conversationId: session.conversationId ?? '', status: 'SUCCESS' })
+	}
+
+	private emitTurnStatus(
+		onEvent: (event: StreamEvent) => void,
+		patch: {
+			status: 'running' | 'complete'
+			label: string
+			durationMs?: number
+			usage?: TokenUsage
+			tokensPerSecond?: number
+			tool?: TurnToolEntry
+		},
+	): void {
+		onEvent({ type: 'turn_status', ...patch })
 	}
 
 	private async ensureStreamSession(
@@ -267,6 +283,19 @@ export class AgyService {
 				finish({ agentContent, conversationId })
 			}
 
+			const emitTurnComplete = (result: Record<string, unknown>) => {
+				const usage = parseUsage(result.usage)
+				const durationMs = toDurationMs(result.duration_seconds)
+				const tokensPerSecond = calcTokensPerSecond(usage, durationMs)
+				this.emitTurnStatus(onEvent, {
+					status: 'complete',
+					label: 'Done',
+					durationMs,
+					usage,
+					tokensPerSecond,
+				})
+			}
+
 			const handleResult = async (result: Record<string, unknown>) => {
 				conversationId = (result.conversation_id as string) ?? conversationId
 				streamSession.conversationId = conversationId
@@ -276,11 +305,13 @@ export class AgyService {
 				}
 
 				if (awaitingRetryResult) {
+					emitTurnComplete(result)
 					finish({ agentContent, conversationId })
 					return
 				}
 
 				if (permissionRequests.size === 0) {
+					emitTurnComplete(result)
 					finish({ agentContent, conversationId })
 					return
 				}
@@ -342,15 +373,40 @@ export class AgyService {
 								}
 							}
 
-							onEvent({ type: 'activity', status: 'running', label, toolName })
-							if (update.state === 'DONE') {
-								onEvent({ type: 'activity', status: 'complete', label, toolName })
-							}
+							if (update.state !== 'DONE') return
+
+							const stepUsage = parseUsage(update.usage)
+							const stepDurationMs = toDurationMs(update.duration_seconds)
+							this.emitTurnStatus(onEvent, {
+								status: 'running',
+								label: 'Thinking…',
+								durationMs: stepDurationMs,
+								usage: stepUsage,
+								tokensPerSecond: calcTokensPerSecond(stepUsage, stepDurationMs),
+								tool: {
+									name: shortToolName(toolName),
+									label,
+									durationMs: stepDurationMs,
+								},
+							})
 						}
 
-						if (stepType === 'agent_response' && typeof update.text_delta === 'string') {
-							agentContent += update.text_delta
-							onEvent({ type: 'message_delta', content: update.text_delta })
+						if (stepType === 'agent_response') {
+							if (typeof update.text_delta === 'string') {
+								agentContent += update.text_delta
+								onEvent({ type: 'message_delta', content: update.text_delta })
+							}
+							if (update.state === 'DONE') {
+								const stepUsage = parseUsage(update.usage)
+								const stepDurationMs = toDurationMs(update.duration_seconds)
+								this.emitTurnStatus(onEvent, {
+									status: 'running',
+									label: 'Thinking…',
+									durationMs: stepDurationMs,
+									usage: stepUsage,
+									tokensPerSecond: calcTokensPerSecond(stepUsage, stepDurationMs),
+								})
+							}
 						}
 					}
 
@@ -428,13 +484,64 @@ function formatToolLabel(toolName: string, info?: Record<string, unknown>): stri
 	if (toolName.includes('run_command')) {
 		const params = info?.parameters as Record<string, unknown> | undefined
 		const cmd = params?.CommandLine ?? params?.command
-		return cmd ? `Running: ${cmd}` : 'Running command...'
+		return cmd ? String(cmd) : 'shell'
 	}
 	if (toolName.includes('write') || toolName.includes('edit')) {
 		const params = info?.parameters as Record<string, unknown> | undefined
 		const file = params?.path ?? params?.file_path ?? params?.FilePath
-		return file ? `Editing ${file}...` : 'Editing file...'
+		return file ? String(file) : 'edit'
 	}
-	if (toolName.includes('read')) return 'Reading files...'
-	return `${toolName}...`
+	if (toolName.includes('view_file') || toolName.includes('read_file')) {
+		const params = info?.parameters as Record<string, unknown> | undefined
+		const file = params?.path ?? params?.file_path ?? params?.FilePath
+		return file ? String(file) : 'read'
+	}
+	if (toolName.includes('list_dir')) {
+		const params = info?.parameters as Record<string, unknown> | undefined
+		const dir = params?.path ?? params?.directory
+		return dir ? String(dir) : 'list_dir'
+	}
+	if (toolName.includes('find_by_name')) {
+		const params = info?.parameters as Record<string, unknown> | undefined
+		const query = params?.query ?? params?.pattern ?? params?.name
+		return query ? String(query) : 'find'
+	}
+	return shortToolName(toolName)
+}
+
+function shortToolName(toolName: string): string {
+	if (toolName.includes('list_dir')) return 'list_dir'
+	if (toolName.includes('find_by_name')) return 'find'
+	if (toolName.includes('view_file') || toolName.includes('read_file')) return 'read'
+	if (toolName.includes('run_command')) return 'shell'
+	if (toolName.includes('write') || toolName.includes('edit')) return 'edit'
+	const base = toolName.split('.').pop() ?? toolName
+	return base.length > 24 ? `${base.slice(0, 24)}…` : base
+}
+
+function parseUsage(raw: unknown): TokenUsage | undefined {
+	if (!raw || typeof raw !== 'object') return undefined
+	const usage = raw as Record<string, unknown>
+	return {
+		inputTokens: asNumber(usage.input_tokens),
+		outputTokens: asNumber(usage.output_tokens),
+		thinkingTokens: asNumber(usage.thinking_tokens),
+		totalTokens: asNumber(usage.total_tokens),
+		cacheReadTokens: asNumber(usage.cache_read_tokens),
+	}
+}
+
+function asNumber(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function toDurationMs(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 1000) : undefined
+}
+
+function calcTokensPerSecond(usage: TokenUsage | undefined, durationMs: number | undefined): number | undefined {
+	if (!usage || !durationMs || durationMs <= 0) return undefined
+	const tokens = (usage.outputTokens ?? 0) + (usage.thinkingTokens ?? 0)
+	if (tokens <= 0) return undefined
+	return tokens / (durationMs / 1000)
 }
