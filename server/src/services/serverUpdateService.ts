@@ -1,16 +1,28 @@
 import { spawn } from 'node:child_process'
-import { access } from 'node:fs/promises'
+import { access, mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { ServerConfig } from '../config.js'
 import type { ServerUpdateResult, ServerUpdateStep } from '../types/system.js'
 import { runPlatformShell } from '../utils/exec.js'
 
+/** Windows: spawn a new console when detached with stdio ignored. */
+
 export class ServerUpdateService {
 	constructor(private config: ServerConfig) {}
 
 	async updateAndRestart(): Promise<ServerUpdateResult> {
-		const installPath = this.config.installPath
+		const installPath = resolve(this.config.installPath)
 		const steps: ServerUpdateStep[] = []
+
+		if (!installPath || installPath === '\\') {
+			return {
+				ok: false,
+				restarting: false,
+				installPath,
+				steps,
+				error: 'Invalid install path — set DEV_STUDIO_INSTALL_PATH to your dev-studio clone',
+			}
+		}
 
 		try {
 			await access(installPath)
@@ -81,7 +93,7 @@ export class ServerUpdateService {
 			}
 		}
 
-		this.scheduleRestart(installPath)
+		await this.scheduleRestart(installPath)
 
 		return {
 			ok: true,
@@ -91,24 +103,42 @@ export class ServerUpdateService {
 		}
 	}
 
-	private scheduleRestart(installPath: string): void {
-	const restartCmd = this.config.restartCommand
-	const cwd = resolve(installPath)  // add resolve to the path import
+	private async scheduleRestart(installPath: string): Promise<void> {
+		const cwd = resolve(installPath)
+		const restartCmd = this.config.restartCommand
+		const scriptDir = join(this.config.dataDir, 'scripts')
+		const batPath = join(scriptDir, 'restart-server.bat')
 
-	if (process.platform === 'win32') {
-		spawn('cmd.exe', ['/c', 'start', '/D', cwd, 'cmd', '/k', restartCmd], {
-			detached: true,
-			stdio: 'ignore',
-		}).unref()
-	} else {
-		spawn('sh', ['-c', `sleep 2 && cd "${cwd}" && ${restartCmd}`], {
-			detached: true,
-			stdio: 'ignore',
-		}).unref()
+		await mkdir(scriptDir, { recursive: true })
+		await writeFile(
+			batPath,
+			[
+				'@echo off',
+				'title Dev Studio Server',
+				`cd /d "${cwd.replace(/"/g, '""')}"`,
+				restartCmd,
+				'',
+			].join('\r\n'),
+			'utf8',
+		)
+
+		if (process.platform === 'win32') {
+			spawn('cmd.exe', ['/k', batPath], {
+				detached: true,
+				stdio: 'ignore',
+				windowsHide: false,
+			}).unref()
+		} else {
+			spawn('sh', ['-c', `sleep 2 && "${batPath}"`], {
+				detached: true,
+				stdio: 'ignore',
+			}).unref()
+		}
+
+		setTimeout(() => {
+			process.exit(0)
+		}, 1500)
 	}
-
-	setTimeout(() => process.exit(0), 1500)
-}
 }
 
 function tailOutput(text: string, maxLines = 12): string {
