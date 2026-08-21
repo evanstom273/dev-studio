@@ -108,11 +108,24 @@ export async function apiFetch<T>(
 		} catch {
 			// not json
 		}
-		const message =
-			errorBody.error ||
-			errorBody.message ||
-			rawText.trim() ||
-			`Request failed with status ${response.status}`
+
+		let message = errorBody.error || errorBody.message
+		if (!message && rawText) {
+			const preMatch = rawText.match(/<pre>([\s\S]*?)<\/pre>/i)
+			if (preMatch) {
+				message = preMatch[1].replace(/<[^>]*>?/gm, '').trim()
+			} else if (rawText.includes('<html') || rawText.includes('<!DOCTYPE')) {
+				const titleMatch = rawText.match(/<title>([\s\S]*?)<\/title>/i)
+				message = titleMatch ? `${titleMatch[1]} (${response.status})` : `HTTP ${response.status}`
+			} else {
+				message = rawText.trim().slice(0, 300)
+			}
+		}
+
+		if (!message) {
+			message = `Request failed with status ${response.status}`
+		}
+
 		throw new ApiClientError(message, response.status, errorBody.code)
 	}
 
