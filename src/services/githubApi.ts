@@ -28,6 +28,14 @@ export const githubApi = {
 		return apiFetch('/api/github/auth')
 	},
 
+	getRateLimit(): Promise<import('@shared/types/github').GitHubRateLimits> {
+		return apiFetch('/api/github/rate-limit')
+	},
+
+	getWorkflows(projectId: string, limit = 10): Promise<import('@shared/types/github').GitHubWorkflowsResponse> {
+		return apiFetch(`${projectPath(projectId)}/workflows?limit=${limit}`)
+	},
+
 	listUserRepos(): Promise<import('@shared/types/github').GitHubRepoSummary[]> {
 		return apiFetch('/api/github/repos')
 	},

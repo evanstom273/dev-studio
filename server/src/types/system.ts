@@ -13,3 +13,35 @@ export type ServerUpdateResult = {
 	restartLogPath?: string
 	error?: string
 }
+
+export type AgyQuotaUsage = {
+	available: boolean
+	version?: string
+	authenticated?: boolean
+	message?: string
+	totalTokens: {
+		inputTokens: number
+		outputTokens: number
+		thinkingTokens: number
+		totalTokens: number
+		cacheReadTokens: number
+	}
+	activeSessionTokens?: {
+		inputTokens: number
+		outputTokens: number
+		thinkingTokens: number
+		totalTokens: number
+	}
+	activeModel?: string
+	availableModels: string[]
+	laptopStats?: {
+		freeMemBytes: number
+		totalMemBytes: number
+		usedMemBytes: number
+		memoryUsagePercent: number
+		uptimeSeconds: number
+		platform: string
+		nodeVersion: string
+	}
+}
+

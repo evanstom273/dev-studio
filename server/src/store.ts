@@ -27,6 +27,25 @@ export class SessionStore {
 		}
 	}
 
+	async getAll(): Promise<AgentSession[]> {
+		try {
+			const files = await readdir(this.sessionsDir)
+			const sessions: AgentSession[] = []
+			for (const file of files) {
+				if (!file.endsWith('.json')) continue
+				try {
+					const raw = await readFile(join(this.sessionsDir, file), 'utf8')
+					sessions.push(JSON.parse(raw) as AgentSession)
+				} catch {
+					// ignore malformed
+				}
+			}
+			return sessions
+		} catch {
+			return []
+		}
+	}
+
 	async save(session: AgentSession): Promise<void> {
 		await this.writeAtomic(this.pathFor(session.projectId), JSON.stringify(session, null, '\t'))
 	}

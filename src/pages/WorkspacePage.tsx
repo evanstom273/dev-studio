@@ -5,6 +5,7 @@ import {
 	IconChat,
 	IconFiles,
 	IconRepo,
+	IconStatus,
 } from '../components/Icons'
 import { ProjectHeader } from '../components/ProjectHeader'
 import { KeyboardViewportProvider, useKeyboardViewport } from '../hooks/KeyboardViewportContext'
@@ -14,6 +15,7 @@ import { AgentView, type AgentActions } from './AgentView'
 import { ChangesView } from './ChangesView'
 import { FilesView } from './FilesView'
 import { RepoView } from './RepoView'
+import { StatusView } from './StatusView'
 import '../styles/layout.css'
 
 type WorkspacePageProps = {
@@ -23,12 +25,13 @@ type WorkspacePageProps = {
 	onBack: () => void
 }
 
-type RightTool = 'changes' | 'files' | 'repo'
+type RightTool = 'changes' | 'files' | 'repo' | 'status'
 
 const RIGHT_TOOLS: { id: RightTool; label: string; Icon: typeof IconChanges }[] = [
 	{ id: 'changes', label: 'Changes', Icon: IconChanges },
 	{ id: 'files', label: 'Files', Icon: IconFiles },
 	{ id: 'repo', label: 'Git', Icon: IconRepo },
+	{ id: 'status', label: 'Status', Icon: IconStatus },
 ]
 
 function WorkspacePageContent({
@@ -155,6 +158,16 @@ function WorkspacePageContent({
 							<IconRepo className="workspace-mobile-nav__icon" />
 							<span>Git</span>
 						</button>
+
+						<button
+							type="button"
+							className={`workspace-mobile-nav__tab${activeView === 'status' ? ' is-active' : ''}`}
+							onClick={() => onNavigate('status')}
+							title="Status & Quota"
+						>
+							<IconStatus className="workspace-mobile-nav__icon" />
+							<span>Status</span>
+						</button>
 					</nav>
 				)}
 
@@ -187,7 +200,7 @@ function WorkspacePageContent({
 								<div className="workspace-divider__handle" />
 							</div>
 
-							{/* Right Pane: Contextual Tools (Changes, Files, Git) */}
+							{/* Right Pane: Contextual Tools (Changes, Files, Git, Status) */}
 							<section
 								className="workspace-pane workspace-pane--right"
 								style={{ width: `${100 - splitPercent}%` }}
@@ -224,6 +237,9 @@ function WorkspacePageContent({
 									{rightTool === 'changes' && <ChangesView project={project} />}
 									{rightTool === 'files' && <FilesView project={project} />}
 									{rightTool === 'repo' && <RepoView project={project} />}
+									{rightTool === 'status' && (
+										<StatusView project={project} onRefreshProject={refreshStatus} />
+									)}
 								</div>
 							</section>
 						</div>
@@ -240,6 +256,9 @@ function WorkspacePageContent({
 							{activeView === 'changes' && <ChangesView project={project} />}
 							{activeView === 'files' && <FilesView project={project} />}
 							{activeView === 'repo' && <RepoView project={project} />}
+							{activeView === 'status' && (
+								<StatusView project={project} onRefreshProject={refreshStatus} />
+							)}
 						</div>
 					)}
 				</div>

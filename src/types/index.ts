@@ -17,6 +17,7 @@ export const NAV_ITEMS: NavItem[] = [
 	{ id: 'changes', label: 'Changes', shortLabel: 'Diff' },
 	{ id: 'files', label: 'Files', shortLabel: 'Files' },
 	{ id: 'repo', label: 'Repository', shortLabel: 'Repo' },
+	{ id: 'status', label: 'Status & Quota', shortLabel: 'Status' },
 ]
 
 export const AGENT_MODES = [

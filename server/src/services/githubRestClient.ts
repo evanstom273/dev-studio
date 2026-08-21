@@ -259,6 +259,82 @@ export class GitHubRestClient {
 		})
 	}
 
+	async getRateLimit(): Promise<import('../types/github.js').GitHubRateLimits> {
+		const { data } = await this.request<import('../types/github.js').GitHubRateLimits>('/rate_limit')
+		return data
+	}
+
+	async listWorkflowRuns(
+		owner: string,
+		repo: string,
+		limit = 10,
+	): Promise<import('../types/github.js').GitHubWorkflowRun[]> {
+		try {
+			const { data } = await this.request<{
+				workflow_runs: Array<{
+					id: number
+					name: string
+					head_branch: string
+					head_sha: string
+					event: string
+					status: string
+					conclusion?: string | null
+					html_url: string
+					url: string
+					created_at: string
+					updated_at: string
+					run_started_at?: string
+					actor?: { login: string }
+					display_title?: string
+					run_number: number
+				}>
+			}>(`/repos/${owner}/${repo}/actions/runs?per_page=${Math.min(limit, 30)}`)
+
+			return (data.workflow_runs ?? []).map((run) => ({
+				id: run.id,
+				name: run.name,
+				headBranch: run.head_branch,
+				headSha: run.head_sha,
+				event: run.event,
+				status: run.status as import('../types/github.js').GitHubWorkflowRun['status'],
+				conclusion: run.conclusion as import('../types/github.js').GitHubWorkflowRun['conclusion'],
+				htmlUrl: run.html_url,
+				url: run.url,
+				createdAt: run.created_at,
+				updatedAt: run.updated_at,
+				runStartedAt: run.run_started_at,
+				actor: run.actor?.login,
+				displayTitle: run.display_title,
+				runNumber: run.run_number,
+			}))
+		} catch {
+			return []
+		}
+	}
+
+	async getPagesStatus(
+		owner: string,
+		repo: string,
+	): Promise<import('../types/github.js').GitHubPagesStatus | null> {
+		try {
+			const { data } = await this.request<{
+				status: 'built' | 'building' | 'errored' | null
+				html_url: string | null
+				cname: string | null
+				pending_deployments_count?: number
+			}>(`/repos/${owner}/${repo}/pages`)
+
+			return {
+				status: data.status ?? null,
+				htmlUrl: data.html_url ?? null,
+				cname: data.cname ?? null,
+				pendingCount: data.pending_deployments_count,
+			}
+		} catch {
+			return null
+		}
+	}
+
 	private async request<T>(
 		path: string,
 		init: RequestInit = {},
