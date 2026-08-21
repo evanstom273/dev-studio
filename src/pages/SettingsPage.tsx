@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import type { ServerUpdateResult } from '@shared/types/system'
 import { useConnection } from '../hooks/useConnection'
 import { ConnectionBanner } from '../components/ConnectionBanner'
+import { systemApi } from '../services/systemApi'
 import '../styles/settings.css'
 
 type SettingsPageProps = {
@@ -13,6 +15,9 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 	const [token, setToken] = useState(config.token)
 	const [githubToken, setGithubToken] = useState(config.githubToken)
 	const [saving, setSaving] = useState(false)
+	const [updating, setUpdating] = useState(false)
+	const [updateResult, setUpdateResult] = useState<ServerUpdateResult | null>(null)
+	const [updateError, setUpdateError] = useState<string | null>(null)
 
 	const handleSave = async () => {
 		setSaving(true)
@@ -24,6 +29,35 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 			})
 		} finally {
 			setSaving(false)
+		}
+	}
+
+	const handleUpdateRestart = async () => {
+		if (
+			!confirm(
+				'Pull latest dev-studio from git, rebuild the server, and restart it on your laptop?\n\nThe connection will drop briefly. Wait ~30 seconds, then tap Save & Connect again if needed.',
+			)
+		) {
+			return
+		}
+
+		setUpdating(true)
+		setUpdateError(null)
+		setUpdateResult(null)
+		try {
+			const result = await systemApi.updateAndRestart()
+			setUpdateResult(result)
+			if (!result.ok) {
+				setUpdateError(result.error ?? 'Update failed')
+			}
+		} catch (err) {
+			const message = err instanceof Error ? err.message : 'Update request failed'
+			setUpdateError(message)
+			if (message.includes('fetch') || message.includes('network')) {
+				setUpdateError(`${message} — the server may already be restarting. Wait and reconnect.`)
+			}
+		} finally {
+			setUpdating(false)
 		}
 	}
 
@@ -118,6 +152,50 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 							GitHub API: {state.health.github.authenticated ? `@${state.health.github.version}` : state.health.github.message ?? 'Add token above'}
 						</li>
 					</ul>
+				</section>
+			)}
+
+			{state.status === 'connected' && (
+				<section className="settings-section">
+					<h2 className="settings-section__title">Update Laptop Backend</h2>
+					<p className="settings-section__desc">
+						Pulls the latest <code>dev-studio</code> code on your laptop, rebuilds the server, and
+						restarts it. Use this after merging PRs so your phone gets the newest backend without
+						typing commands on the laptop.
+					</p>
+					<p className="settings-section__desc">
+						On Windows, a new terminal window opens for the restarted server. Set{' '}
+						<code>DEV_STUDIO_RESTART_COMMAND=npm run dev:server</code> on the laptop if you use dev
+						mode.
+					</p>
+					<div className="settings-actions">
+						<button
+							type="button"
+							className="btn btn--primary"
+							onClick={() => void handleUpdateRestart()}
+							disabled={updating}
+						>
+							{updating ? 'Updating…' : 'Pull, rebuild & restart'}
+						</button>
+					</div>
+					{updateError && <p className="settings-update-error">{updateError}</p>}
+					{updateResult?.ok && updateResult.restarting && (
+						<p className="settings-update-ok">
+							Update complete — server is restarting. Reconnect in ~30 seconds.
+						</p>
+					)}
+					{updateResult && updateResult.steps.length > 0 && (
+						<ul className="settings-update-steps">
+							{updateResult.steps.map((step) => (
+								<li
+									key={step.name}
+									className={`settings-update-steps__item${step.exitCode === 0 ? ' is-ok' : ' is-error'}`}
+								>
+									{step.name} {step.exitCode === 0 ? '✓' : `(exit ${step.exitCode})`}
+								</li>
+							))}
+						</ul>
+					)}
 				</section>
 			)}
 		</main>

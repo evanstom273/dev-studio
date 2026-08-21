@@ -102,3 +102,14 @@ export async function runShell(
 		}
 	}
 }
+
+export async function runPlatformShell(
+	cwd: string,
+	script: string,
+	timeoutMs = 300000,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+	if (process.platform === 'win32') {
+		return runCommand(cwd, 'cmd.exe', ['/d', '/s', '/c', script], undefined, undefined)
+	}
+	return runShell(cwd, script, timeoutMs)
+}

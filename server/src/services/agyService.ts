@@ -89,6 +89,13 @@ export class AgyService {
 		await this.agyPermissions.init()
 	}
 
+	resetProjectSession(projectId: string): void {
+		const existing = this.streamSessions.get(projectId)
+		if (!existing) return
+		existing.child.kill()
+		this.streamSessions.delete(projectId)
+	}
+
 	async runPrompt(
 		projectPath: string,
 		projectId: string,
