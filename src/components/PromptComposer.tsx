@@ -87,6 +87,12 @@ export function PromptComposer({
 		textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`
 	}, [value])
 
+	useEffect(() => {
+		if (keyboardOpen) {
+			setModelMenuOpen(false)
+		}
+	}, [keyboardOpen])
+
 	// Close model menu when clicking outside
 	useEffect(() => {
 		if (!modelMenuOpen) return

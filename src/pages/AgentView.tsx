@@ -5,7 +5,6 @@ import { AgentStatusBar } from '../components/AgentStatusBar'
 import { Conversation } from '../components/Conversation'
 import { PermissionPrompt } from '../components/PermissionPrompt'
 import { PromptComposer } from '../components/PromptComposer'
-import { useVisualViewport } from '../hooks/useVisualViewport'
 import { agentApi } from '../services/agentApi'
 import { RUN_COMMANDS } from '../types/index'
 import { mergeTurnStatus, type LiveTurnStatus } from '../utils/turnStatus'
@@ -13,9 +12,10 @@ import '../styles/agent.css'
 
 type AgentViewProps = {
 	project: Project
+	keyboardOpen?: boolean
 }
 
-export function AgentView({ project }: AgentViewProps) {
+export function AgentView({ project, keyboardOpen = false }: AgentViewProps) {
 	const [items, setItems] = useState<ConversationItem[]>([])
 	const [prompt, setPrompt] = useState('')
 	const [mode, setMode] = useState<AgentMode>('agent')
@@ -26,7 +26,6 @@ export function AgentView({ project }: AgentViewProps) {
 	const [error, setError] = useState<string | null>(null)
 	const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([])
 	const [turnStatus, setTurnStatus] = useState<LiveTurnStatus | null>(null)
-	const viewport = useVisualViewport()
 
 	const loadSession = useCallback(async () => {
 		try {
@@ -277,12 +276,10 @@ export function AgentView({ project }: AgentViewProps) {
 		}
 	}
 
-	const shellStyle = viewport.keyboardOpen
-		? { height: `${viewport.height}px`, transform: `translateY(${viewport.offsetTop}px)` }
-		: undefined
-
 	return (
-		<div className="workspace-pane agent-view" style={shellStyle}>
+		<div
+			className={`workspace-pane agent-view${keyboardOpen ? ' agent-view--keyboard-open' : ''}`}
+		>
 			<div className="agent-toolbar">
 				<div className="agent-toolbar__row">
 					<button
@@ -327,7 +324,7 @@ export function AgentView({ project }: AgentViewProps) {
 				attachments={attachments}
 				onAddAttachments={(files) => void handleAddAttachments(files)}
 				onRemoveAttachment={handleRemoveAttachment}
-				keyboardOpen={viewport.keyboardOpen}
+				keyboardOpen={keyboardOpen}
 			/>
 		</div>
 	)
