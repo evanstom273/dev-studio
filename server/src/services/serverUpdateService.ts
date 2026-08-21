@@ -95,8 +95,9 @@ export class ServerUpdateService {
 		const restartCmd = this.config.restartCommand
 
 		if (process.platform === 'win32') {
-			const script = `cd /d "${installPath}" && ${restartCmd}`
-			spawn('cmd.exe', ['/c', 'start', '"Dev Studio Server"', 'cmd', '/k', script], {
+			// start treats the first quoted arg as window title — use "" or Windows tries to run "Studio"
+			const script = `start "" /D "${installPath}" cmd /k ${restartCmd}`
+			spawn('cmd.exe', ['/d', '/s', '/c', script], {
 				detached: true,
 				stdio: 'ignore',
 			}).unref()
