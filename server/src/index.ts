@@ -23,6 +23,8 @@ app.use(
 	cors({
 		origin: config.allowedOrigins.includes('*') ? true : config.allowedOrigins,
 		credentials: true,
+		allowedHeaders: ['Content-Type', 'Authorization', 'X-GitHub-Token', 'X-Dev-Studio-Token'],
+		methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 	}),
 )
 app.use(express.json({ limit: '1mb' }))
@@ -30,7 +32,7 @@ app.use(express.json({ limit: '1mb' }))
 app.use('/api', authMiddleware(config))
 
 app.use('/api', createHealthRouter(config))
-app.use('/api/projects', createProjectsRouter(projects))
+app.use('/api/projects', createProjectsRouter(projects, config))
 app.use('/api/agent', createAgentRouter(projects, agy, sessions, permissions))
 app.use('/api/run', createRunRouter(projects))
 app.use('/api/git', createGitRouter(projects))

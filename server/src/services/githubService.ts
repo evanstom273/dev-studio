@@ -75,6 +75,29 @@ export class GitHubService {
 		return this.client.authStatus()
 	}
 
+	async listUserRepos(): Promise<Array<{
+		id: number
+		name: string
+		fullName: string
+		private: boolean
+		url: string
+		description: string
+		updatedAt: string
+		defaultBranch: string
+	}>> {
+		const repos = await this.client.listUserRepos()
+		return repos.map((repo) => ({
+			id: repo.id ?? 0,
+			name: repo.name,
+			fullName: repo.full_name,
+			private: repo.private,
+			url: repo.html_url,
+			description: repo.description ?? '',
+			updatedAt: repo.updated_at,
+			defaultBranch: repo.default_branch,
+		}))
+	}
+
 	private async getOriginRemote(projectPath: string): Promise<string | undefined> {
 		try {
 			const remotes = await simpleGit({ baseDir: projectPath }).getRemotes(true)

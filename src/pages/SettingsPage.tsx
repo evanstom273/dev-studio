@@ -52,7 +52,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 						type="url"
 						value={backendUrl}
 						onChange={(e) => setBackendUrl(e.target.value)}
-						placeholder="http://laptop.tail-xxxxx.ts.net:3847"
+						placeholder="https://laptop.tail-xxxxx.ts.net"
 					/>
 				</label>
 

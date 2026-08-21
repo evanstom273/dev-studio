@@ -49,7 +49,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
 		if (config.backendUrl) {
 			void refresh()
 		}
-	}, [config.backendUrl, refresh])
+	}, [config.backendUrl, config.githubToken, refresh])
 
 	return (
 		<ConnectionContext.Provider value={{ state, config, connect, disconnect, refresh }}>

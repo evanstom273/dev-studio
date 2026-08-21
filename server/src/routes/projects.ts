@@ -1,16 +1,56 @@
 import { Router } from 'express'
 import { join } from 'node:path'
+import type { ServerConfig } from '../config.js'
 import { asyncHandler } from '../middleware.js'
 import { param } from '../utils/params.js'
 import type { ProjectService } from '../services/projectService.js'
+import { resolveGitHubToken } from '../utils/githubToken.js'
 
-export function createProjectsRouter(projects: ProjectService): Router {
+export function createProjectsRouter(projects: ProjectService, config: ServerConfig): Router {
 	const router = Router()
 
 	router.get(
 		'/',
 		asyncHandler(async (_req, res) => {
 			res.json(await projects.list())
+		}),
+	)
+
+	router.post(
+		'/open-github',
+		asyncHandler(async (req, res) => {
+			const { owner, repo } = req.body as { owner: string; repo: string }
+			if (!owner || !repo) {
+				res.status(400).json({ error: 'owner and repo are required' })
+				return
+			}
+			const token = resolveGitHubToken(req, config)
+			res.json(await projects.openFromGitHub(owner, repo, token))
+		}),
+	)
+
+	router.post(
+		'/create-github',
+		asyncHandler(async (req, res) => {
+			const { name, description, private: isPrivate } = req.body as {
+				name: string
+				description?: string
+				private?: boolean
+			}
+			if (!name) {
+				res.status(400).json({ error: 'name is required' })
+				return
+			}
+			const token = resolveGitHubToken(req, config)
+			res.json(await projects.createAndOpen(name, token, description, isPrivate))
+		}),
+	)
+
+	router.post(
+		'/:id/remove-local',
+		asyncHandler(async (req, res) => {
+			await projects.removeLocalCopy(param(req, 'id'))
+			res.json({ ok: true })
 		}),
 	)
 

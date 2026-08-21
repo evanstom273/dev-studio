@@ -31,10 +31,11 @@ export function getApiBase(): string {
 	return ''
 }
 
-export function getAuthHeaders(): HeadersInit {
+export function getAuthHeaders(options?: { json?: boolean }): HeadersInit {
 	const config = loadConnectionConfig()
-	const headers: Record<string, string> = {
-		'Content-Type': 'application/json',
+	const headers: Record<string, string> = {}
+	if (options?.json !== false) {
+		headers['Content-Type'] = 'application/json'
 	}
 	if (config.token) {
 		headers.Authorization = `Bearer ${config.token}`
@@ -56,19 +57,41 @@ export class ApiClientError extends Error {
 	}
 }
 
+const REQUEST_TIMEOUT_MS = 15000
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 	const base = getApiBase()
 	if (!base) {
 		throw new ApiClientError('Backend URL not configured', 0, 'NOT_CONFIGURED')
 	}
 
-	const response = await fetch(`${base}${path}`, {
-		...init,
-		headers: {
-			...getAuthHeaders(),
-			...init?.headers,
-		},
-	})
+	const method = init?.method ?? 'GET'
+	const hasBody = init?.body !== undefined && init?.body !== null
+	const controller = new AbortController()
+	const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+	let response: Response
+	try {
+		response = await fetch(`${base}${path}`, {
+			...init,
+			signal: controller.signal,
+			headers: {
+				...getAuthHeaders({ json: hasBody || method !== 'GET' }),
+				...init?.headers,
+			},
+		})
+	} catch (error) {
+		if (error instanceof Error && error.name === 'AbortError') {
+			throw new ApiClientError('Request timed out — is the laptop server running?', 0, 'TIMEOUT')
+		}
+		throw new ApiClientError(
+			error instanceof Error ? error.message : 'Network request failed',
+			0,
+			'NETWORK_ERROR',
+		)
+	} finally {
+		clearTimeout(timeout)
+	}
 
 	if (!response.ok) {
 		let errorBody: { error?: string; code?: string } = {}
@@ -102,7 +125,7 @@ export async function streamAgentMessage(
 
 	const response = await fetch(`${base}/api/agent/message`, {
 		method: 'POST',
-		headers: getAuthHeaders(),
+		headers: getAuthHeaders({ json: true }),
 		body: JSON.stringify({ projectId, content, mode }),
 	})
 
