@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AgentMode, ConversationItem, PermissionRequest, StreamEvent } from '@shared/types/agent'
 import type { Project } from '@shared/types/project'
+import { AgentStatusBar } from '../components/AgentStatusBar'
 import { Conversation } from '../components/Conversation'
 import { ModeSelector } from '../components/ModeSelector'
 import { PermissionPrompt } from '../components/PermissionPrompt'
@@ -8,6 +9,7 @@ import { PromptComposer } from '../components/PromptComposer'
 import { useVisualViewport } from '../hooks/useVisualViewport'
 import { agentApi } from '../services/agentApi'
 import { RUN_COMMANDS } from '../types/index'
+import { mergeTurnStatus, type LiveTurnStatus } from '../utils/turnStatus'
 import '../styles/agent.css'
 
 type AgentViewProps = {
@@ -21,6 +23,7 @@ export function AgentView({ project }: AgentViewProps) {
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([])
+	const [turnStatus, setTurnStatus] = useState<LiveTurnStatus | null>(null)
 	const viewport = useVisualViewport()
 
 	const loadSession = useCallback(async () => {
@@ -57,6 +60,7 @@ export function AgentView({ project }: AgentViewProps) {
 		setLoading(true)
 		setError(null)
 		setPrompt('')
+		setTurnStatus(null)
 
 		const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 		setItems((prev) => [
@@ -93,6 +97,9 @@ export function AgentView({ project }: AgentViewProps) {
 						)
 					}
 				}
+				if (event.type === 'turn_status') {
+					setTurnStatus((prev) => mergeTurnStatus(prev, event))
+				}
 				if (event.type === 'activity') {
 					appendActivity(event.label, event.status)
 				}
@@ -105,12 +112,26 @@ export function AgentView({ project }: AgentViewProps) {
 				if (event.type === 'error') {
 					setError(event.message)
 				}
+				if (event.type === 'done') {
+					setTurnStatus((prev) =>
+						prev
+							? mergeTurnStatus(prev, {
+									status: 'complete',
+									label: 'Done',
+									durationMs: event.durationMs ?? prev.durationMs,
+									usage: event.usage ?? prev.usage,
+									tokensPerSecond: event.tokensPerSecond ?? prev.tokensPerSecond,
+								})
+							: null,
+					)
+				}
 			})
 		} catch (err) {
 			setError(err instanceof Error ? err.message : 'Failed to send message')
 		} finally {
 			setLoading(false)
 			void loadSession()
+			setTimeout(() => setTurnStatus(null), 2500)
 		}
 	}
 
@@ -134,6 +155,7 @@ export function AgentView({ project }: AgentViewProps) {
 		setLoading(true)
 		setError(null)
 		setPermissionRequests([])
+		setTurnStatus(null)
 		try {
 			const session = await agentApi.resetSession(project.id)
 			setItems(session.items)
@@ -179,6 +201,7 @@ export function AgentView({ project }: AgentViewProps) {
 				</div>
 			</div>
 
+			<AgentStatusBar status={turnStatus} />
 			<Conversation items={items} />
 			{error && <div className="agent-error">{error}</div>}
 			<PermissionPrompt projectId={project.id} incoming={permissionRequests} />
