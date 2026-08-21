@@ -19,6 +19,7 @@ import {
 	Sheet,
 	SheetActions,
 } from './GitHubUi'
+import { MarkdownRenderer } from '../MarkdownRenderer'
 
 type GitHubViewProps = {
 	project: Project
@@ -239,7 +240,9 @@ export function GitHubView({ project }: GitHubViewProps) {
 								</div>
 							)}
 							{selectedPr.body && (
-								<pre className="gh-pr-detail__body">{selectedPr.body}</pre>
+								<div className="gh-pr-detail__body">
+									<MarkdownRenderer content={selectedPr.body} />
+								</div>
 							)}
 							{selectedPr.reviews.length > 0 && (
 								<div className="gh-reviews">
