@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Project, WorkspaceView } from '@shared/types/project'
+import type { Project } from '@shared/types/project'
 import { useConnection } from '../hooks/useConnection'
 import { RUN_COMMANDS } from '../types/index'
 import {
 	IconBack,
 	IconBranch,
-	IconChanges,
-	IconChat,
 	IconDots,
-	IconFiles,
-	IconRepo,
 	IconTerminal,
 	IconTrash,
 } from './Icons'
@@ -20,12 +16,8 @@ type ProjectHeaderProps = {
 	onBack: () => void
 	className?: string
 	currentBranch?: string
-	activeView?: WorkspaceView
-	onNavigate?: (view: WorkspaceView) => void
 	onRunCommand?: (command: string, label: string) => void
 	onClearChat?: () => void
-	isWide?: boolean
-	changedFilesCount?: number
 }
 
 export function ProjectHeader({
@@ -33,12 +25,8 @@ export function ProjectHeader({
 	onBack,
 	className,
 	currentBranch = 'main',
-	activeView = 'agent',
-	onNavigate,
 	onRunCommand,
 	onClearChat,
-	isWide = false,
-	changedFilesCount = 0,
 }: ProjectHeaderProps) {
 	const { state } = useConnection()
 	const [menuOpen, setMenuOpen] = useState(false)
@@ -99,52 +87,6 @@ export function ProjectHeader({
 					</div>
 				</div>
 			</div>
-
-			{/* Center / Contextual tools for Folded screen */}
-			{!isWide && onNavigate && (
-				<nav className="project-header__mobile-tools" aria-label="Context tools">
-					<button
-						type="button"
-						className={`project-header__tool-pill${activeView === 'agent' ? ' is-active' : ''}`}
-						onClick={() => onNavigate('agent')}
-						title="Chat"
-					>
-						<IconChat className="project-header__tool-icon" />
-						<span>Chat</span>
-					</button>
-
-					<button
-						type="button"
-						className={`project-header__tool-pill${activeView === 'changes' ? ' is-active' : ''}`}
-						onClick={() => onNavigate('changes')}
-						title="Changes"
-					>
-						<IconChanges className="project-header__tool-icon" />
-						<span>Changes</span>
-						{changedFilesCount > 0 && (
-							<span className="project-header__tool-count">{changedFilesCount}</span>
-						)}
-					</button>
-
-					<button
-						type="button"
-						className={`project-header__tool-pill${activeView === 'files' ? ' is-active' : ''}`}
-						onClick={() => onNavigate('files')}
-						title="Files"
-					>
-						<IconFiles className="project-header__tool-icon" />
-					</button>
-
-					<button
-						type="button"
-						className={`project-header__tool-pill${activeView === 'repo' ? ' is-active' : ''}`}
-						onClick={() => onNavigate('repo')}
-						title="Git / Repo"
-					>
-						<IconRepo className="project-header__tool-icon" />
-					</button>
-				</nav>
-			)}
 
 			{/* Right: Overflow menu */}
 			<div className="project-header__right" ref={menuRef}>

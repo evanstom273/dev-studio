@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Project, WorkspaceView } from '@shared/types/project'
 import {
 	IconChanges,
+	IconChat,
 	IconFiles,
 	IconRepo,
 } from '../components/Icons'
@@ -103,13 +104,59 @@ function WorkspacePageContent({
 					onBack={onBack}
 					className={hideChrome ? 'project-header--keyboard-hidden' : undefined}
 					currentBranch={currentBranch}
-					activeView={activeView}
-					onNavigate={onNavigate}
-					isWide={isWide}
-					changedFilesCount={changedCount}
 					onRunCommand={agentActions ? agentActions.runCommand : undefined}
 					onClearChat={agentActions ? agentActions.clearChat : undefined}
 				/>
+
+				{!isWide && (
+					<nav
+						className={`workspace-mobile-nav${hideChrome ? ' workspace-mobile-nav--keyboard-hidden' : ''}`}
+						aria-label="Workspace navigation"
+					>
+						<button
+							type="button"
+							className={`workspace-mobile-nav__tab${activeView === 'agent' ? ' is-active' : ''}`}
+							onClick={() => onNavigate('agent')}
+							title="Chat"
+						>
+							<IconChat className="workspace-mobile-nav__icon" />
+							<span>Chat</span>
+						</button>
+
+						<button
+							type="button"
+							className={`workspace-mobile-nav__tab${activeView === 'changes' ? ' is-active' : ''}`}
+							onClick={() => onNavigate('changes')}
+							title="Changes"
+						>
+							<IconChanges className="workspace-mobile-nav__icon" />
+							<span>Changes</span>
+							{changedCount > 0 && (
+								<span className="workspace-mobile-nav__badge">{changedCount}</span>
+							)}
+						</button>
+
+						<button
+							type="button"
+							className={`workspace-mobile-nav__tab${activeView === 'files' ? ' is-active' : ''}`}
+							onClick={() => onNavigate('files')}
+							title="Files"
+						>
+							<IconFiles className="workspace-mobile-nav__icon" />
+							<span>Files</span>
+						</button>
+
+						<button
+							type="button"
+							className={`workspace-mobile-nav__tab${activeView === 'repo' ? ' is-active' : ''}`}
+							onClick={() => onNavigate('repo')}
+							title="Git / Repo"
+						>
+							<IconRepo className="workspace-mobile-nav__icon" />
+							<span>Git</span>
+						</button>
+					</nav>
+				)}
 
 				<div className="workspace-body" ref={containerRef}>
 					{isWide ? (
