@@ -23,9 +23,9 @@ See **[docs/LAPTOP_SETUP.md](docs/LAPTOP_SETUP.md)** for complete laptop configu
 
 Summary:
 1. Install `agy`, Tailscale on laptop
-2. Set `DEV_STUDIO_GITHUB_TOKEN` (GitHub PAT) and authenticate `agy`
+2. Authenticate `agy` on the laptop; add your GitHub PAT in phone Settings
 3. Start backend: `DEV_STUDIO_TOKEN=xxx npm run dev:server`
-4. Connect phone app via Settings → Tailscale URL + token
+4. Connect phone app via Settings → Tailscale URL + GitHub PAT
 
 ## Scripts
 

@@ -51,7 +51,7 @@ async function main(): Promise<void> {
 			console.warn('WARNING: DEV_STUDIO_TOKEN not set — API is unauthenticated')
 		}
 		if (!config.githubToken) {
-			console.warn('WARNING: DEV_STUDIO_GITHUB_TOKEN not set — GitHub API disabled')
+			console.warn('INFO: No GitHub token on laptop — clients can send X-GitHub-Token from the phone app')
 		}
 	})
 }

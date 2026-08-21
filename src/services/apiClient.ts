@@ -6,6 +6,7 @@ const STORAGE_KEY = 'dev-studio-connection'
 const DEFAULT_CONFIG: ConnectionConfig = {
 	backendUrl: '',
 	token: '',
+	githubToken: '',
 }
 
 export function loadConnectionConfig(): ConnectionConfig {
@@ -37,6 +38,9 @@ export function getAuthHeaders(): HeadersInit {
 	}
 	if (config.token) {
 		headers.Authorization = `Bearer ${config.token}`
+	}
+	if (config.githubToken) {
+		headers['X-GitHub-Token'] = config.githubToken
 	}
 	return headers
 }
