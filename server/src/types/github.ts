@@ -151,3 +151,50 @@ export type MergeAndSyncResponse = {
 	currentBranch: string
 }
 
+export type GitHubRateResource = {
+	limit: number
+	remaining: number
+	reset: number
+	used: number
+}
+
+export type GitHubRateLimits = {
+	resources: {
+		core: GitHubRateResource
+		search?: GitHubRateResource
+		graphql?: GitHubRateResource
+	}
+	rate: GitHubRateResource
+}
+
+export type GitHubWorkflowRun = {
+	id: number
+	name: string
+	headBranch: string
+	headSha: string
+	event: string
+	status: 'queued' | 'in_progress' | 'completed' | 'waiting' | 'requested' | 'pending'
+	conclusion?: 'success' | 'failure' | 'neutral' | 'cancelled' | 'timed_out' | 'action_required' | 'skipped' | null
+	url: string
+	htmlUrl: string
+	createdAt: string
+	updatedAt: string
+	runStartedAt?: string
+	actor?: string
+	displayTitle?: string
+	runNumber: number
+}
+
+export type GitHubPagesStatus = {
+	status: 'built' | 'building' | 'errored' | null
+	htmlUrl: string | null
+	cname: string | null
+	pendingCount?: number
+}
+
+export type GitHubWorkflowsResponse = {
+	runs: GitHubWorkflowRun[]
+	pages: GitHubPagesStatus | null
+}
+
+

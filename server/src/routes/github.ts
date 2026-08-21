@@ -37,8 +37,18 @@ export function createGitHubRouter(projects: ProjectService, config: ServerConfi
 		res.json(await githubFor(req).authStatus())
 	}))
 
+	router.get('/rate-limit', asyncHandler(async (req, res) => {
+		res.json(await githubFor(req).getRateLimits())
+	}))
+
 	router.get('/repos', asyncHandler(async (req, res) => {
 		res.json(await githubFor(req).listUserRepos())
+	}))
+
+	router.get('/:projectId/workflows', asyncHandler(async (req, res) => {
+		const { projectPath, github } = await getProjectContext(param(req, 'projectId'), req)
+		const limit = Number.parseInt(queryParam(req, 'limit') ?? '10', 10)
+		res.json(await github.getWorkflowsAndPages(projectPath, limit))
 	}))
 
 	router.get('/:projectId/repo', asyncHandler(async (req, res) => {

@@ -39,7 +39,7 @@ app.use('/api/run', createRunRouter(projects))
 app.use('/api/git', createGitRouter(projects, config))
 app.use('/api/files', createFilesRouter(projects))
 app.use('/api/github', createGitHubRouter(projects, config))
-app.use('/api/system', createSystemRouter(config))
+app.use('/api/system', createSystemRouter(config, agy, sessions))
 
 app.use(errorHandler)
 

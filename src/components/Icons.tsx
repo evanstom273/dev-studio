@@ -272,3 +272,47 @@ export function IconTerminal({ className }: IconProps) {
 		</svg>
 	)
 }
+
+export function IconStatus({ className }: IconProps) {
+	return (
+		<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<path d="M22 12h-4l-3 9L9 3l-3 9H2" strokeLinecap="round" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+export function IconClock({ className }: IconProps) {
+	return (
+		<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<circle cx="12" cy="12" r="9" />
+			<path d="M12 6v6l4 2" strokeLinecap="round" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+export function IconGauge({ className }: IconProps) {
+	return (
+		<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<path d="M12 3a9 9 0 00-9 9c0 3.12 1.59 5.87 4 7.46M12 3a9 9 0 019 9c0 3.12-1.59 5.87-4 7.46M12 12l3.5-3.5" strokeLinecap="round" strokeLinejoin="round" />
+			<circle cx="12" cy="12" r="2" fill="currentColor" />
+		</svg>
+	)
+}
+
+export function IconExternalLink({ className }: IconProps) {
+	return (
+		<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" strokeLinecap="round" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+export function IconWorkflow({ className }: IconProps) {
+	return (
+		<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<circle cx="18" cy="18" r="3" />
+			<circle cx="6" cy="6" r="3" />
+			<path d="M6 9v12M18 9a9 9 0 00-9 9" strokeLinecap="round" />
+		</svg>
+	)
+}

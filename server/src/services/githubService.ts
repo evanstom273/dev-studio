@@ -393,5 +393,26 @@ export class GitHubService {
 			currentBranch: baseBranch,
 		}
 	}
+
+	async getRateLimits(): Promise<import('../types/github.js').GitHubRateLimits> {
+		return this.client.getRateLimit()
+	}
+
+	async getWorkflowsAndPages(
+		projectPath: string,
+		limit = 10,
+	): Promise<import('../types/github.js').GitHubWorkflowsResponse> {
+		const info = await this.getRepoInfo(projectPath, undefined)
+		if (!info) {
+			return { runs: [], pages: null }
+		}
+
+		const [runs, pages] = await Promise.all([
+			this.client.listWorkflowRuns(info.owner, info.repo, limit),
+			this.client.getPagesStatus(info.owner, info.repo),
+		])
+
+		return { runs, pages }
+	}
 }
 

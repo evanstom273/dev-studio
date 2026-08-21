@@ -1,6 +1,6 @@
 import type { WorkspaceView } from '@shared/types/project'
 import { NAV_ITEMS } from '../types/index'
-import { IconAgent, IconChanges, IconFiles, IconRepo } from './Icons'
+import { IconAgent, IconChanges, IconFiles, IconRepo, IconStatus } from './Icons'
 import '../styles/navigation.css'
 
 type BottomNavProps = {
@@ -13,6 +13,7 @@ const ICONS = {
 	changes: IconChanges,
 	files: IconFiles,
 	repo: IconRepo,
+	status: IconStatus,
 } as const
 
 export function BottomNav({ activeView, onNavigate }: BottomNavProps) {
