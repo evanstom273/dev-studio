@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export type ServerConfig = {
@@ -20,7 +20,7 @@ export type ServerConfig = {
 
 function detectInstallPath(): string {
 	const entry = fileURLToPath(import.meta.url)
-	return join(dirname(entry), '..', '..')
+	return resolve(dirname(entry), '..', '..')
 }
 
 function envInt(name: string, fallback: number): number {
