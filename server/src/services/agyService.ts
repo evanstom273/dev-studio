@@ -24,6 +24,8 @@ const MODE_PREFIX: Record<AgentMode, string> = {
 const PERMISSION_DENIED_RE =
 	/permission check failed for command "([^"]+)"/i
 const PERMISSION_REQUEST_RE = /Requesting permission for:\s*(.+)/i
+const AGY_STARTUP_TIMEOUT_MS = 90_000
+const AGY_TURN_TIMEOUT_MS = 30 * 60_000
 
 export class PermissionQueue extends EventEmitter {
 	private pending = new Map<string, PermissionRequest & { resolve: PermissionResolver }>()
@@ -75,6 +77,7 @@ type StreamSession = {
 	projectId: string
 	conversationId: string
 	stdoutBuffer: string
+	ready: boolean
 }
 
 export class AgyService {
@@ -94,7 +97,7 @@ export class AgyService {
 	resetProjectSession(projectId: string): void {
 		const existing = this.streamSessions.get(projectId)
 		if (!existing) return
-		existing.child.kill()
+		killSession(existing)
 		this.streamSessions.delete(projectId)
 	}
 
@@ -128,11 +131,28 @@ export class AgyService {
 		let agentContent = ''
 		let conversationId = session.conversationId ?? ''
 		const agentItemId = randomUUID()
+		let turnFailed = false
 
-		const streamSession = await this.ensureStreamSession(projectId, projectPath, session.conversationId)
-		const turnResult = await this.runStreamTurn(streamSession, prompt, mode, projectId, onEvent)
-		agentContent = turnResult.agentContent
-		conversationId = turnResult.conversationId || conversationId
+		try {
+			const streamSession = await this.ensureStreamSession(projectId, projectPath, session.conversationId)
+			const turnResult = await this.runStreamTurn(streamSession, prompt, mode, projectId, onEvent)
+			agentContent = turnResult.agentContent
+			conversationId = turnResult.conversationId || conversationId
+			turnFailed = turnResult.failed
+		} catch (error) {
+			turnFailed = true
+			const message = error instanceof Error ? error.message : 'Agent failed'
+			onEvent({ type: 'error', message })
+			this.resetProjectSession(projectId)
+			session.conversationId = null
+		}
+
+		if (turnFailed) {
+			this.resetProjectSession(projectId)
+			session.conversationId = null
+		} else if (conversationId) {
+			session.conversationId = conversationId
+		}
 
 		if (agentContent.trim()) {
 			const agentItem: ConversationItem = {
@@ -146,11 +166,14 @@ export class AgyService {
 			session.items.push(agentItem)
 		}
 
-		session.conversationId = conversationId || session.conversationId
 		session.updatedAt = new Date().toISOString()
 		await this.sessions.save(session)
 
-		onEvent({ type: 'done', conversationId: session.conversationId ?? '', status: 'SUCCESS' })
+		onEvent({
+			type: 'done',
+			conversationId: session.conversationId ?? '',
+			status: turnFailed ? 'ERROR' : 'SUCCESS',
+		})
 	}
 
 	private emitTurnStatus(
@@ -173,15 +196,30 @@ export class AgyService {
 		conversationId: string | null,
 	): Promise<StreamSession> {
 		const existing = this.streamSessions.get(projectId)
-		if (existing && existing.projectPath === projectPath && existing.child.exitCode === null) {
+		if (existing && existing.projectPath === projectPath && isProcessAlive(existing.child) && existing.ready) {
 			return existing
 		}
 
 		if (existing) {
-			existing.child.kill()
+			killSession(existing)
 			this.streamSessions.delete(projectId)
 		}
 
+		try {
+			return await this.spawnStreamSession(projectId, projectPath, conversationId)
+		} catch (error) {
+			if (conversationId) {
+				return this.spawnStreamSession(projectId, projectPath, null)
+			}
+			throw error
+		}
+	}
+
+	private async spawnStreamSession(
+		projectId: string,
+		projectPath: string,
+		conversationId: string | null,
+	): Promise<StreamSession> {
 		const args = [
 			'--input-format',
 			'stream-json',
@@ -206,6 +244,7 @@ export class AgyService {
 			projectId,
 			conversationId: conversationId ?? '',
 			stdoutBuffer: '',
+			ready: false,
 		}
 
 		this.streamSessions.set(projectId, streamSession)
@@ -220,6 +259,11 @@ export class AgyService {
 			this.streamSessions.delete(projectId)
 		})
 
+		const boot = await waitForAgyInit(child, AGY_STARTUP_TIMEOUT_MS)
+		streamSession.conversationId = boot.conversationId
+		streamSession.stdoutBuffer = boot.leftoverBuffer
+		streamSession.ready = true
+
 		return streamSession
 	}
 
@@ -229,13 +273,15 @@ export class AgyService {
 		mode: AgentMode,
 		projectId: string,
 		onEvent: (event: StreamEvent) => void,
-	): Promise<{ agentContent: string; conversationId: string }> {
-		const message = { event: 'user', message: { content: prompt } }
-		streamSession.child.stdin.write(`${JSON.stringify(message)}\n`)
+	): Promise<{ agentContent: string; conversationId: string; failed: boolean }> {
+		if (!isProcessAlive(streamSession.child)) {
+			throw new Error('Antigravity process is not running')
+		}
 
 		let agentContent = ''
 		let conversationId = streamSession.conversationId
 		const permissionRequests = new Map<string, Promise<boolean>>()
+		let failed = false
 
 		const requestCommandApproval = (command: string): Promise<boolean> => {
 			const normalized = command.trim()
@@ -268,19 +314,22 @@ export class AgyService {
 			let settled = false
 			let stdoutBuffer = streamSession.stdoutBuffer
 			streamSession.stdoutBuffer = ''
+			let stderrBuffer = ''
 			let awaitingRetryResult = false
 
-			const finish = (result: { agentContent: string; conversationId: string }) => {
+			const finish = (result: { agentContent: string; conversationId: string; failed: boolean }) => {
 				if (settled) return
 				settled = true
+				clearTimeout(turnTimeout)
 				cleanup()
 				streamSession.stdoutBuffer = stdoutBuffer
 				resolve(result)
 			}
 
 			const fail = (message: string) => {
-				onEvent({ type: 'error', message })
-				finish({ agentContent, conversationId })
+				failed = true
+				onEvent({ type: 'error', message: formatAgyError(message, stderrBuffer) })
+				finish({ agentContent, conversationId, failed: true })
 			}
 
 			const emitTurnComplete = (result: Record<string, unknown>) => {
@@ -301,18 +350,19 @@ export class AgyService {
 				streamSession.conversationId = conversationId
 				const status = result.status as string
 				if (status === 'ERROR') {
+					failed = true
 					onEvent({ type: 'error', message: (result.error as string) ?? 'Agent error' })
 				}
 
 				if (awaitingRetryResult) {
 					emitTurnComplete(result)
-					finish({ agentContent, conversationId })
+					finish({ agentContent, conversationId, failed })
 					return
 				}
 
 				if (permissionRequests.size === 0) {
 					emitTurnComplete(result)
-					finish({ agentContent, conversationId })
+					finish({ agentContent, conversationId, failed })
 					return
 				}
 
@@ -337,7 +387,7 @@ export class AgyService {
 					return
 				}
 
-				finish({ agentContent, conversationId })
+				finish({ agentContent, conversationId, failed })
 			}
 
 			const processLine = (line: string) => {
@@ -429,6 +479,7 @@ export class AgyService {
 
 			const onStderr = (chunk: Buffer) => {
 				const text = chunk.toString()
+				stderrBuffer += text
 				if (text.includes('authentication')) {
 					fail('Antigravity authentication required. Run `agy` on your laptop and sign in.')
 					return
@@ -446,10 +497,14 @@ export class AgyService {
 				}
 			}
 
-			const onClose = () => {
+			const onClose = (code: number | null) => {
 				if (stdoutBuffer.trim()) processLine(stdoutBuffer)
 				if (!settled) {
-					fail('Antigravity session closed unexpectedly')
+					fail(
+						code === null
+							? 'Antigravity session closed unexpectedly'
+							: `Antigravity exited with code ${code}`,
+					)
 				}
 			}
 
@@ -459,9 +514,29 @@ export class AgyService {
 				streamSession.child.off('close', onClose)
 			}
 
+			const turnTimeout = setTimeout(() => {
+				if (!settled) {
+					fail(`Antigravity turn timed out after ${Math.round(AGY_TURN_TIMEOUT_MS / 60_000)} minutes`)
+					killSession(streamSession)
+				}
+			}, AGY_TURN_TIMEOUT_MS)
+
 			streamSession.child.stdout.on('data', onStdout)
 			streamSession.child.stderr.on('data', onStderr)
 			streamSession.child.on('close', onClose)
+
+			// Drain any init/boot lines captured during startup before this turn's listeners existed.
+			if (stdoutBuffer) {
+				const pending = stdoutBuffer
+				stdoutBuffer = ''
+				for (const line of pending.split('\n')) {
+					processLine(line)
+				}
+			}
+
+			writeStreamJson(streamSession.child, { event: 'user', message: { content: prompt } }).catch((err) => {
+				fail(err instanceof Error ? err.message : 'Failed to send prompt to Antigravity')
+			})
 		})
 	}
 
@@ -472,8 +547,112 @@ export class AgyService {
 				content: `Permission granted. Run this command now: ${command}`,
 			},
 		}
-		streamSession.child.stdin.write(`${JSON.stringify(retry)}\n`)
+		void writeStreamJson(streamSession.child, retry)
 	}
+}
+
+function isProcessAlive(child: ChildProcessWithoutNullStreams): boolean {
+	return !child.killed && child.exitCode === null && child.signalCode === null
+}
+
+function killSession(session: StreamSession): void {
+	if (!isProcessAlive(session.child)) return
+	session.child.kill()
+}
+
+async function writeStreamJson(
+	child: ChildProcessWithoutNullStreams,
+	payload: Record<string, unknown>,
+): Promise<void> {
+	if (!isProcessAlive(child)) {
+		throw new Error('Antigravity process is not running')
+	}
+
+	const line = `${JSON.stringify(payload)}\n`
+	await new Promise<void>((resolve, reject) => {
+		const ok = child.stdin.write(line, (err) => {
+			if (err) reject(err)
+		})
+		if (ok) {
+			resolve()
+			return
+		}
+		child.stdin.once('drain', resolve)
+		child.stdin.once('error', reject)
+	})
+}
+
+function waitForAgyInit(
+	child: ChildProcessWithoutNullStreams,
+	timeoutMs: number,
+): Promise<{ conversationId: string; leftoverBuffer: string }> {
+	return new Promise((resolve, reject) => {
+		let stdoutBuffer = ''
+		let stderrBuffer = ''
+
+		const timeout = setTimeout(() => {
+			cleanup()
+			reject(new Error(formatAgyError('Antigravity startup timed out', stderrBuffer)))
+		}, timeoutMs)
+
+		const onStdout = (chunk: Buffer) => {
+			stdoutBuffer += chunk.toString()
+			const lines = stdoutBuffer.split('\n')
+			stdoutBuffer = lines.pop() ?? ''
+			for (let i = 0; i < lines.length; i++) {
+				const line = lines[i]
+				if (!line.trim()) continue
+				try {
+					const event = JSON.parse(line) as Record<string, unknown>
+					if (event.event === 'init') {
+						cleanup()
+						const leftover = [...lines.slice(i + 1), stdoutBuffer].filter((part) => part.length > 0).join('\n')
+						resolve({
+							conversationId: typeof event.conversation_id === 'string' ? event.conversation_id : '',
+							leftoverBuffer: leftover ? `${leftover}\n` : '',
+						})
+						return
+					}
+				} catch {
+					// non-json line during boot
+				}
+			}
+		}
+
+		const onStderr = (chunk: Buffer) => {
+			stderrBuffer += chunk.toString()
+		}
+
+		const onClose = (code: number | null) => {
+			cleanup()
+			reject(
+				new Error(
+					formatAgyError(
+						code === null ? 'Antigravity exited during startup' : `Antigravity exited during startup (code ${code})`,
+						stderrBuffer,
+					),
+				),
+			)
+		}
+
+		const cleanup = () => {
+			clearTimeout(timeout)
+			child.stdout.off('data', onStdout)
+			child.stderr.off('data', onStderr)
+			child.off('close', onClose)
+		}
+
+		child.stdout.on('data', onStdout)
+		child.stderr.on('data', onStderr)
+		child.once('close', onClose)
+	})
+}
+
+function formatAgyError(message: string, stderr: string): string {
+	const detail = stderr.trim().split('\n').slice(-4).join(' ').trim()
+	if (!detail) return message
+	if (message.includes(detail)) return message
+	return `${message}: ${detail}`
 }
 
 function isWriteTool(toolName: string): boolean {
