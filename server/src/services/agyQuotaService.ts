@@ -1,4 +1,4 @@
-import { getSnapshot, type SnapshotOptions } from 'agy-cli-usage'
+import { getSnapshot, type SnapshotOptions } from 'agy-cli-usage/dist/src/main.js'
 import type { AgyQuotaSnapshot, QuotaBucket, QuotaGroup } from '../types/system.js'
 
 export type FetchAgyQuotaOptions = {
