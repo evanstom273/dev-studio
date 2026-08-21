@@ -1,11 +1,12 @@
 # Stop Dev Studio backend intentionally
 # Usage: npm run laptop:stop
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $Port = 3847
 $DataDir = Join-Path $env:USERPROFILE ".dev-studio"
 $StopFile = Join-Path $DataDir "STOP_SERVER"
 $TaskName = "DevStudioBackend"
+$StartupShortcut = Join-Path ([Environment]::GetFolderPath("Startup")) "DevStudioBackend.lnk"
 
 New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
 New-Item -ItemType File -Force -Path $StopFile | Out-Null
@@ -18,10 +19,12 @@ if ($connections) {
 	}
 }
 
-$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-if ($task) {
-	Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-	Write-Host "Stopped scheduled task: $TaskName"
+schtasks /End /TN $TaskName 2>$null | Out-Null
+schtasks /Delete /TN $TaskName /F 2>$null | Out-Null
+
+if (Test-Path $StartupShortcut) {
+	Remove-Item $StartupShortcut -Force
+	Write-Host "Removed Startup shortcut"
 }
 
 Write-Host "Dev Studio backend stopped."
