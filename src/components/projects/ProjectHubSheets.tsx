@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Field, GhInput, Sheet, SheetActions } from '../github/GitHubUi'
 import { useConnection } from '../../hooks/useConnection'
+import { projectsApi } from '../../services/gitApi'
+import type { Project } from '@shared/types/project'
 
 type ConnectSheetProps = {
 	open: boolean
@@ -92,7 +94,7 @@ export function ConnectSheet({ open, onClose }: ConnectSheetProps) {
 type CreateRepoSheetProps = {
 	open: boolean
 	onClose: () => void
-	onCreated: (project: import('@shared/types/project').Project) => void
+	onCreated: (project: Project) => void
 }
 
 export function CreateRepoSheet({ open, onClose, onCreated }: CreateRepoSheetProps) {
@@ -107,7 +109,6 @@ export function CreateRepoSheet({ open, onClose, onCreated }: CreateRepoSheetPro
 		setBusy(true)
 		setError('')
 		try {
-			const { projectsApi } = await import('../../services/gitApi')
 			const project = await projectsApi.createOnGitHub({
 				name: name.trim(),
 				description: description.trim() || undefined,
