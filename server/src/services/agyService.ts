@@ -197,7 +197,8 @@ export class AgyService {
 		onEvent: (event: StreamEvent) => void,
 	): Promise<{ agentContent: string; conversationId: string; failed: boolean }> {
 		const useStdin = Buffer.byteLength(prompt, 'utf8') > STDIN_PROMPT_BYTES
-		const args = ['--output-format', 'stream-json', '--print-timeout', AGY_PRINT_TIMEOUT]
+		// agy -p sets server cwd but does not grant the repo to the agent workspace — tools run blind without --add-dir.
+		const args = ['--add-dir', projectPath, '--output-format', 'stream-json', '--print-timeout', AGY_PRINT_TIMEOUT]
 		if (this.config.autoApproveTools) {
 			args.push('--dangerously-skip-permissions')
 		}
@@ -208,7 +209,9 @@ export class AgyService {
 			args.unshift('-p', prompt)
 		}
 
-		await this.logAgy(`turn start project=${projectId} stdin=${useStdin} bytes=${Buffer.byteLength(prompt, 'utf8')}`)
+		await this.logAgy(
+			`turn start project=${projectId} path=${projectPath} stdin=${useStdin} bytes=${Buffer.byteLength(prompt, 'utf8')}`,
+		)
 
 		const child = spawn(this.config.agyPath, args, {
 			cwd: projectPath,
