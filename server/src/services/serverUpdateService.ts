@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { access } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import type { ServerConfig } from '../config.js'
 import type { ServerUpdateResult, ServerUpdateStep } from '../types/system.js'
 import { runPlatformShell } from '../utils/exec.js'
@@ -93,16 +93,16 @@ export class ServerUpdateService {
 
 	private scheduleRestart(installPath: string): void {
 		const restartCmd = this.config.restartCommand
+		const cwd = resolve(installPath)
 
 		if (process.platform === 'win32') {
-			// start treats the first quoted arg as window title — use "" or Windows tries to run "Studio"
-			const script = `start "" /D "${installPath}" cmd /k ${restartCmd}`
-			spawn('cmd.exe', ['/d', '/s', '/c', script], {
+			// Pass args separately — quoted "start \"\" /D ..." strings break and Windows looks for "\\"
+			spawn('cmd.exe', ['/c', 'start', '/D', cwd, 'cmd', '/k', restartCmd], {
 				detached: true,
 				stdio: 'ignore',
 			}).unref()
 		} else {
-			spawn('sh', ['-c', `sleep 2 && cd "${installPath}" && ${restartCmd}`], {
+			spawn('sh', ['-c', `sleep 2 && cd "${cwd}" && ${restartCmd}`], {
 				detached: true,
 				stdio: 'ignore',
 			}).unref()
