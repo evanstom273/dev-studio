@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+server/dist
+shared/types/*.js
+shared/types/*.d.ts

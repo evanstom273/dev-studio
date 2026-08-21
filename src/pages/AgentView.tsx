@@ -1,49 +1,155 @@
-import { useState } from 'react'
-import type { ConversationItem } from '../types/agent'
+import { useCallback, useEffect, useState } from 'react'
+import type { AgentMode, ConversationItem, StreamEvent } from '@shared/types/agent'
+import type { Project } from '@shared/types/project'
 import { Conversation } from '../components/Conversation'
+import { ModeSelector } from '../components/ModeSelector'
+import { PermissionPrompt } from '../components/PermissionPrompt'
 import { PromptComposer } from '../components/PromptComposer'
 import { useVisualViewport } from '../hooks/useVisualViewport'
-import { MOCK_CONVERSATION } from '../services/mockData'
+import { agentApi } from '../services/agentApi'
+import { RUN_COMMANDS } from '../types/index'
+import '../styles/agent.css'
 
-export function AgentView() {
-	const [items, setItems] = useState<ConversationItem[]>(MOCK_CONVERSATION)
+type AgentViewProps = {
+	project: Project
+}
+
+export function AgentView({ project }: AgentViewProps) {
+	const [items, setItems] = useState<ConversationItem[]>([])
 	const [prompt, setPrompt] = useState('')
+	const [mode, setMode] = useState<AgentMode>('agent')
+	const [loading, setLoading] = useState(false)
+	const [error, setError] = useState<string | null>(null)
 	const viewport = useVisualViewport()
 
-	const handleSend = () => {
-		const trimmed = prompt.trim()
-		if (!trimmed) return
+	const loadSession = useCallback(async () => {
+		try {
+			const session = await agentApi.getSession(project.id)
+			setItems(session.items)
+			setMode(session.mode)
+		} catch {
+			setItems([])
+		}
+	}, [project.id])
 
-		const now = new Date()
-		const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+	useEffect(() => {
+		void loadSession()
+	}, [loadSession])
 
+	const appendActivity = (label: string, status: 'running' | 'complete' | 'error') => {
 		setItems((prev) => [
 			...prev,
 			{
-				id: `msg-${Date.now()}`,
-				kind: 'message',
-				role: 'user',
-				content: trimmed,
-				timestamp,
+				id: `act-${Date.now()}-${Math.random()}`,
+				kind: 'activity',
+				status,
+				label,
+				timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
 			},
 		])
+	}
+
+	const handleSend = async () => {
+		const trimmed = prompt.trim()
+		if (!trimmed || loading) return
+
+		setLoading(true)
+		setError(null)
 		setPrompt('')
+
+		const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+		setItems((prev) => [
+			...prev,
+			{ id: `msg-${Date.now()}`, kind: 'message', role: 'user', content: trimmed, timestamp: now, mode },
+		])
+
+		let agentBuffer = ''
+		let agentItemId: string | null = null
+
+		try {
+			await agentApi.sendMessage({ projectId: project.id, content: trimmed, mode }, (raw) => {
+				const event = raw as StreamEvent
+				if (event.type === 'message_delta') {
+					agentBuffer += event.content
+					if (!agentItemId) {
+						agentItemId = `msg-agent-${Date.now()}`
+						setItems((prev) => [
+							...prev,
+							{
+								id: agentItemId!,
+								kind: 'message',
+								role: 'agent',
+								content: agentBuffer,
+								timestamp: now,
+								mode,
+							},
+						])
+					} else {
+						setItems((prev) =>
+							prev.map((item) =>
+								item.id === agentItemId ? { ...item, content: agentBuffer } : item,
+							),
+						)
+					}
+				}
+				if (event.type === 'activity') {
+					appendActivity(event.label, event.status)
+				}
+				if (event.type === 'error') {
+					setError(event.message)
+				}
+			})
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Failed to send message')
+		} finally {
+			setLoading(false)
+			void loadSession()
+		}
+	}
+
+	const runCommand = async (command: string, label: string) => {
+		appendActivity(label, 'running')
+		try {
+			const result = await agentApi.runCommand({ projectId: project.id, command, label })
+			appendActivity(
+				result.exitCode === 0 ? `${label} passed` : `${label} failed (exit ${result.exitCode})`,
+				result.exitCode === 0 ? 'complete' : 'error',
+			)
+		} catch (err) {
+			appendActivity(err instanceof Error ? err.message : 'Command failed', 'error')
+		}
 	}
 
 	const shellStyle = viewport.keyboardOpen
-		? {
-				height: `${viewport.height}px`,
-				transform: `translateY(${viewport.offsetTop}px)`,
-			}
+		? { height: `${viewport.height}px`, transform: `translateY(${viewport.offsetTop}px)` }
 		: undefined
 
 	return (
-		<div className="workspace-pane" style={shellStyle}>
+		<div className="workspace-pane agent-view" style={shellStyle}>
+			<div className="agent-toolbar">
+				<ModeSelector mode={mode} onChange={setMode} disabled={loading} />
+				<div className="agent-toolbar__commands">
+					{RUN_COMMANDS.map((cmd) => (
+						<button
+							key={cmd.id}
+							type="button"
+							className="btn btn--ghost btn--sm"
+							onClick={() => void runCommand(cmd.command, cmd.label)}
+							disabled={loading}
+						>
+							{cmd.label}
+						</button>
+					))}
+				</div>
+			</div>
+
 			<Conversation items={items} />
+			{error && <div className="agent-error">{error}</div>}
+			<PermissionPrompt projectId={project.id} />
 			<PromptComposer
 				value={prompt}
 				onChange={setPrompt}
-				onSend={handleSend}
+				onSend={() => void handleSend()}
 				keyboardOpen={viewport.keyboardOpen}
 			/>
 		</div>

@@ -1,50 +1,53 @@
 # Dev Studio
 
-Mobile-first coding agent interface — frontend foundation.
+Mobile-first coding agent interface connected to your laptop over Tailscale.
 
 ## Stack
 
-- React + TypeScript
-- Vite
-- CSS (no UI framework)
+- **Frontend:** React + TypeScript + Vite + CSS
+- **Backend:** Node.js + Express (runs on your laptop)
+- **Agent:** Antigravity CLI (`agy`) via Google account auth
+- **Git:** Native git + simple-git
+- **GitHub:** GitHub CLI (`gh`)
 
-## Development
+## Quick start (frontend only)
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the local dev server URL shown in the terminal.
+## Full setup (phone + laptop)
 
-## Build
+See **[docs/LAPTOP_SETUP.md](docs/LAPTOP_SETUP.md)** for complete laptop configuration.
 
-```bash
-npm run build
-npm run preview
-```
+Summary:
+1. Install `agy`, `gh`, Tailscale on laptop
+2. Authenticate both CLIs
+3. Start backend: `DEV_STUDIO_TOKEN=xxx npm run dev:server`
+4. Connect phone app via Settings → Tailscale URL + token
 
-## GitHub Pages
+## Scripts
 
-The app is configured for GitHub Pages at `/dev-studio/`.
-
-Live site: https://evanstom273.github.io/dev-studio/
-
-Deployment runs automatically on pushes to `main` via GitHub Actions.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Frontend dev server |
+| `npm run dev:server` | Backend dev server |
+| `npm run build` | Build frontend |
+| `npm run build:server` | Build backend |
+| `npm run start:server` | Run backend (production) |
 
 ## Structure
 
 ```
-src/
-  components/   UI components
-  pages/        Route-level views
-  layouts/      (reserved for future layout shells)
-  hooks/        Viewport and media query hooks
-  services/     API boundary + mock data
-  types/        Shared TypeScript types
-  styles/       Global and component CSS
+src/           Frontend (React)
+server/        Backend (Express, runs on laptop)
+shared/types/  Shared TypeScript types
+docs/          Setup documentation
 ```
 
-## Scope
+## GitHub Pages
 
-This is the frontend foundation only. No backend, AI, or Antigravity integration yet.
+Frontend deploys to: https://evanstom273.github.io/dev-studio/
+
+The backend runs locally on your laptop — not on GitHub Pages.

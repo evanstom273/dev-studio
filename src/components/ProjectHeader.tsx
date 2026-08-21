@@ -1,4 +1,4 @@
-import type { Project } from '../types/project'
+import type { Project } from '@shared/types/project'
 import { IconBack } from './Icons'
 import '../styles/agent.css'
 

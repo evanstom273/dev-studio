@@ -1,9 +1,10 @@
-import type { Project, WorkspaceView } from '../types/project'
+import type { Project, WorkspaceView } from '@shared/types/project'
 import { BottomNav, SidebarNav } from '../components/Navigation'
 import { ProjectHeader } from '../components/ProjectHeader'
 import { AgentView } from './AgentView'
 import { ChangesView } from './ChangesView'
 import { FilesView } from './FilesView'
+import { RepoView } from './RepoView'
 import '../styles/layout.css'
 
 type WorkspacePageProps = {
@@ -30,9 +31,10 @@ export function WorkspacePage({
 
 				<div className="workspace-body">
 					<div className="workspace-main">
-						{activeView === 'agent' && <AgentView />}
-						{activeView === 'changes' && <ChangesView />}
-						{activeView === 'files' && <FilesView />}
+						{activeView === 'agent' && <AgentView project={project} />}
+						{activeView === 'changes' && <ChangesView project={project} />}
+						{activeView === 'files' && <FilesView project={project} />}
+						{activeView === 'repo' && <RepoView project={project} />}
 					</div>
 				</div>
 

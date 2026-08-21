@@ -1,41 +1,66 @@
-import type { AgentSession, SendMessageRequest, SendMessageResponse } from '../types/agent'
-import type { ChangedFile, FileDiff, FileTreeNode } from '../types/files'
-import type { Project } from '../types/project'
+import type { AgentSession, RunCommandRequest, RunCommandResult, SendMessageRequest } from '@shared/types/agent'
+import type { ChangedFile, FileDiff, FileTreeNode } from '@shared/types/git'
+import type { Project } from '@shared/types/project'
+import { apiFetch, streamAgentMessage } from './apiClient'
 
 export type AgentApi = {
 	listProjects(): Promise<Project[]>
 	getSession(projectId: string): Promise<AgentSession>
-	sendMessage(request: SendMessageRequest): Promise<SendMessageResponse>
+	sendMessage(request: SendMessageRequest, onEvent: (event: unknown) => void): Promise<void>
 	listChanges(projectId: string): Promise<ChangedFile[]>
-	getDiff(projectId: string, path: string): Promise<FileDiff | null>
+	getDiff(projectId: string, path: string, staged?: boolean): Promise<FileDiff | null>
 	getFileTree(projectId: string): Promise<FileTreeNode[]>
 	getFileContent(projectId: string, path: string): Promise<string | null>
+	runCommand(request: RunCommandRequest): Promise<RunCommandResult>
+	resetSession(projectId: string): Promise<AgentSession>
 }
 
-/**
- * Placeholder service boundary for future backend integration.
- * Replace mock implementations with real API calls when ready.
- */
 export const agentApi: AgentApi = {
 	async listProjects() {
-		throw new Error('Agent API not connected')
+		return apiFetch<Project[]>('/api/projects')
 	},
-	async getSession(_projectId: string) {
-		throw new Error('Agent API not connected')
+
+	async getSession(projectId) {
+		return apiFetch<AgentSession>(`/api/agent/session/${projectId}`)
 	},
-	async sendMessage(_request: SendMessageRequest) {
-		throw new Error('Agent API not connected')
+
+	async sendMessage(request, onEvent) {
+		await streamAgentMessage(
+			request.projectId,
+			request.content,
+			request.mode ?? 'agent',
+			onEvent,
+		)
 	},
-	async listChanges(_projectId: string) {
-		throw new Error('Agent API not connected')
+
+	async listChanges(projectId) {
+		const status = await apiFetch<{ changed: ChangedFile[] }>(`/api/git/${projectId}/status`)
+		return status.changed
 	},
-	async getDiff(_projectId: string, _path: string) {
-		throw new Error('Agent API not connected')
+
+	async getDiff(projectId, path, staged = false) {
+		const query = new URLSearchParams({ path, staged: String(staged) })
+		return apiFetch<FileDiff | null>(`/api/git/${projectId}/diff?${query}`)
 	},
-	async getFileTree(_projectId: string) {
-		throw new Error('Agent API not connected')
+
+	async getFileTree(projectId) {
+		return apiFetch<FileTreeNode[]>(`/api/files/${projectId}/tree`)
 	},
-	async getFileContent(_projectId: string, _path: string) {
-		throw new Error('Agent API not connected')
+
+	async getFileContent(projectId, path) {
+		const query = new URLSearchParams({ path })
+		const result = await apiFetch<{ content: string }>(`/api/files/${projectId}/content?${query}`)
+		return result.content
+	},
+
+	async runCommand(request) {
+		return apiFetch<RunCommandResult>('/api/run', {
+			method: 'POST',
+			body: JSON.stringify(request),
+		})
+	},
+
+	async resetSession(projectId) {
+		return apiFetch<AgentSession>(`/api/agent/session/${projectId}/reset`, { method: 'POST' })
 	},
 }
