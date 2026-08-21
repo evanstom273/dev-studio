@@ -377,7 +377,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 							</div>
 
 							{latestRun.displayTitle && (
-								<div className="text-secondary" style={{ fontSize: '11px' }}>
+								<div className="status-workflow-latest__title">
 									"{latestRun.displayTitle}"
 								</div>
 							)}
@@ -470,7 +470,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 									<span className="status-metric__total">/ {formatNumber(rateLimit.rate.limit)} req</span>
 								</div>
 								<div className="status-metric__countdown">
-									<IconClock />
+									<IconClock className="status-card__icon" />
 									<span>Resets: {formatCountdown(coreResetSeconds)}</span>
 								</div>
 							</div>
@@ -507,7 +507,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 					)}
 				</section>
 
-				{/* 3. Antigravity Quotas & Limits (Weekly and Session) */}
+				{/* 3. Antigravity Quotas & Limits (Weekly, Session, All-Time) */}
 				<section className="status-card" aria-labelledby="agy-quota-title">
 					<div className="status-card__header">
 						<h2 id="agy-quota-title" className="status-card__title">
@@ -534,7 +534,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 								<div className="status-quota-group__header">
 									<span className="status-quota-group__title">Weekly Limit</span>
 									<div className="status-metric__countdown">
-										<IconClock />
+										<IconClock className="status-card__icon" />
 										<span>Resets: {formatCountdown(weeklyResetSeconds)}</span>
 									</div>
 								</div>
@@ -621,6 +621,31 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 									</p>
 								)}
 							</div>
+
+							{/* All-Time Cumulative Tokens */}
+							{agyQuota.totalTokens && (
+								<div className="status-quota-group">
+									<div className="status-quota-group__header">
+										<span className="status-quota-group__title">All-Time Cumulative</span>
+										<span className="status-quota-group__val">
+											{formatNumber(agyQuota.totalTokens.totalTokens)} tokens
+										</span>
+									</div>
+									<div className="status-quota-pills">
+										<span className="status-quota-pill">
+											Input: <span className="status-quota-pill__highlight">{formatNumber(agyQuota.totalTokens.inputTokens)}</span>
+										</span>
+										<span className="status-quota-pill">
+											Output: <span className="status-quota-pill__highlight">{formatNumber(agyQuota.totalTokens.outputTokens)}</span>
+										</span>
+										{Boolean(agyQuota.totalTokens.thinkingTokens) && (
+											<span className="status-quota-pill">
+												Thinking: <span className="status-quota-pill__highlight">{formatNumber(agyQuota.totalTokens.thinkingTokens)}</span>
+											</span>
+										)}
+									</div>
+								</div>
+							)}
 
 							{/* Host Backend Telemetry */}
 							{agyQuota.laptopStats && (

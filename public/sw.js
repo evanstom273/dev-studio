@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dev-studio-v1'
+const CACHE_NAME = 'dev-studio-v3'
 const PRECACHE_ASSETS = [
 	'./',
 	'./index.html',
@@ -31,6 +31,12 @@ self.addEventListener('activate', (event) => {
 	)
 })
 
+self.addEventListener('message', (event) => {
+	if (event.data && event.data.type === 'SKIP_WAITING') {
+		self.skipWaiting()
+	}
+})
+
 self.addEventListener('fetch', (event) => {
 	const request = event.request
 
@@ -58,20 +64,19 @@ self.addEventListener('fetch', (event) => {
 		return
 	}
 
-	// Static assets (CSS, JS, images, fonts): Stale-while-revalidate
+	// Static assets (CSS, JS, images, fonts): Network first when online to prevent stale bundles, fallback to cache
 	event.respondWith(
-		caches.match(request).then((cachedResponse) => {
-			const fetchPromise = fetch(request)
-				.then((networkResponse) => {
-					if (networkResponse && networkResponse.status === 200) {
-						const clone = networkResponse.clone()
-						caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
-					}
-					return networkResponse
-				})
-				.catch(() => cachedResponse)
-
-			return cachedResponse || fetchPromise
-		}),
+		fetch(request)
+			.then((networkResponse) => {
+				if (networkResponse && networkResponse.status === 200) {
+					const clone = networkResponse.clone()
+					caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+				}
+				return networkResponse
+			})
+			.catch(async () => {
+				const cachedResponse = await caches.match(request)
+				return cachedResponse || Response.error()
+			}),
 	)
 })
