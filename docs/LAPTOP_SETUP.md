@@ -133,22 +133,43 @@ openssl rand -hex 32
 
 ---
 
-## 7. Start the backend
+## 7. Start the backend (Windows laptop)
 
-```bash
-# Development (auto-reload)
-npm run dev:server
+**One-time setup — survives crashes and reboots (recommended):**
 
-# Production
+```powershell
+cd C:\Users\you\Documents\dev-studio
+git pull origin main
+npm install
 npm run build:server
-npm run start:server
+npm run laptop:install
 ```
 
-You should see:
+This registers a Windows scheduled task that:
+- Starts when you log in
+- Auto-restarts if the server crashes
+- Runs hidden (phone can reach it while you are out)
+
+**Manual window (for debugging):**
+
+```powershell
+npm run laptop
+```
+
+Auto-restarts on crash. Stop intentionally with:
+
+```powershell
+npm run laptop:stop
+```
+
+Log file: `%USERPROFILE%\.dev-studio\laptop.log`
+
+**Keep the laptop awake on AC power** (Windows Settings → Power) so it stays reachable when you are away.
+
+You should see in the log:
 
 ```
 Dev Studio backend listening on http://0.0.0.0:3847
-Projects root: /home/you/projects
 ```
 
 Verify from your laptop:

@@ -196,6 +196,9 @@ export class AgyService {
 	): Promise<{ agentContent: string; conversationId: string; failed: boolean }> {
 		const useStdin = Buffer.byteLength(prompt, 'utf8') > STDIN_PROMPT_BYTES
 		const args = ['--output-format', 'stream-json']
+		if (this.config.autoApproveTools) {
+			args.push('--dangerously-skip-permissions')
+		}
 		if (conversationId) {
 			args.push('--conversation', conversationId)
 		}
