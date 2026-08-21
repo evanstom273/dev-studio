@@ -1,0 +1,43 @@
+import { Router } from 'express'
+import type { ServerConfig } from '../config.js'
+import { asyncHandler } from '../middleware.js'
+import { checkAgyAuth, checkCommand, checkGhAuth } from '../utils/exec.js'
+
+const startTime = Date.now()
+
+export function createHealthRouter(config: ServerConfig): Router {
+	const router = Router()
+
+	router.get(
+		'/health',
+		asyncHandler(async (_req, res) => {
+			const [agy, git, gh] = await Promise.all([
+				checkAgyAuth(config.agyPath),
+				checkCommand('git'),
+				checkGhAuth(),
+			])
+
+			const allOk = agy.available && git.available
+			const status = allOk ? (agy.authenticated ? 'ok' : 'degraded') : 'degraded'
+
+			res.json({
+				status,
+				version: '0.2.0',
+				agy,
+				git,
+				gh,
+				uptime: Math.floor((Date.now() - startTime) / 1000),
+			})
+		}),
+	)
+
+	router.get('/config/public', (_req, res) => {
+		res.json({
+			version: '0.2.0',
+			requiresToken: Boolean(config.token),
+			projectsRoot: config.projectsRoot,
+		})
+	})
+
+	return router
+}

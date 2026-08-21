@@ -1,4 +1,4 @@
-import type { ConversationItem } from '../types/agent'
+import type { ConversationItem } from '@shared/types/agent'
 import '../styles/agent.css'
 
 type ConversationProps = {

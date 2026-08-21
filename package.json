@@ -1,11 +1,19 @@
 {
 	"name": "dev-studio",
 	"private": true,
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"type": "module",
+	"workspaces": [
+		"server"
+	],
 	"scripts": {
 		"dev": "vite",
+		"dev:server": "npm run dev -w server",
+		"dev:all": "npm run dev:server & npm run dev",
 		"build": "tsc -b && vite build",
+		"build:server": "npm run build -w server",
+		"build:all": "npm run build:server && npm run build",
+		"start:server": "npm run start -w server",
 		"lint": "oxlint",
 		"preview": "vite preview"
 	},

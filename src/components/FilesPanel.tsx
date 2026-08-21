@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { FileTreeNode } from '../types/files'
+import type { FileTreeNode } from '@shared/types/git'
 import { IconChevron, IconFile, IconFolder } from './Icons'
 import '../styles/panels.css'
 
@@ -12,6 +12,9 @@ type FileTreeProps = {
 export function FileTree({ nodes, selectedPath, onSelect }: FileTreeProps) {
 	return (
 		<div className="file-tree" role="tree">
+			{nodes.length === 0 && (
+				<div className="empty-state"><p className="empty-state__text">No files</p></div>
+			)}
 			{nodes.map((node) => (
 				<FileTreeNodeItem
 					key={node.path}

@@ -69,3 +69,14 @@ export function IconSend({ className }: IconProps) {
 		</svg>
 	)
 }
+
+export function IconRepo({ className }: IconProps) {
+	return (
+		<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<circle cx="6" cy="6" r="2" />
+			<circle cx="6" cy="18" r="2" />
+			<circle cx="18" cy="12" r="2" />
+			<path d="M8 6h8M8 18h5a3 3 0 003-3v-2" strokeLinecap="round" />
+		</svg>
+	)
+}
