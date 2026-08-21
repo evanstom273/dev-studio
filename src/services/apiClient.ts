@@ -119,6 +119,11 @@ export async function streamAgentMessage(
 	content: string,
 	mode: 'agent' | 'ask' | 'plan',
 	onEvent: (event: unknown) => void,
+	options?: {
+		model?: string
+		attachments?: import('@shared/types/agent').AttachmentInfo[]
+		signal?: AbortSignal
+	},
 ): Promise<void> {
 	const base = getApiBase()
 	if (!base) throw new ApiClientError('Backend URL not configured', 0, 'NOT_CONFIGURED')
@@ -126,7 +131,14 @@ export async function streamAgentMessage(
 	const response = await fetch(`${base}/api/agent/message`, {
 		method: 'POST',
 		headers: getAuthHeaders({ json: true }),
-		body: JSON.stringify({ projectId, content, mode }),
+		body: JSON.stringify({
+			projectId,
+			content,
+			mode,
+			model: options?.model,
+			attachments: options?.attachments,
+		}),
+		signal: options?.signal,
 	})
 
 	if (!response.ok) {

@@ -1,4 +1,12 @@
-import type { AgentSession, RunCommandRequest, RunCommandResult, SendMessageRequest } from '@shared/types/agent'
+import type {
+	AgentSession,
+	AvailableModelsResponse,
+	RunCommandRequest,
+	RunCommandResult,
+	SendMessageRequest,
+	StopGenerationResponse,
+	UploadAttachmentResponse,
+} from '@shared/types/agent'
 import type { ChangedFile, FileDiff, FileTreeNode } from '@shared/types/git'
 import type { Project } from '@shared/types/project'
 import { apiFetch, streamAgentMessage } from './apiClient'
@@ -6,7 +14,14 @@ import { apiFetch, streamAgentMessage } from './apiClient'
 export type AgentApi = {
 	listProjects(): Promise<Project[]>
 	getSession(projectId: string): Promise<AgentSession>
-	sendMessage(request: SendMessageRequest, onEvent: (event: unknown) => void): Promise<void>
+	getAvailableModels(): Promise<string[]>
+	sendMessage(
+		request: SendMessageRequest,
+		onEvent: (event: unknown) => void,
+		signal?: AbortSignal,
+	): Promise<void>
+	stopGeneration(projectId: string): Promise<boolean>
+	uploadAttachment(projectId: string, file: File): Promise<UploadAttachmentResponse>
 	listChanges(projectId: string): Promise<ChangedFile[]>
 	getDiff(projectId: string, path: string, staged?: boolean): Promise<FileDiff | null>
 	getFileTree(projectId: string): Promise<FileTreeNode[]>
@@ -24,13 +39,51 @@ export const agentApi: AgentApi = {
 		return apiFetch<AgentSession>(`/api/agent/session/${projectId}`)
 	},
 
-	async sendMessage(request, onEvent) {
+	async getAvailableModels() {
+		const res = await apiFetch<AvailableModelsResponse>('/api/agent/models')
+		return res.models ?? []
+	},
+
+	async sendMessage(request, onEvent, signal) {
 		await streamAgentMessage(
 			request.projectId,
 			request.content,
 			request.mode ?? 'agent',
 			onEvent,
+			{
+				model: request.model,
+				attachments: request.attachments,
+				signal,
+			},
 		)
+	},
+
+	async stopGeneration(projectId) {
+		const res = await apiFetch<StopGenerationResponse>('/api/agent/stop', {
+			method: 'POST',
+			body: JSON.stringify({ projectId }),
+		})
+		return res.stopped
+	},
+
+	async uploadAttachment(projectId, file) {
+		const arrayBuffer = await file.arrayBuffer()
+		const bytes = new Uint8Array(arrayBuffer)
+		let binary = ''
+		for (let i = 0; i < bytes.byteLength; i++) {
+			binary += String.fromCharCode(bytes[i])
+		}
+		const base64 = btoa(binary)
+
+		return apiFetch<UploadAttachmentResponse>('/api/agent/upload', {
+			method: 'POST',
+			body: JSON.stringify({
+				projectId,
+				filename: file.name,
+				contentType: file.type || 'application/octet-stream',
+				base64,
+			}),
+		})
 	},
 
 	async listChanges(projectId) {

@@ -1,4 +1,6 @@
 import { Router } from 'express'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { asyncHandler } from '../middleware.js'
 import type { ServerConfig } from '../config.js'
 import type { AgyService, PermissionQueue } from '../services/agyService.js'
@@ -6,7 +8,7 @@ import type { ProjectService } from '../services/projectService.js'
 import { SessionStore } from '../store.js'
 import { param } from '../utils/params.js'
 import { resolveGitHubToken } from '../utils/githubToken.js'
-import type { AgentMode } from '../types/agent.js'
+import type { AgentMode, AttachmentInfo } from '../types/agent.js'
 
 export function createAgentRouter(
 	projects: ProjectService,
@@ -16,6 +18,73 @@ export function createAgentRouter(
 	config: ServerConfig,
 ): Router {
 	const router = Router()
+
+	router.get(
+		'/models',
+		asyncHandler(async (_req, res) => {
+			const models = await agy.getAvailableModels()
+			res.json({ models })
+		}),
+	)
+
+	router.post(
+		'/stop',
+		asyncHandler(async (req, res) => {
+			const { projectId } = req.body as { projectId: string }
+			if (!projectId) {
+				res.status(400).json({ error: 'projectId is required' })
+				return
+			}
+			const stopped = agy.stopTurn(projectId)
+			res.json({ stopped })
+		}),
+	)
+
+	router.post(
+		'/upload',
+		asyncHandler(async (req, res) => {
+			const { projectId, filename, contentType, base64 } = req.body as {
+				projectId: string
+				filename: string
+				contentType: string
+				base64: string
+			}
+
+			if (!projectId || !filename || !base64) {
+				res.status(400).json({ error: 'projectId, filename, and base64 are required' })
+				return
+			}
+
+			let projectPath: string
+			try {
+				const token = resolveGitHubToken(req, config)
+				projectPath = (await projects.ensureAgentWorkspace(projectId, token)).path
+			} catch (error) {
+				res.status(404).json({
+					error: error instanceof Error ? error.message : 'Project not found',
+				})
+				return
+			}
+
+			const attachmentsDir = join(projectPath, '.dev-studio', 'attachments')
+			await mkdir(attachmentsDir, { recursive: true })
+
+			const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_')
+			const targetFilename = `${Date.now()}_${safeName}`
+			const targetPath = join(attachmentsDir, targetFilename)
+
+			const buffer = Buffer.from(base64, 'base64')
+			await writeFile(targetPath, buffer)
+
+			const relativePath = `.dev-studio/attachments/${targetFilename}`
+			res.json({
+				filename: safeName,
+				relativePath,
+				size: buffer.length,
+				contentType: contentType || 'application/octet-stream',
+			})
+		}),
+	)
 
 	router.get(
 		'/session/:projectId',
@@ -28,14 +97,22 @@ export function createAgentRouter(
 	router.post(
 		'/message',
 		asyncHandler(async (req, res) => {
-			const { projectId, content, mode = 'agent' } = req.body as {
+			const {
+				projectId,
+				content,
+				mode = 'agent',
+				model,
+				attachments = [],
+			} = req.body as {
 				projectId: string
 				content: string
 				mode?: AgentMode
+				model?: string
+				attachments?: AttachmentInfo[]
 			}
 
-			if (!projectId || !content?.trim()) {
-				res.status(400).json({ error: 'projectId and content are required' })
+			if (!projectId || (!content?.trim() && attachments.length === 0)) {
+				res.status(400).json({ error: 'projectId and content/attachments are required' })
 				return
 			}
 
@@ -66,9 +143,16 @@ export function createAgentRouter(
 			permissions.on('permission', onPermission)
 
 			try {
-				await agy.runPrompt(projectPath, projectId, content.trim(), mode, (streamEvent) => {
-					send('stream', streamEvent)
-				})
+				await agy.runPrompt(
+					projectPath,
+					projectId,
+					content.trim(),
+					mode,
+					model,
+					(streamEvent) => {
+						send('stream', streamEvent)
+					},
+				)
 			} catch (error) {
 				send('stream', {
 					type: 'error',

@@ -34,10 +34,26 @@ export type ConversationItem =
 			toolName?: string
 	  }
 
+export type AttachmentInfo = {
+	id: string
+	name: string
+	size: number
+	contentType: string
+	relativePath?: string
+	textContent?: string
+	previewUrl?: string
+}
+
+export type AvailableModelsResponse = {
+	models: string[]
+	currentModel?: string
+}
+
 export type AgentSession = {
 	projectId: string
 	conversationId: string | null
 	mode: AgentMode
+	model?: string
 	items: ConversationItem[]
 	updatedAt: string
 }
@@ -46,6 +62,30 @@ export type SendMessageRequest = {
 	projectId: string
 	content: string
 	mode?: AgentMode
+	model?: string
+	attachments?: AttachmentInfo[]
+}
+
+export type UploadAttachmentRequest = {
+	projectId: string
+	filename: string
+	contentType: string
+	base64: string
+}
+
+export type UploadAttachmentResponse = {
+	filename: string
+	relativePath: string
+	size: number
+	contentType: string
+}
+
+export type StopGenerationRequest = {
+	projectId: string
+}
+
+export type StopGenerationResponse = {
+	stopped: boolean
 }
 
 export type PermissionRequest = {
