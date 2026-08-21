@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { GitHubPagesStatus, GitHubRateLimits, GitHubWorkflowRun } from '@shared/types/github'
+import type { GitHubRateLimits } from '@shared/types/github'
 import type { Project } from '@shared/types/project'
 import type { AgyQuotaUsage } from '@shared/types/system'
 import {
-	IconCheck,
 	IconClock,
-	IconCopy,
-	IconExternalLink,
 	IconGauge,
 	IconRefresh,
 	IconSparkles,
-	IconWorkflow,
 } from '../components/Icons'
 import { useConnection } from '../hooks/useConnection'
 import { gitApi } from '../services/gitApi'
@@ -62,18 +58,6 @@ function formatUptime(seconds: number | undefined): string {
 	return `${m}m`
 }
 
-function formatTimeAgo(isoString: string): string {
-	const ms = Date.now() - new Date(isoString).getTime()
-	const secs = Math.floor(ms / 1000)
-	if (secs < 60) return `${secs}s ago`
-	const mins = Math.floor(secs / 60)
-	if (mins < 60) return `${mins}m ago`
-	const hours = Math.floor(mins / 60)
-	if (hours < 24) return `${hours}h ago`
-	const days = Math.floor(hours / 24)
-	return `${days}d ago`
-}
-
 export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 	const { state: connState } = useConnection()
 	const isConnected = connState.status === 'connected'
@@ -85,14 +69,9 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 	const [rateLimit, setRateLimit] = useState<GitHubRateLimits | null>(null)
 	const [rateLimitError, setRateLimitError] = useState<string | null>(null)
 
-	const [workflows, setWorkflows] = useState<GitHubWorkflowRun[]>([])
-	const [pagesStatus, setPagesStatus] = useState<GitHubPagesStatus | null>(null)
-	const [workflowsError, setWorkflowsError] = useState<string | null>(null)
-
 	const [agyQuota, setAgyQuota] = useState<AgyQuotaUsage | null>(null)
 	const [agyError, setAgyError] = useState<string | null>(null)
 
-	const [copiedPagesUrl, setCopiedPagesUrl] = useState(false)
 	const [now, setNow] = useState(Date.now())
 
 	// Live second timer for countdown calculation
@@ -110,17 +89,6 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 			setRateLimitError(err instanceof Error ? err.message : 'Failed to fetch rate limit')
 		}
 	}, [])
-
-	const loadWorkflows = useCallback(async () => {
-		try {
-			setWorkflowsError(null)
-			const data = await githubApi.getWorkflows(project.id, 10)
-			setWorkflows(data.runs || [])
-			setPagesStatus(data.pages || null)
-		} catch (err) {
-			setWorkflowsError(err instanceof Error ? err.message : 'Failed to load GitHub workflows')
-		}
-	}, [project.id])
 
 	const loadAgyQuota = useCallback(async () => {
 		try {
@@ -140,7 +108,6 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 				await gitApi.fetch(project.id).catch(() => {})
 			}
 			await Promise.allSettled([
-				loadWorkflows(),
 				loadRateLimit(),
 				loadAgyQuota(),
 				onRefreshProject?.(),
@@ -149,28 +116,12 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 		} finally {
 			setRefreshing(false)
 		}
-	}, [isConnected, project.id, loadWorkflows, loadRateLimit, loadAgyQuota, onRefreshProject])
+	}, [isConnected, project.id, loadRateLimit, loadAgyQuota, onRefreshProject])
 
 	// Initial load
 	useEffect(() => {
 		void handleRefreshAll()
 	}, [handleRefreshAll])
-
-	// Check if any workflow is currently running or queued
-	const isWorkflowRunning = useMemo(() => {
-		return workflows.some(
-			(run) => run.status === 'in_progress' || run.status === 'queued' || run.status === 'pending',
-		)
-	}, [workflows])
-
-	// Live polling while workflow is in progress (every 3 seconds)
-	useEffect(() => {
-		if (!isWorkflowRunning) return
-		const pollInterval = setInterval(() => {
-			void loadWorkflows()
-		}, 3000)
-		return () => clearInterval(pollInterval)
-	}, [isWorkflowRunning, loadWorkflows])
 
 	// Computed Core rate limit countdown
 	const coreResetSeconds = useMemo(() => {
@@ -253,19 +204,6 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 				? 'status-progress-bar__fill--amber'
 				: 'status-progress-bar__fill--red'
 
-	// Latest Workflow Run
-	const latestRun = workflows[0] || null
-
-	const handleCopyPagesUrl = async (url: string) => {
-		try {
-			await navigator.clipboard.writeText(url)
-			setCopiedPagesUrl(true)
-			setTimeout(() => setCopiedPagesUrl(false), 2000)
-		} catch {
-			// ignore
-		}
-	}
-
 	return (
 		<main className="status-view" role="main" aria-label="Status & Quota Dashboard">
 			{/* Top Header & Unified Refresh */}
@@ -286,7 +224,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 						className="status-refresh-btn"
 						onClick={() => void handleRefreshAll()}
 						disabled={refreshing}
-						title="Git fetch, refresh workflow status, API rate limits, and Antigravity quota"
+						title="Git fetch, refresh API rate limits, and Antigravity quota"
 					>
 						<IconRefresh className={refreshing ? 'status-refresh-btn__icon--spinning' : ''} />
 						<span>{refreshing ? 'Fetching…' : 'Refresh All'}</span>
@@ -295,154 +233,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 			</header>
 
 			<div className="status-grid">
-				{/* 1. GitHub Pages & Actions Workflow State */}
-				<section className="status-card status-card--full" aria-labelledby="workflow-title">
-					<div className="status-card__header">
-						<h2 id="workflow-title" className="status-card__title">
-							<IconWorkflow className="status-card__icon" />
-							GitHub Pages & Workflow Runs
-						</h2>
-						{isWorkflowRunning ? (
-							<span className="status-card__badge status-card__badge--live">
-								<span className="pulse-dot" />
-								Deploying (polling 3s)
-							</span>
-						) : latestRun?.conclusion === 'success' ? (
-							<span className="status-card__badge status-card__badge--ok">
-								✓ Deployed
-							</span>
-						) : latestRun?.conclusion === 'failure' ? (
-							<span className="status-card__badge status-card__badge--error">
-								Failed
-							</span>
-						) : null}
-					</div>
-
-					{/* GitHub Pages Live Deployment Banner */}
-					{pagesStatus?.htmlUrl && (
-						<div className="status-pages-banner">
-							<div className="status-pages-banner__url" title={pagesStatus.htmlUrl}>
-								🌐 {pagesStatus.htmlUrl}
-							</div>
-							<div className="status-pages-banner__actions">
-								<button
-									type="button"
-									className="btn btn--ghost btn--xs"
-									onClick={() => void handleCopyPagesUrl(pagesStatus.htmlUrl!)}
-									title="Copy Live URL"
-								>
-									{copiedPagesUrl ? <IconCheck /> : <IconCopy />}
-								</button>
-								<a
-									href={pagesStatus.htmlUrl}
-									target="_blank"
-									rel="noreferrer"
-									className="btn btn--ghost btn--xs"
-									title="Open Live Site in new tab"
-								>
-									<IconExternalLink />
-								</a>
-							</div>
-						</div>
-					)}
-
-					{workflowsError && <p className="text-error" style={{ fontSize: '11px' }}>{workflowsError}</p>}
-
-					{/* Latest Run Highlights */}
-					{latestRun ? (
-						<div className="status-workflow-latest">
-							<div className="status-workflow-latest__top">
-								<span className="status-workflow-latest__name">
-									{latestRun.name || 'Workflow Run'} #{latestRun.runNumber}
-								</span>
-								<span
-									className={`status-card__badge ${
-										latestRun.status === 'in_progress'
-											? 'status-card__badge--live'
-											: latestRun.conclusion === 'success'
-												? 'status-card__badge--ok'
-												: latestRun.conclusion === 'failure'
-													? 'status-card__badge--error'
-													: 'status-card__badge--warn'
-									}`}
-								>
-									{latestRun.status === 'in_progress'
-										? 'In progress…'
-										: latestRun.conclusion ?? latestRun.status}
-								</span>
-							</div>
-
-							{latestRun.displayTitle && (
-								<div className="status-workflow-latest__title">
-									"{latestRun.displayTitle}"
-								</div>
-							)}
-
-							<div className="status-workflow-latest__details">
-								<span className="status-tag">{latestRun.headBranch}</span>
-								<span>•</span>
-								<span>{latestRun.headSha.slice(0, 7)}</span>
-								<span>•</span>
-								<span>Trigger: {latestRun.event}</span>
-								<span>•</span>
-								<span>{formatTimeAgo(latestRun.createdAt)}</span>
-								{latestRun.htmlUrl && (
-									<a
-										href={latestRun.htmlUrl}
-										target="_blank"
-										rel="noreferrer"
-										className="btn btn--ghost btn--xs"
-										style={{ marginLeft: 'auto', fontSize: '10px', height: '20px' }}
-									>
-										View Run <IconExternalLink />
-									</a>
-								)}
-							</div>
-						</div>
-					) : (
-						!workflowsError && <p className="text-muted" style={{ fontSize: '11px' }}>No workflow runs detected for this repository.</p>
-					)}
-
-					{/* Recent Runs List */}
-					{workflows.length > 1 && (
-						<div className="status-runs-list">
-							<div className="text-muted" style={{ fontSize: '10px', fontWeight: 600 }}>
-								Recent Runs
-							</div>
-							{workflows.slice(1, 4).map((run) => (
-								<a
-									key={run.id}
-									href={run.htmlUrl}
-									target="_blank"
-									rel="noreferrer"
-									className="status-run-item"
-								>
-									<div className="status-run-item__left">
-										<span
-											className="status-run-item__dot"
-											style={{
-												background:
-													run.status === 'in_progress'
-														? 'var(--accent)'
-														: run.conclusion === 'success'
-															? '#22c55e'
-															: run.conclusion === 'failure'
-																? '#ef4444'
-																: 'var(--text-muted)',
-											}}
-										/>
-										<span className="status-run-item__title">
-											{run.name} • {run.displayTitle || run.headBranch}
-										</span>
-									</div>
-									<span className="status-run-item__time">{formatTimeAgo(run.createdAt)}</span>
-								</a>
-							))}
-						</div>
-					)}
-				</section>
-
-				{/* 2. GitHub API Rate Limit */}
+				{/* 1. GitHub API Rate Limit */}
 				<section className="status-card" aria-labelledby="rate-limit-title">
 					<div className="status-card__header">
 						<h2 id="rate-limit-title" className="status-card__title">

@@ -11,10 +11,13 @@ export function usePwaInstall() {
 	const [isInstalled, setIsInstalled] = useState(false)
 
 	useEffect(() => {
-		// Check if already running in standalone display mode
+		// Check if already running in standalone/app display mode
 		const isStandalone =
 			window.matchMedia('(display-mode: standalone)').matches ||
-			(window.navigator as unknown as { standalone?: boolean }).standalone === true
+			window.matchMedia('(display-mode: fullscreen)').matches ||
+			window.matchMedia('(display-mode: minimal-ui)').matches ||
+			(window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+			document.referrer.startsWith('android-app://')
 
 		if (isStandalone) {
 			setIsInstalled(true)
