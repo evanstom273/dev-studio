@@ -83,8 +83,8 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 						<li className={`status-list__item${state.health.git.available ? ' is-ok' : ''}`}>
 							Git: {state.health.git.available ? 'Available' : 'Not found'}
 						</li>
-						<li className={`status-list__item${state.health.gh.available ? ' is-ok' : ''}`}>
-							GitHub CLI: {state.health.gh.authenticated ? 'Authenticated' : state.health.gh.message ?? 'Not ready'}
+						<li className={`status-list__item${state.health.github.available ? ' is-ok' : ''}`}>
+							GitHub API: {state.health.github.authenticated ? `@${state.health.github.version}` : state.health.github.message ?? 'Not configured'}
 						</li>
 					</ul>
 				</section>

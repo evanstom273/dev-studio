@@ -21,28 +21,6 @@ export async function checkCommand(path: string, versionArgs: string[] = ['--ver
 	}
 }
 
-export async function checkGhAuth(): Promise<ToolStatus> {
-	const base = await checkCommand('gh')
-	if (!base.available) return base
-
-	try {
-		const { stdout } = await execFileAsync('gh', ['auth', 'status'], { timeout: 5000 })
-		const authenticated = stdout.includes('Logged in')
-		return {
-			...base,
-			authenticated,
-			message: authenticated ? undefined : 'Run: gh auth login',
-		}
-	} catch (error) {
-		const message = error instanceof Error ? error.message : 'Not authenticated'
-		return {
-			...base,
-			authenticated: false,
-			message: message.includes('not logged') ? 'Run: gh auth login' : message,
-		}
-	}
-}
-
 export async function checkAgyAuth(agyPath: string): Promise<ToolStatus> {
 	const base = await checkCommand(agyPath)
 	if (!base.available) return base
