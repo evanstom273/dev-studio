@@ -232,7 +232,15 @@ DEV_STUDIO_AUTO_APPROVE=true
 | `POST /api/agent/message` | Send prompt (SSE stream) |
 | `GET /api/git/:id/status` | Git status |
 | `GET /api/files/:id/tree` | File tree |
-| `GET /api/github/auth` | GitHub CLI auth status |
+| `GET /api/github/:id/prs?state=open\|closed\|merged\|all` | List pull requests |
+| `GET /api/github/:id/prs/:number` | PR detail (body, reviews, checks) |
+| `POST /api/github/:id/prs` | Create PR (title, body, base, head, draft) |
+| `PATCH /api/github/:id/prs/:number` | Edit PR title/body |
+| `POST /api/github/:id/prs/merge` | Merge PR (merge/squash/rebase, delete branch) |
+| `POST /api/github/:id/prs/close` | Close PR |
+| `POST /api/github/:id/prs/:number/reopen` | Reopen PR |
+| `PATCH /api/github/:id/repo` | Edit repo description, homepage, visibility |
+| `DELETE /api/github/:id/repo` | Delete repo (requires confirmation) |
 | `POST /api/run` | Run build/test commands |
 
 Full implementation in `server/src/routes/`.
