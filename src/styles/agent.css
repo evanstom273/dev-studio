@@ -810,8 +810,34 @@
 	background: #d86666 !important;
 }
 
-.composer--keyboard-open {
-	padding-bottom: var(--space-md);
+@media (max-width: 767px) {
+	.agent-view--keyboard-open .agent-toolbar {
+		display: none;
+	}
+
+	.agent-view--keyboard-open .conversation {
+		padding-bottom: var(--space-sm);
+	}
+
+	.composer--keyboard-open {
+		flex-shrink: 0;
+		padding-top: var(--space-xs);
+		padding-bottom: calc(var(--space-sm) + var(--safe-bottom));
+		background: var(--bg-base);
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	.composer--keyboard-open .composer__meta-row {
+		display: none;
+	}
+
+	.composer--keyboard-open .composer__attachments {
+		max-height: 72px;
+	}
+
+	.composer--keyboard-open .composer__input {
+		max-height: 120px;
+	}
 }
 
 @media (min-width: 768px) {

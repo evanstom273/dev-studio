@@ -38,6 +38,21 @@
 
 /* Mobile: single active view */
 @media (max-width: 767px) {
+	.workspace-shell--keyboard-open {
+		position: fixed;
+		left: 0;
+		right: 0;
+		top: 0;
+		width: 100%;
+		z-index: 30;
+		overflow: hidden;
+		background: var(--bg-base);
+	}
+
+	.project-header--keyboard-hidden {
+		display: none;
+	}
+
 	.workspace-sidebar {
 		display: none;
 	}

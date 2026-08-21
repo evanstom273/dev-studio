@@ -5,11 +5,12 @@ import '../styles/agent.css'
 type ProjectHeaderProps = {
 	project: Project
 	onBack: () => void
+	className?: string
 }
 
-export function ProjectHeader({ project, onBack }: ProjectHeaderProps) {
+export function ProjectHeader({ project, onBack, className }: ProjectHeaderProps) {
 	return (
-		<header className="project-header">
+		<header className={`project-header${className ? ` ${className}` : ''}`}>
 			<button
 				type="button"
 				className="project-header__back"
