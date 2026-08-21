@@ -120,7 +120,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 					<div>
 						<h1 className="projects-page__title">Dev Studio</h1>
 						<p className="projects-page__subtitle">
-							{connected ? 'Pick a repository to start' : 'Connect your laptop to begin'}
+							{connected ? 'Pick a repository or start a chat' : 'Connect your laptop to begin'}
 						</p>
 					</div>
 					<div className="projects-page__header-actions">
@@ -142,7 +142,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 
 			{connected && (
 				<div className="hub-actions">
-					<button type="button" className="btn btn--primary" onClick={() => setCreateOpen(true)}>
+					<button type="button" className="btn btn--primary btn--sm" onClick={() => setCreateOpen(true)}>
 						+ New repository
 					</button>
 				</div>
@@ -161,7 +161,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 					className={`hub-tabs__btn${tab === 'recent' ? ' is-active' : ''}`}
 					onClick={() => setTab('recent')}
 				>
-					Recent
+					Recent Workspaces
 				</button>
 			</div>
 
@@ -171,7 +171,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 					type="search"
 					value={search}
 					onChange={(e) => setSearch(e.target.value)}
-					placeholder="Search your repositories…"
+					placeholder="Search repositories…"
 				/>
 			)}
 
@@ -181,7 +181,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 				<div className="hub-empty">
 					<p className="hub-empty__title">Connect your laptop</p>
 					<p className="hub-empty__desc">
-						One-time setup: your Tailscale address + GitHub token. After that, just pick a repo.
+						One-time setup: your Tailscale address + GitHub token. After that, pick any repository.
 					</p>
 					<button type="button" className="btn btn--primary" onClick={() => setConnectOpen(true)}>
 						Connect now
@@ -192,7 +192,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 			{connected && tab === 'github' && !hasGithub && (
 				<div className="hub-empty">
 					<p className="hub-empty__title">GitHub token needed</p>
-					<p className="hub-empty__desc">Add your PAT to browse and open repositories.</p>
+					<p className="hub-empty__desc">Add your PAT in Settings to browse and open repositories.</p>
 					<button type="button" className="btn btn--primary" onClick={() => setConnectOpen(true)}>
 						Add token
 					</button>
@@ -223,7 +223,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 									<p className="hub-repo-item__desc">{repo.description}</p>
 								)}
 								<span className="hub-repo-item__meta">
-									{opening === repo.fullName ? 'Opening…' : 'Tap to open'}
+									{opening === repo.fullName ? 'Opening workspace…' : 'Tap to open workspace →'}
 								</span>
 							</button>
 						</li>
@@ -237,7 +237,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 						<p className="projects-page__hint">Loading…</p>
 					) : projects.length === 0 ? (
 						<div className="hub-empty hub-empty--compact">
-							<p className="hub-empty__desc">Open a repo from the GitHub tab — it&apos;ll show up here.</p>
+							<p className="hub-empty__desc">Open a repository from the GitHub tab — it will show up here.</p>
 						</div>
 					) : (
 						<ProjectList

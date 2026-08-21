@@ -1,53 +1,65 @@
+/* ==========================================================================
+   Git / Repo View (Cursor Mobile Style)
+   ========================================================================== */
+
 .repo-view {
 	display: flex;
 	flex-direction: column;
+	flex: 1;
 	min-height: 0;
+	background: var(--bg-elevated);
 	overflow: hidden;
 }
 
 .repo-tabs {
 	display: flex;
 	border-bottom: 1px solid var(--border-subtle);
+	background: var(--bg-elevated);
 	flex-shrink: 0;
 }
 
 .repo-tabs__btn {
 	flex: 1;
-	min-height: var(--touch-target);
-	font-size: 14px;
+	height: var(--header-height);
+	font-size: 13px;
 	font-weight: 500;
 	color: var(--text-muted);
 	border-bottom: 2px solid transparent;
+	transition: color 0.15s, border-color 0.15s;
 }
 
 .repo-tabs__btn.is-active {
 	color: var(--accent);
 	border-bottom-color: var(--accent);
+	font-weight: 600;
 }
 
 .repo-panel {
 	flex: 1;
 	overflow-y: auto;
-	padding: var(--space-lg);
+	padding: var(--space-md);
 	-webkit-overflow-scrolling: touch;
 }
 
 .repo-actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: var(--space-sm);
-	margin-bottom: var(--space-lg);
+	gap: var(--space-xs);
+	margin-bottom: var(--space-md);
 }
 
 .repo-info {
-	padding: var(--space-md);
+	padding: var(--space-sm) var(--space-md);
 	background: var(--bg-surface);
 	border: 1px solid var(--border-subtle);
-	border-radius: var(--radius-md);
-	font-size: 13px;
+	border-radius: var(--radius-sm);
+	font-size: 12px;
 	color: var(--text-secondary);
-	margin-bottom: var(--space-lg);
-	line-height: 1.6;
+	margin-bottom: var(--space-md);
+	line-height: 1.5;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 }
 
 .repo-info code {
@@ -57,59 +69,68 @@
 
 .repo-warning {
 	color: var(--status-modified);
+	font-weight: 500;
 }
 
 .repo-section {
-	margin-bottom: var(--space-xl);
+	margin-bottom: var(--space-lg);
 }
 
 .repo-section__header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin-bottom: var(--space-md);
+	margin-bottom: var(--space-xs);
 	gap: var(--space-sm);
 }
 
 .repo-section h3 {
 	margin: 0;
-	font-size: 14px;
+	font-size: 12px;
 	font-weight: 600;
-}
-
-.repo-section--danger {
-	padding-top: var(--space-lg);
-	border-top: 1px solid var(--border-subtle);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-muted);
 }
 
 .repo-list {
 	list-style: none;
 	margin: 0;
 	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 }
 
 .repo-list__item {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: var(--space-md);
-	padding: var(--space-sm) 0;
-	border-bottom: 1px solid var(--border-subtle);
+	gap: var(--space-sm);
+	padding: 6px 8px;
+	border-radius: var(--radius-sm);
 	font-size: 13px;
+	transition: background 0.15s;
+}
+
+.repo-list__item:hover {
+	background: var(--bg-hover);
 }
 
 .repo-list__item--stacked {
 	flex-direction: column;
 	align-items: flex-start;
+	gap: 2px;
 }
 
 .repo-list__meta {
-	font-size: 12px;
+	font-size: 11px;
 	color: var(--text-muted);
+	font-family: var(--font-mono);
 }
 
 .repo-list__empty {
-	padding: var(--space-md) 0;
+	padding: var(--space-sm) 0;
 	color: var(--text-muted);
-	font-size: 13px;
+	font-size: 12px;
 }

@@ -1,50 +1,68 @@
 :root {
-	--bg-base: #0d0d0f;
-	--bg-elevated: #141416;
-	--bg-surface: #1a1a1e;
-	--bg-hover: #222228;
-	--bg-active: #2a2a32;
+	/* Near-black dark background hierarchy */
+	--bg-base: #0a0b0e;
+	--bg-elevated: #111216;
+	--bg-surface: #17181f;
+	--bg-hover: #1f212a;
+	--bg-active: #272a36;
 
-	--border-subtle: #2a2a30;
-	--border-strong: #3a3a42;
+	/* Restrained 1px borders */
+	--border-subtle: #1e2028;
+	--border-medium: #282b37;
+	--border-strong: #363a4a;
 
-	--text-primary: #e8e8ec;
-	--text-secondary: #9a9aa4;
-	--text-muted: #6a6a74;
+	/* Crisp typography hierarchy */
+	--text-primary: #ededf0;
+	--text-secondary: #9ea1ae;
+	--text-muted: #626573;
 
-	--accent: #4a9e88;
-	--accent-dim: #3a7a6a;
-	--accent-subtle: rgba(74, 158, 136, 0.12);
+	/* Refined subtle accent */
+	--accent: #38bdf8;
+	--accent-dim: #0284c7;
+	--accent-subtle: rgba(56, 189, 248, 0.1);
+	--accent-glow: rgba(56, 189, 248, 0.2);
 
-	--user-bg: #1e2430;
-	--agent-bg: #18181c;
+	/* User bubble & document surfaces */
+	--user-bg: #151720;
+	--agent-bg: transparent;
 
-	--status-modified: #c4a35a;
-	--status-added: #4a9e88;
-	--status-deleted: #c45a5a;
+	/* Status & Diffs */
+	--status-modified: #eab308;
+	--status-added: #34d399;
+	--status-deleted: #f87171;
+	--status-merged: #a855f7;
 
-	--diff-add-bg: rgba(74, 158, 136, 0.12);
-	--diff-remove-bg: rgba(196, 90, 90, 0.12);
-	--diff-add-text: #6ec4ae;
-	--diff-remove-text: #e08888;
+	--diff-add-bg: rgba(52, 211, 153, 0.1);
+	--diff-remove-bg: rgba(248, 113, 113, 0.1);
+	--diff-add-text: #6ee7b7;
+	--diff-remove-text: #fca5a5;
 
-	--radius-sm: 4px;
-	--radius-md: 6px;
-	--radius-lg: 8px;
+	/* Compact radii */
+	--radius-xs: 3px;
+	--radius-sm: 5px;
+	--radius-md: 8px;
+	--radius-lg: 12px;
+	--radius-full: 9999px;
 
+	/* Information-dense spacing */
+	--space-2xs: 2px;
 	--space-xs: 4px;
 	--space-sm: 8px;
 	--space-md: 12px;
 	--space-lg: 16px;
-	--space-xl: 24px;
+	--space-xl: 20px;
+	--space-2xl: 28px;
 
-	--font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-	--font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, monospace;
+	/* Typography */
+	--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+	--font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Fira Code', Menlo, monospace;
 
-	--nav-height: 56px;
-	--header-height: 48px;
-	--touch-target: 44px;
+	/* Compact chrome dimensions */
+	--header-height: 44px;
+	--nav-height: 48px;
+	--touch-target: 36px;
 
+	/* Safe area insets */
 	--safe-top: env(safe-area-inset-top, 0px);
 	--safe-bottom: env(safe-area-inset-bottom, 0px);
 	--safe-left: env(safe-area-inset-left, 0px);

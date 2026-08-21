@@ -220,13 +220,18 @@ export function GitHubView({ project }: GitHubViewProps) {
 						<div className="gh-pr-detail">
 							<button type="button" className="gh-back" onClick={() => setSelectedPr(null)}>← Pull requests</button>
 							<div className="gh-pr-detail__header">
-								<span className={`gh-badge ${prStateClass(selectedPr.state)}`}>{selectedPr.state}</span>
-								{selectedPr.isDraft && <span className="gh-badge gh-badge--draft">draft</span>}
+								<div className="gh-pr-detail__status-row">
+									<span className={`gh-badge ${prStateClass(selectedPr.state)}`}>{selectedPr.state}</span>
+									{selectedPr.isDraft && <span className="gh-badge gh-badge--draft">draft</span>}
+									<span className="gh-pr-detail__branches">
+										<code>{selectedPr.headBranch}</code> → <code>{selectedPr.baseBranch}</code>
+									</span>
+								</div>
 								<h4 className="gh-pr-detail__title">#{selectedPr.number} {selectedPr.title}</h4>
 							</div>
+
 							<div className="gh-pr-detail__meta">
-								<span>{selectedPr.author}</span>
-								<span>{selectedPr.headBranch} → {selectedPr.baseBranch}</span>
+								<span>By <strong>{selectedPr.author}</strong></span>
 								{selectedPr.changedFiles !== undefined && (
 									<span>{selectedPr.changedFiles} files · +{selectedPr.additions ?? 0} −{selectedPr.deletions ?? 0}</span>
 								)}
@@ -234,29 +239,33 @@ export function GitHubView({ project }: GitHubViewProps) {
 									<span className={`gh-checks gh-checks--${selectedPr.checksStatus}`}>Checks: {selectedPr.checksStatus}</span>
 								)}
 							</div>
+
 							{selectedPr.labels && selectedPr.labels.length > 0 && (
 								<div className="gh-labels">
 									{selectedPr.labels.map((l) => <span key={l} className="gh-label">{l}</span>)}
 								</div>
 							)}
+
 							{selectedPr.body && (
 								<div className="gh-pr-detail__body">
 									<MarkdownRenderer content={selectedPr.body} />
 								</div>
 							)}
+
 							{selectedPr.reviews.length > 0 && (
 								<div className="gh-reviews">
-									<h5>Reviews</h5>
+									<h5>Reviews ({selectedPr.reviews.length})</h5>
 									{selectedPr.reviews.map((r, i) => (
 										<div key={i} className="gh-review">
-											<strong>{r.author}</strong> — {r.state}
+											<strong>{r.author}</strong> — <span className="gh-review__state">{r.state}</span>
 										</div>
 									))}
 								</div>
 							)}
+
 							<div className="gh-pr-detail__actions">
 								<a href={selectedPr.url} target="_blank" rel="noopener noreferrer" className="btn btn--ghost btn--sm">
-									View on GitHub
+									View on GitHub ↗
 								</a>
 								{selectedPr.state === 'open' && (
 									<>

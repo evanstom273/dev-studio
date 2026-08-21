@@ -5,6 +5,11 @@
 	min-height: 0;
 	height: 100%;
 	background: var(--bg-base);
+	overflow: hidden;
+}
+
+.app-shell--workspace {
+	background: var(--bg-base);
 }
 
 .workspace-shell {
@@ -13,12 +18,15 @@
 	flex: 1;
 	min-height: 0;
 	height: 100%;
+	overflow: hidden;
 }
 
 .workspace-body {
 	display: flex;
 	flex: 1;
 	min-height: 0;
+	position: relative;
+	overflow: hidden;
 }
 
 .workspace-main {
@@ -27,9 +35,138 @@
 	flex: 1;
 	min-width: 0;
 	min-height: 0;
+	overflow: hidden;
+}
+
+/* Two-Pane Split Layout (Unfolded Fold / Tablet / Desktop) */
+.workspace-split {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
 }
 
 .workspace-pane {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	height: 100%;
+}
+
+.workspace-pane--left {
+	background: var(--bg-base);
+	position: relative;
+}
+
+.workspace-pane--right {
+	background: var(--bg-elevated);
+	border-left: 1px solid var(--border-subtle);
+}
+
+/* Resizable Divider */
+.workspace-divider {
+	width: 8px;
+	margin-left: -4px;
+	margin-right: -4px;
+	z-index: 10;
+	cursor: col-resize;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	user-select: none;
+	touch-action: none;
+	transition: background 0.15s;
+}
+
+.workspace-divider:hover,
+.workspace-divider:active {
+	background: var(--accent-subtle);
+}
+
+.workspace-divider__handle {
+	width: 2px;
+	height: 32px;
+	border-radius: var(--radius-full);
+	background: var(--border-strong);
+	transition: background 0.15s, height 0.15s;
+}
+
+.workspace-divider:hover .workspace-divider__handle,
+.workspace-divider:active .workspace-divider__handle {
+	background: var(--accent);
+	height: 48px;
+}
+
+/* Horizontal Tool Switcher Bar in Right Pane */
+.tool-switcher-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: var(--header-height);
+	padding: 0 var(--space-md);
+	background: var(--bg-elevated);
+	border-bottom: 1px solid var(--border-subtle);
+	flex-shrink: 0;
+}
+
+.tool-switcher-tabs {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2xs);
+	background: var(--bg-surface);
+	padding: 2px;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border-subtle);
+}
+
+.tool-switcher-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 10px;
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--text-secondary);
+	border-radius: calc(var(--radius-md) - 2px);
+	transition: background 0.15s, color 0.15s;
+}
+
+.tool-switcher-tab:hover {
+	color: var(--text-primary);
+}
+
+.tool-switcher-tab.is-active {
+	background: var(--bg-active);
+	color: var(--text-primary);
+	font-weight: 600;
+}
+
+.tool-switcher-tab__icon {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+}
+
+.tool-switcher-tab__badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 16px;
+	height: 16px;
+	padding: 0 4px;
+	font-size: 10px;
+	font-weight: 600;
+	background: var(--accent-subtle);
+	color: var(--accent);
+	border-radius: var(--radius-full);
+}
+
+.tool-pane-content {
 	display: flex;
 	flex-direction: column;
 	flex: 1;
@@ -37,7 +174,7 @@
 	overflow: hidden;
 }
 
-/* Mobile + touch (portrait phone, fold inner screen, tablets) */
+/* Mobile + touch keyboard handling */
 @media (max-width: 767px), (hover: none) and (pointer: coarse) {
 	html.ds-keyboard-open .app-shell--workspace {
 		position: fixed;
@@ -54,75 +191,16 @@
 	.project-header--keyboard-hidden {
 		display: none;
 	}
-
-	.workspace-sidebar {
-		display: none;
-	}
 }
 
-@media (max-width: 767px) {
-
-	.workspace-pane--secondary {
-		display: none;
-	}
-
-	.workspace-pane--secondary.is-visible {
-		display: flex;
-		position: fixed;
-		inset: 0;
-		z-index: 20;
-		background: var(--bg-base);
-		padding-top: var(--safe-top);
-		padding-bottom: calc(var(--nav-height) + var(--safe-bottom));
-	}
-}
-
-/* Tablet / Fold unfolded */
-@media (min-width: 768px) {
-	.app-shell--workspace {
-		flex-direction: row;
-	}
-
-	.workspace-sidebar {
-		display: flex;
-		flex-direction: column;
-		width: 72px;
-		flex-shrink: 0;
-		border-right: 1px solid var(--border-subtle);
-		background: var(--bg-elevated);
-		padding-top: calc(var(--safe-top) + var(--space-sm));
-		padding-bottom: var(--safe-bottom);
-	}
-
-	.bottom-nav {
-		display: none;
-	}
-
-	.workspace-pane--secondary.is-visible {
-		display: flex;
-		width: 320px;
-		flex-shrink: 0;
-		border-right: 1px solid var(--border-subtle);
-		background: var(--bg-elevated);
-	}
-}
-
-/* Desktop / large fold inner */
+/* Wide screen side-by-side file tree / diff panel */
 @media (min-width: 1024px) {
-	.workspace-sidebar {
-		width: 200px;
-	}
-
-	.workspace-pane--secondary.is-visible {
-		width: 360px;
-	}
-
 	.files-layout {
 		flex-direction: row;
 	}
 
 	.files-layout .file-tree-panel {
-		width: 280px;
+		width: 260px;
 		flex-shrink: 0;
 		border-right: 1px solid var(--border-subtle);
 	}
@@ -132,14 +210,8 @@
 	}
 
 	.changes-layout .changes-list-panel {
-		width: 280px;
+		width: 260px;
 		flex-shrink: 0;
 		border-right: 1px solid var(--border-subtle);
-	}
-}
-
-@media (min-width: 1280px) {
-	.workspace-pane--secondary.is-visible {
-		width: 400px;
 	}
 }
