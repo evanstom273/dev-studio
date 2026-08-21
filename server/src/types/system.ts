@@ -10,5 +10,6 @@ export type ServerUpdateResult = {
 	restarting: boolean
 	installPath: string
 	steps: ServerUpdateStep[]
+	restartLogPath?: string
 	error?: string
 }

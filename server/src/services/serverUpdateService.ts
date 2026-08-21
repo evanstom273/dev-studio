@@ -5,7 +5,8 @@ import type { ServerConfig } from '../config.js'
 import type { ServerUpdateResult, ServerUpdateStep } from '../types/system.js'
 import { runPlatformShell } from '../utils/exec.js'
 
-/** Windows: spawn a new console when detached with stdio ignored. */
+/** Seconds to wait in restart.bat before binding the port (old process must exit first). */
+const RESTART_DELAY_SEC = 4
 
 export class ServerUpdateService {
 	constructor(private config: ServerConfig) {}
@@ -20,7 +21,7 @@ export class ServerUpdateService {
 				restarting: false,
 				installPath,
 				steps,
-				error: 'Invalid install path — set DEV_STUDIO_INSTALL_PATH to your dev-studio clone',
+				error: 'Invalid install path - set DEV_STUDIO_INSTALL_PATH to your dev-studio clone',
 			}
 		}
 
@@ -45,7 +46,7 @@ export class ServerUpdateService {
 				restarting: false,
 				installPath,
 				steps,
-				error: 'Install path is not a git repository — set DEV_STUDIO_INSTALL_PATH to your dev-studio clone',
+				error: 'Install path is not a git repository - set DEV_STUDIO_INSTALL_PATH to your dev-studio clone',
 			}
 		}
 
@@ -93,53 +94,104 @@ export class ServerUpdateService {
 			}
 		}
 
-		await this.scheduleRestart(installPath)
+		const restartLogPath = await this.scheduleRestart(installPath)
 
 		return {
 			ok: true,
 			restarting: true,
 			installPath,
 			steps,
+			restartLogPath,
 		}
 	}
 
-	private async scheduleRestart(installPath: string): Promise<void> {
+	private async scheduleRestart(installPath: string): Promise<string> {
 		const cwd = resolve(installPath)
 		const restartCmd = this.config.restartCommand
 		const scriptDir = join(this.config.dataDir, 'scripts')
 		const batPath = join(scriptDir, 'restart-server.bat')
+		const logPath = join(this.config.dataDir, 'restart.log')
 
 		await mkdir(scriptDir, { recursive: true })
-		await writeFile(
-			batPath,
-			[
-				'@echo off',
-				'title Dev Studio Server',
-				`cd /d "${cwd.replace(/"/g, '""')}"`,
-				restartCmd,
-				'',
-			].join('\r\n'),
-			'utf8',
-		)
+		await writeFile(batPath, buildRestartBat(cwd, restartCmd, logPath), 'utf8')
 
 		if (process.platform === 'win32') {
-			// Hidden restart — phone update must not stack new cmd windows
-			spawn('cmd.exe', ['/c', batPath], {
-				detached: true,
-				stdio: 'ignore',
-				windowsHide: true,
-			}).unref()
+			spawnWindowsRestart(batPath, cwd)
 		} else {
-			spawn('sh', ['-c', `sleep 2 && "${batPath}"`], {
+			spawn('sh', ['-c', `sleep ${RESTART_DELAY_SEC} && "${batPath}" >> "${logPath}" 2>&1`], {
 				detached: true,
 				stdio: 'ignore',
 			}).unref()
 		}
 
+		// Exit quickly; restart.bat waits before binding the port.
 		setTimeout(() => {
 			process.exit(0)
-		}, 1500)
+		}, 800)
+
+		return logPath
 	}
+}
+
+function buildRestartBat(cwd: string, restartCmd: string, logPath: string): string {
+	const log = batQuote(logPath)
+	const lines = [
+		'@echo off',
+		'setlocal',
+		`cd /d ${batQuote(cwd)}`,
+		`set ${batAssign('DEV_STUDIO_INSTALL_PATH', cwd)}`,
+		`set ${batAssign('DEV_STUDIO_RESTART_COMMAND', restartCmd)}`,
+	]
+
+	for (const [key, value] of Object.entries(process.env)) {
+		if (!value) continue
+		if (key.startsWith('DEV_STUDIO_') && key !== 'DEV_STUDIO_INSTALL_PATH' && key !== 'DEV_STUDIO_RESTART_COMMAND') {
+			lines.push(`set ${batAssign(key, value)}`)
+		}
+	}
+
+	if (process.env.AGY_PATH) {
+		lines.push(`set ${batAssign('AGY_PATH', process.env.AGY_PATH)}`)
+	}
+
+	lines.push(
+		`echo [%date% %time%] waiting ${RESTART_DELAY_SEC}s for old server to exit >> ${log}`,
+		`timeout /t ${RESTART_DELAY_SEC} /nobreak >nul`,
+		`echo [%date% %time%] starting: ${restartCmd} >> ${log}`,
+		`call ${restartCmd} >> ${log} 2>&1`,
+		`echo [%date% %time%] server exited with code %errorlevel% >> ${log}`,
+		'endlocal',
+		'',
+	)
+
+	return lines.join('\r\n')
+}
+
+/** Spawn restart via PowerShell Start-Process so it survives after this Node process exits. */
+function spawnWindowsRestart(batPath: string, cwd: string): void {
+	const batArg = batPath.replace(/'/g, "''")
+	const cwdArg = cwd.replace(/'/g, "''")
+	const ps = [
+		'Start-Process',
+		"-FilePath 'cmd.exe'",
+		`-ArgumentList '/c','${batArg}'`,
+		'-WindowStyle Hidden',
+		`-WorkingDirectory '${cwdArg}'`,
+	].join(' ')
+
+	spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps], {
+		detached: true,
+		stdio: 'ignore',
+		windowsHide: true,
+	}).unref()
+}
+
+function batQuote(value: string): string {
+	return `"${value.replace(/"/g, '""')}"`
+}
+
+function batAssign(name: string, value: string): string {
+	return `"${name}=${value.replace(/"/g, '""')}"`
 }
 
 function tailOutput(text: string, maxLines = 12): string {

@@ -35,7 +35,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 	const handleUpdateRestart = async () => {
 		if (
 			!confirm(
-				'Pull latest dev-studio from git, rebuild the server, and restart it on your laptop?\n\nThe connection will drop briefly. Wait ~30 seconds, then tap Save & Connect again if needed.',
+				'Pull latest dev-studio from git, rebuild the server, and restart it on your laptop?\n\nThe connection will drop for ~10 seconds while the server restarts. Then tap Save & Connect again.',
 			)
 		) {
 			return
@@ -160,13 +160,12 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 					<h2 className="settings-section__title">Update Laptop Backend</h2>
 					<p className="settings-section__desc">
 						Pulls the latest <code>dev-studio</code> code on your laptop, rebuilds the server, and
-						restarts it. Use this after merging PRs so your phone gets the newest backend without
-						typing commands on the laptop.
+						restarts it in the background. Use this after merging PRs so your phone gets the newest
+						backend without typing commands on the laptop.
 					</p>
 					<p className="settings-section__desc">
-						On Windows, a new terminal window opens for the restarted server. Set{' '}
-						<code>DEV_STUDIO_RESTART_COMMAND=npm run dev:server</code> on the laptop if you use dev
-						mode.
+						If reconnect fails, check <code>%USERPROFILE%\.dev-studio\restart.log</code> on the
+						laptop, or run <code>npm run laptop</code> again in PowerShell.
 					</p>
 					<div className="settings-actions">
 						<button
@@ -181,7 +180,13 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 					{updateError && <p className="settings-update-error">{updateError}</p>}
 					{updateResult?.ok && updateResult.restarting && (
 						<p className="settings-update-ok">
-							Update complete — server is restarting. Reconnect in ~30 seconds.
+							Update complete - server is restarting in the background. Reconnect in ~10 seconds.
+							{updateResult.restartLogPath && (
+								<>
+									{' '}
+									Log: <code>{updateResult.restartLogPath}</code>
+								</>
+							)}
 						</p>
 					)}
 					{updateResult && updateResult.steps.length > 0 && (

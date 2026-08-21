@@ -29,4 +29,5 @@ Write-Host "Starting server - keep THIS window open."
 Write-Host "Close this window to stop the server."
 Write-Host ""
 
-npm run dev:server
+npm run build:server
+npm run start:server
