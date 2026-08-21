@@ -117,7 +117,9 @@ export function createAgentRouter(
 	router.post(
 		'/session/:projectId/reset',
 		asyncHandler(async (req, res) => {
-			const session = await sessions.getOrCreate(param(req, 'projectId'))
+			const projectId = param(req, 'projectId')
+			agy.resetProjectSession(projectId)
+			const session = await sessions.getOrCreate(projectId)
 			session.conversationId = null
 			session.items = []
 			session.updatedAt = new Date().toISOString()

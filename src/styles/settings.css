@@ -99,6 +99,44 @@
 	color: var(--accent);
 }
 
+.settings-update-error {
+	margin: var(--space-md) 0 0;
+	font-size: 13px;
+	color: var(--diff-remove-text);
+	line-height: 1.5;
+}
+
+.settings-update-ok {
+	margin: var(--space-md) 0 0;
+	font-size: 13px;
+	color: var(--accent);
+	line-height: 1.5;
+}
+
+.settings-update-steps {
+	list-style: none;
+	margin: var(--space-md) 0 0;
+	padding: var(--space-md);
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+}
+
+.settings-update-steps__item {
+	font-size: 12px;
+	font-family: var(--font-mono);
+	color: var(--text-muted);
+	padding: var(--space-xs) 0;
+}
+
+.settings-update-steps__item.is-ok {
+	color: var(--accent);
+}
+
+.settings-update-steps__item.is-error {
+	color: var(--diff-remove-text);
+}
+
 .projects-page__top {
 	display: flex;
 	align-items: flex-start;

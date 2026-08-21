@@ -1,5 +1,6 @@
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 export type ServerConfig = {
 	host: string
@@ -11,6 +12,15 @@ export type ServerConfig = {
 	agyPath: string
 	allowedOrigins: string[]
 	autoApproveTools: boolean
+	installPath: string
+	restartCommand: string
+	gitBranch: string
+	allowRemoteUpdate: boolean
+}
+
+function detectInstallPath(): string {
+	const entry = fileURLToPath(import.meta.url)
+	return join(dirname(entry), '..', '..')
 }
 
 function envInt(name: string, fallback: number): number {
@@ -34,5 +44,9 @@ export function loadConfig(): ServerConfig {
 		agyPath: process.env.AGY_PATH ?? 'agy',
 		allowedOrigins: (process.env.DEV_STUDIO_CORS ?? '*').split(',').map((s) => s.trim()),
 		autoApproveTools: process.env.DEV_STUDIO_AUTO_APPROVE === 'true',
+		installPath: process.env.DEV_STUDIO_INSTALL_PATH ?? detectInstallPath(),
+		restartCommand: process.env.DEV_STUDIO_RESTART_COMMAND ?? 'npm run start:server',
+		gitBranch: process.env.DEV_STUDIO_GIT_BRANCH ?? 'main',
+		allowRemoteUpdate: process.env.DEV_STUDIO_ALLOW_REMOTE_UPDATE !== 'false',
 	}
 }

@@ -127,6 +127,25 @@ export function AgentView({ project }: AgentViewProps) {
 		}
 	}
 
+	const clearChat = async () => {
+		if (loading) return
+		if (!confirm('Clear this chat? The conversation history will be reset.')) return
+
+		setLoading(true)
+		setError(null)
+		setPermissionRequests([])
+		try {
+			const session = await agentApi.resetSession(project.id)
+			setItems(session.items)
+			setMode(session.mode)
+			setPrompt('')
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Failed to clear chat')
+		} finally {
+			setLoading(false)
+		}
+	}
+
 	const shellStyle = viewport.keyboardOpen
 		? { height: `${viewport.height}px`, transform: `translateY(${viewport.offsetTop}px)` }
 		: undefined
@@ -134,7 +153,17 @@ export function AgentView({ project }: AgentViewProps) {
 	return (
 		<div className="workspace-pane agent-view" style={shellStyle}>
 			<div className="agent-toolbar">
-				<ModeSelector mode={mode} onChange={setMode} disabled={loading} />
+				<div className="agent-toolbar__row">
+					<ModeSelector mode={mode} onChange={setMode} disabled={loading} />
+					<button
+						type="button"
+						className="btn btn--ghost btn--sm"
+						onClick={() => void clearChat()}
+						disabled={loading || items.length === 0}
+					>
+						Clear chat
+					</button>
+				</div>
 				<div className="agent-toolbar__commands">
 					{RUN_COMMANDS.map((cmd) => (
 						<button

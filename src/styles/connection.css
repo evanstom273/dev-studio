@@ -80,6 +80,13 @@
 	flex-shrink: 0;
 }
 
+.agent-toolbar__row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-sm);
+}
+
 .agent-toolbar__commands {
 	display: flex;
 	flex-wrap: wrap;

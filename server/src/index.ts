@@ -7,6 +7,7 @@ import { createProjectsRouter } from './routes/projects.js'
 import { createAgentRouter, createRunRouter } from './routes/agent.js'
 import { createGitRouter, createFilesRouter } from './routes/git.js'
 import { createGitHubRouter } from './routes/github.js'
+import { createSystemRouter } from './routes/system.js'
 import { ProjectService } from './services/projectService.js'
 import { AgyService, PermissionQueue } from './services/agyService.js'
 import { SessionStore } from './store.js'
@@ -38,6 +39,7 @@ app.use('/api/run', createRunRouter(projects))
 app.use('/api/git', createGitRouter(projects))
 app.use('/api/files', createFilesRouter(projects))
 app.use('/api/github', createGitHubRouter(projects, config))
+app.use('/api/system', createSystemRouter(config))
 
 app.use(errorHandler)
 
