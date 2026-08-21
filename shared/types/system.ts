@@ -14,24 +14,50 @@ export type ServerUpdateResult = {
 	error?: string
 }
 
+export type TokenBreakdown = {
+	inputTokens: number
+	outputTokens: number
+	thinkingTokens: number
+	totalTokens: number
+	cacheReadTokens?: number
+}
+
+export type SessionQuotaInfo = {
+	inputTokens: number
+	outputTokens: number
+	thinkingTokens: number
+	totalTokens: number
+	turnsCount: number
+	messagesCount: number
+	tokenLimit: number
+	tokensRemaining: number
+	percentUsed: number
+	activeModel?: string
+	updatedAt?: string
+}
+
+export type WeeklyQuotaInfo = {
+	inputTokens: number
+	outputTokens: number
+	thinkingTokens: number
+	totalTokens: number
+	promptsCount: number
+	tokenLimit: number
+	tokensRemaining: number
+	percentUsed: number
+	resetAt: string
+	resetSeconds: number
+}
+
 export type AgyQuotaUsage = {
 	available: boolean
 	version?: string
 	authenticated?: boolean
 	message?: string
-	totalTokens: {
-		inputTokens: number
-		outputTokens: number
-		thinkingTokens: number
-		totalTokens: number
-		cacheReadTokens: number
-	}
-	activeSessionTokens?: {
-		inputTokens: number
-		outputTokens: number
-		thinkingTokens: number
-		totalTokens: number
-	}
+	totalTokens: TokenBreakdown
+	activeSessionTokens?: TokenBreakdown
+	sessionQuota?: SessionQuotaInfo
+	weeklyQuota?: WeeklyQuotaInfo
 	activeModel?: string
 	availableModels: string[]
 	laptopStats?: {
@@ -44,4 +70,5 @@ export type AgyQuotaUsage = {
 		nodeVersion: string
 	}
 }
+
 

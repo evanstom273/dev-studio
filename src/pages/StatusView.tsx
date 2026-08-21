@@ -25,10 +25,14 @@ type StatusViewProps = {
 
 function formatCountdown(seconds: number): string {
 	if (seconds <= 0) return 'Resetting now'
-	const hours = Math.floor(seconds / 3600)
+	const days = Math.floor(seconds / 86400)
+	const hours = Math.floor((seconds % 86400) / 3600)
 	const minutes = Math.floor((seconds % 3600) / 60)
 	const secs = seconds % 60
 
+	if (days > 0) {
+		return `${days}d ${hours}h ${minutes}m`
+	}
 	if (hours > 0) {
 		return `${hours}h ${minutes}m ${secs}s`
 	}
@@ -133,11 +137,9 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 	const handleRefreshAll = useCallback(async () => {
 		setRefreshing(true)
 		try {
-			// 1. git fetch on laptop if connected
 			if (isConnected) {
 				await gitApi.fetch(project.id).catch(() => {})
 			}
-			// 2. Fetch all dashboards in parallel
 			await Promise.allSettled([
 				loadWorkflows(),
 				loadRateLimit(),
@@ -188,6 +190,70 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 		corePercent > 50
 			? 'status-progress-bar__fill--green'
 			: corePercent > 15
+				? 'status-progress-bar__fill--amber'
+				: 'status-progress-bar__fill--red'
+
+	// Computed Antigravity Weekly Quota
+	const weeklyQuota = useMemo(() => {
+		if (agyQuota?.weeklyQuota) return agyQuota.weeklyQuota
+		const total = agyQuota?.totalTokens?.totalTokens ?? 0
+		const limit = 10_000_000
+		return {
+			inputTokens: agyQuota?.totalTokens?.inputTokens ?? 0,
+			outputTokens: agyQuota?.totalTokens?.outputTokens ?? 0,
+			thinkingTokens: agyQuota?.totalTokens?.thinkingTokens ?? 0,
+			totalTokens: total,
+			promptsCount: 0,
+			tokenLimit: limit,
+			tokensRemaining: Math.max(0, limit - total),
+			percentUsed: Math.min(100, Math.round((total / limit) * 100)),
+			resetAt: new Date(Date.now() + 86400000 * 7).toISOString(),
+			resetSeconds: 86400 * 7,
+		}
+	}, [agyQuota])
+
+	// Weekly reset countdown
+	const weeklyResetSeconds = useMemo(() => {
+		if (!weeklyQuota?.resetAt) return 0
+		const targetMs = new Date(weeklyQuota.resetAt).getTime()
+		return Math.max(0, Math.floor((targetMs - now) / 1000))
+	}, [weeklyQuota?.resetAt, now])
+
+	const weeklyPercent = weeklyQuota.percentUsed
+	const weeklyFillClass =
+		weeklyPercent < 60
+			? 'status-progress-bar__fill--green'
+			: weeklyPercent < 85
+				? 'status-progress-bar__fill--amber'
+				: 'status-progress-bar__fill--red'
+
+	// Computed Antigravity Session Quota
+	const sessionQuota = useMemo(() => {
+		if (agyQuota?.sessionQuota) return agyQuota.sessionQuota
+		if (agyQuota?.activeSessionTokens) {
+			const total = agyQuota.activeSessionTokens.totalTokens
+			const limit = 1_000_000
+			return {
+				inputTokens: agyQuota.activeSessionTokens.inputTokens,
+				outputTokens: agyQuota.activeSessionTokens.outputTokens,
+				thinkingTokens: agyQuota.activeSessionTokens.thinkingTokens,
+				totalTokens: total,
+				turnsCount: 0,
+				messagesCount: 0,
+				tokenLimit: limit,
+				tokensRemaining: Math.max(0, limit - total),
+				percentUsed: Math.min(100, Math.round((total / limit) * 100)),
+				activeModel: agyQuota.activeModel,
+			}
+		}
+		return null
+	}, [agyQuota])
+
+	const sessionPercent = sessionQuota?.percentUsed ?? 0
+	const sessionFillClass =
+		sessionPercent < 60
+			? 'status-progress-bar__fill--cyan'
+			: sessionPercent < 85
 				? 'status-progress-bar__fill--amber'
 				: 'status-progress-bar__fill--red'
 
@@ -284,7 +350,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 						</div>
 					)}
 
-					{workflowsError && <p className="text-error">{workflowsError}</p>}
+					{workflowsError && <p className="text-error" style={{ fontSize: '11px' }}>{workflowsError}</p>}
 
 					{/* Latest Run Highlights */}
 					{latestRun ? (
@@ -311,7 +377,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 							</div>
 
 							{latestRun.displayTitle && (
-								<div className="text-secondary" style={{ fontSize: '11.5px' }}>
+								<div className="text-secondary" style={{ fontSize: '11px' }}>
 									"{latestRun.displayTitle}"
 								</div>
 							)}
@@ -330,7 +396,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 										target="_blank"
 										rel="noreferrer"
 										className="btn btn--ghost btn--xs"
-										style={{ marginLeft: 'auto' }}
+										style={{ marginLeft: 'auto', fontSize: '10px', height: '20px' }}
 									>
 										View Run <IconExternalLink />
 									</a>
@@ -338,16 +404,16 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 							</div>
 						</div>
 					) : (
-						!workflowsError && <p className="text-muted" style={{ fontSize: '12px' }}>No workflow runs detected for this repository.</p>
+						!workflowsError && <p className="text-muted" style={{ fontSize: '11px' }}>No workflow runs detected for this repository.</p>
 					)}
 
 					{/* Recent Runs List */}
 					{workflows.length > 1 && (
 						<div className="status-runs-list">
-							<div className="text-muted" style={{ fontSize: '11px', fontWeight: 600 }}>
+							<div className="text-muted" style={{ fontSize: '10px', fontWeight: 600 }}>
 								Recent Runs
 							</div>
-							{workflows.slice(1, 5).map((run) => (
+							{workflows.slice(1, 4).map((run) => (
 								<a
 									key={run.id}
 									href={run.htmlUrl}
@@ -394,7 +460,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 						)}
 					</div>
 
-					{rateLimitError && <p className="text-error">{rateLimitError}</p>}
+					{rateLimitError && <p className="text-error" style={{ fontSize: '11px' }}>{rateLimitError}</p>}
 
 					{rateLimit ? (
 						<div className="status-metric">
@@ -437,16 +503,16 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 							</div>
 						</div>
 					) : (
-						!rateLimitError && <p className="text-muted" style={{ fontSize: '12px' }}>Connecting to GitHub API…</p>
+						!rateLimitError && <p className="text-muted" style={{ fontSize: '11px' }}>Connecting to GitHub API…</p>
 					)}
 				</section>
 
-				{/* 3. Antigravity Quota & Laptop Backend */}
+				{/* 3. Antigravity Quotas & Limits (Weekly and Session) */}
 				<section className="status-card" aria-labelledby="agy-quota-title">
 					<div className="status-card__header">
 						<h2 id="agy-quota-title" className="status-card__title">
 							<IconSparkles className="status-card__icon" />
-							Antigravity & Laptop Quota
+							Antigravity Quotas & Limits
 						</h2>
 						{agyQuota?.authenticated ? (
 							<span className="status-card__badge status-card__badge--ok">
@@ -459,57 +525,120 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 						)}
 					</div>
 
-					{agyError && <p className="text-error">{agyError}</p>}
+					{agyError && <p className="text-error" style={{ fontSize: '11px' }}>{agyError}</p>}
 
 					{agyQuota ? (
-						<div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-							{/* Token Stats */}
-							<div className="status-agy-grid">
-								<div className="status-agy-stat">
-									<span className="status-agy-stat__label">Total Tokens</span>
-									<span className="status-agy-stat__val">{formatNumber(agyQuota.totalTokens.totalTokens)}</span>
+						<div className="status-quota-section">
+							{/* Weekly Quota Widget */}
+							<div className="status-quota-group">
+								<div className="status-quota-group__header">
+									<span className="status-quota-group__title">Weekly Limit</span>
+									<div className="status-metric__countdown">
+										<IconClock />
+										<span>Resets: {formatCountdown(weeklyResetSeconds)}</span>
+									</div>
 								</div>
-								<div className="status-agy-stat">
-									<span className="status-agy-stat__label">Input Tokens</span>
-									<span className="status-agy-stat__val">{formatNumber(agyQuota.totalTokens.inputTokens)}</span>
+
+								<div className="status-metric__row">
+									<span className="status-quota-group__val">
+										{formatNumber(weeklyQuota.totalTokens)}{' '}
+										<span className="status-metric__total">
+											/ {formatNumber(weeklyQuota.tokenLimit)} tokens ({weeklyQuota.percentUsed}% used)
+										</span>
+									</span>
+									<span className="text-muted" style={{ fontSize: '10px' }}>
+										{100 - weeklyQuota.percentUsed}% free
+									</span>
 								</div>
-								<div className="status-agy-stat">
-									<span className="status-agy-stat__label">Output Tokens</span>
-									<span className="status-agy-stat__val">{formatNumber(agyQuota.totalTokens.outputTokens)}</span>
+
+								<div className="status-progress-bar">
+									<div
+										className={`status-progress-bar__fill ${weeklyFillClass}`}
+										style={{ width: `${Math.max(1, weeklyPercent)}%` }}
+									/>
 								</div>
-								<div className="status-agy-stat">
-									<span className="status-agy-stat__label">Laptop Memory</span>
-									<span className="status-agy-stat__val">
-										{agyQuota.laptopStats ? `${agyQuota.laptopStats.memoryUsagePercent}%` : 'N/A'}
+
+								<div className="status-quota-pills">
+									<span className="status-quota-pill">
+										Prompts: <span className="status-quota-pill__highlight">{weeklyQuota.promptsCount}</span>
+									</span>
+									<span className="status-quota-pill">
+										Input: <span className="status-quota-pill__highlight">{formatNumber(weeklyQuota.inputTokens)}</span>
+									</span>
+									<span className="status-quota-pill">
+										Output: <span className="status-quota-pill__highlight">{formatNumber(weeklyQuota.outputTokens)}</span>
 									</span>
 								</div>
 							</div>
 
-							{/* Laptop Stats */}
-							{agyQuota.laptopStats && (
-								<div className="status-workflow-latest">
-									<div className="status-workflow-latest__top">
-										<span className="text-secondary" style={{ fontSize: '11.5px', fontWeight: 600 }}>
-											Host Backend
-										</span>
+							{/* Active Session Limit Widget */}
+							<div className="status-quota-group">
+								<div className="status-quota-group__header">
+									<span className="status-quota-group__title">Active Session Limit</span>
+									{sessionQuota?.activeModel && (
 										<span className="status-tag">
-											Uptime: {formatUptime(agyQuota.laptopStats.uptimeSeconds)}
+											{sessionQuota.activeModel}
 										</span>
-									</div>
-									<div className="status-workflow-latest__details">
-										<span>RAM: {formatBytes(agyQuota.laptopStats.usedMemBytes)} / {formatBytes(agyQuota.laptopStats.totalMemBytes)}</span>
-										<span>•</span>
-										<span>Platform: {agyQuota.laptopStats.platform}</span>
-										<span>•</span>
-										<span>Node: {agyQuota.laptopStats.nodeVersion}</span>
-									</div>
+									)}
+								</div>
+
+								{sessionQuota ? (
+									<>
+										<div className="status-metric__row">
+											<span className="status-quota-group__val">
+												{formatNumber(sessionQuota.totalTokens)}{' '}
+												<span className="status-metric__total">
+													/ {formatNumber(sessionQuota.tokenLimit)} ctx tokens ({sessionQuota.percentUsed}% used)
+												</span>
+											</span>
+											<span className="text-muted" style={{ fontSize: '10px' }}>
+												{100 - sessionQuota.percentUsed}% context free
+											</span>
+										</div>
+
+										<div className="status-progress-bar">
+											<div
+												className={`status-progress-bar__fill ${sessionFillClass}`}
+												style={{ width: `${Math.max(1, sessionPercent)}%` }}
+											/>
+										</div>
+
+										<div className="status-quota-pills">
+											<span className="status-quota-pill">
+												Turns: <span className="status-quota-pill__highlight">{sessionQuota.turnsCount}</span>
+											</span>
+											<span className="status-quota-pill">
+												Input: <span className="status-quota-pill__highlight">{formatNumber(sessionQuota.inputTokens)}</span>
+											</span>
+											<span className="status-quota-pill">
+												Output: <span className="status-quota-pill__highlight">{formatNumber(sessionQuota.outputTokens)}</span>
+											</span>
+										</div>
+									</>
+								) : (
+									<p className="text-muted" style={{ fontSize: '10.5px', margin: '2px 0' }}>
+										No tokens used in current session.
+									</p>
+								)}
+							</div>
+
+							{/* Host Backend Telemetry */}
+							{agyQuota.laptopStats && (
+								<div className="status-host-bar">
+									<span><strong>Host:</strong> RAM {formatBytes(agyQuota.laptopStats.usedMemBytes)} / {formatBytes(agyQuota.laptopStats.totalMemBytes)} ({agyQuota.laptopStats.memoryUsagePercent}%)</span>
+									<span>•</span>
+									<span>{agyQuota.laptopStats.platform}</span>
+									<span>•</span>
+									<span>Node {agyQuota.laptopStats.nodeVersion}</span>
+									<span>•</span>
+									<span>Uptime {formatUptime(agyQuota.laptopStats.uptimeSeconds)}</span>
 								</div>
 							)}
 
 							{/* Available Models */}
 							{agyQuota.availableModels && agyQuota.availableModels.length > 0 && (
 								<div>
-									<span className="text-muted" style={{ fontSize: '10.5px' }}>Supported Models</span>
+									<span className="text-muted" style={{ fontSize: '10px' }}>Supported Models</span>
 									<div className="status-models-list">
 										{agyQuota.availableModels.slice(0, 5).map((m) => (
 											<span
@@ -524,10 +653,11 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 							)}
 						</div>
 					) : (
-						!agyError && <p className="text-muted" style={{ fontSize: '12px' }}>Connecting to laptop backend…</p>
+						!agyError && <p className="text-muted" style={{ fontSize: '11px' }}>Connecting to laptop backend…</p>
 					)}
 				</section>
 			</div>
 		</main>
 	)
 }
+

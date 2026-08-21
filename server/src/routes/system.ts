@@ -27,7 +27,10 @@ export function createSystemRouter(
 				sessions.getAll(),
 			])
 
-			const totalTokens = {
+			const WEEKLY_TOKEN_LIMIT = 10_000_000
+			const SESSION_TOKEN_LIMIT = 1_000_000
+
+			const totalTokens: AgyQuotaUsage['totalTokens'] = {
 				inputTokens: 0,
 				outputTokens: 0,
 				thinkingTokens: 0,
@@ -35,28 +38,72 @@ export function createSystemRouter(
 				cacheReadTokens: 0,
 			}
 
+			const weeklyTokens = {
+				inputTokens: 0,
+				outputTokens: 0,
+				thinkingTokens: 0,
+				totalTokens: 0,
+				promptsCount: 0,
+			}
+
 			let activeSessionTokens: AgyQuotaUsage['activeSessionTokens'] = undefined
+			let sessionQuota: AgyQuotaUsage['sessionQuota'] = undefined
 			let activeModel: string | undefined
+
+			const now = new Date()
+			const sevenDaysAgoMs = now.getTime() - 7 * 24 * 60 * 60 * 1000
+
+			// Compute next Sunday 23:59:59 UTC weekly reset
+			const daysUntilSunday = (7 - now.getUTCDay()) % 7 || 7
+			const nextReset = new Date(
+				Date.UTC(
+					now.getUTCFullYear(),
+					now.getUTCMonth(),
+					now.getUTCDate() + daysUntilSunday,
+					23,
+					59,
+					59,
+					999,
+				),
+			)
+			const weeklyResetSeconds = Math.max(0, Math.floor((nextReset.getTime() - now.getTime()) / 1000))
 
 			for (const session of allSessions) {
 				let sessionInput = 0
 				let sessionOutput = 0
 				let sessionThinking = 0
 				let sessionTotal = 0
+				let sessionTurns = 0
+				let sessionMessages = 0
+
+				const sessionUpdatedMs = session.updatedAt ? new Date(session.updatedAt).getTime() : Date.now()
+				const isWithinWeek = sessionUpdatedMs >= sevenDaysAgoMs
 
 				for (const item of session.items) {
 					if (item.kind === 'message') {
+						sessionMessages++
 						const charCount = item.content.length
 						const approxTokens = Math.max(1, Math.round(charCount / 4))
 						if (item.role === 'user') {
+							sessionTurns++
 							sessionInput += approxTokens
 							totalTokens.inputTokens += approxTokens
+							if (isWithinWeek) {
+								weeklyTokens.inputTokens += approxTokens
+								weeklyTokens.promptsCount++
+							}
 						} else {
 							sessionOutput += approxTokens
 							totalTokens.outputTokens += approxTokens
+							if (isWithinWeek) {
+								weeklyTokens.outputTokens += approxTokens
+							}
 						}
 						sessionTotal += approxTokens
 						totalTokens.totalTokens += approxTokens
+						if (isWithinWeek) {
+							weeklyTokens.totalTokens += approxTokens
+						}
 					}
 				}
 
@@ -67,8 +114,34 @@ export function createSystemRouter(
 						thinkingTokens: sessionThinking,
 						totalTokens: sessionTotal,
 					}
+					sessionQuota = {
+						inputTokens: sessionInput,
+						outputTokens: sessionOutput,
+						thinkingTokens: sessionThinking,
+						totalTokens: sessionTotal,
+						turnsCount: sessionTurns,
+						messagesCount: sessionMessages,
+						tokenLimit: SESSION_TOKEN_LIMIT,
+						tokensRemaining: Math.max(0, SESSION_TOKEN_LIMIT - sessionTotal),
+						percentUsed: Math.min(100, Math.round((sessionTotal / SESSION_TOKEN_LIMIT) * 100)),
+						activeModel: session.model,
+						updatedAt: session.updatedAt,
+					}
 					activeModel = session.model
 				}
+			}
+
+			const weeklyQuota: AgyQuotaUsage['weeklyQuota'] = {
+				inputTokens: weeklyTokens.inputTokens,
+				outputTokens: weeklyTokens.outputTokens,
+				thinkingTokens: weeklyTokens.thinkingTokens,
+				totalTokens: weeklyTokens.totalTokens,
+				promptsCount: weeklyTokens.promptsCount,
+				tokenLimit: WEEKLY_TOKEN_LIMIT,
+				tokensRemaining: Math.max(0, WEEKLY_TOKEN_LIMIT - weeklyTokens.totalTokens),
+				percentUsed: Math.min(100, Math.round((weeklyTokens.totalTokens / WEEKLY_TOKEN_LIMIT) * 100)),
+				resetAt: nextReset.toISOString(),
+				resetSeconds: weeklyResetSeconds,
 			}
 
 			const freeMemBytes = freemem()
@@ -83,6 +156,8 @@ export function createSystemRouter(
 				message: authStatus.message,
 				totalTokens,
 				activeSessionTokens,
+				sessionQuota,
+				weeklyQuota,
 				activeModel,
 				availableModels,
 				laptopStats: {
