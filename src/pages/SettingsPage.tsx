@@ -35,7 +35,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 	const handleUpdateRestart = async () => {
 		if (
 			!confirm(
-				'Pull latest dev-studio from git, rebuild the server, and restart it on your laptop?\n\nThe connection will drop for ~10 seconds while the server restarts. Then tap Save & Connect again.',
+				'Pull latest dev-studio from git, rebuild the server, and restart it?\n\nYour laptop PowerShell window (npm run laptop) must be open. Connection drops ~5 seconds, then reconnect.',
 			)
 		) {
 			return
@@ -160,12 +160,12 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 					<h2 className="settings-section__title">Update Laptop Backend</h2>
 					<p className="settings-section__desc">
 						Pulls the latest <code>dev-studio</code> code on your laptop, rebuilds the server, and
-						restarts it in the background. Use this after merging PRs so your phone gets the newest
-						backend without typing commands on the laptop.
+						restarts it. The laptop must be running <code>npm run laptop</code> in PowerShell (keep
+						that window open). Remote restart does not work with <code>npm run dev:server</code>.
 					</p>
 					<p className="settings-section__desc">
-						If reconnect fails, check <code>%USERPROFILE%\.dev-studio\restart.log</code> on the
-						laptop, or run <code>npm run laptop</code> again in PowerShell.
+						If reconnect fails, open PowerShell on the laptop and run:{' '}
+						<code>Get-Content $env:USERPROFILE\.dev-studio\restart.log</code>
 					</p>
 					<div className="settings-actions">
 						<button
@@ -180,7 +180,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 					{updateError && <p className="settings-update-error">{updateError}</p>}
 					{updateResult?.ok && updateResult.restarting && (
 						<p className="settings-update-ok">
-							Update complete - server is restarting in the background. Reconnect in ~10 seconds.
+							Update complete - server is restarting. Reconnect in ~5 seconds.
 							{updateResult.restartLogPath && (
 								<>
 									{' '}
