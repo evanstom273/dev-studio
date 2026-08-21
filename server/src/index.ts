@@ -48,7 +48,7 @@ async function main(): Promise<void> {
 	await sessions.init()
 	await agy.init()
 
-	app.listen(config.port, config.host, () => {
+	const server = app.listen(config.port, config.host, () => {
 		console.log(`Dev Studio backend listening on http://${config.host}:${config.port}`)
 		console.log(`Projects root: ${config.projectsRoot}`)
 		console.log(`Data dir: ${config.dataDir}`)
@@ -58,6 +58,18 @@ async function main(): Promise<void> {
 		if (!config.githubToken) {
 			console.warn('INFO: No GitHub token on laptop — clients can send X-GitHub-Token from the phone app')
 		}
+	})
+
+	server.on('error', (err: NodeJS.ErrnoException) => {
+		if (err.code === 'EADDRINUSE') {
+			console.error(
+				`Port ${config.port} is already in use. Stop the other server first:\n` +
+					`  Get-NetTCPConnection -LocalPort ${config.port} | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`,
+			)
+		} else {
+			console.error('Server failed to start:', err.message)
+		}
+		process.exit(1)
 	})
 }
 
