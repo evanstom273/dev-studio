@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AgentMode, AttachmentInfo, ConversationItem, PermissionRequest, StreamEvent } from '@shared/types/agent'
 import type { Project } from '@shared/types/project'
-import { AgentStatusBar } from '../components/AgentStatusBar'
 import { Conversation } from '../components/Conversation'
 import { PermissionPrompt } from '../components/PermissionPrompt'
 import { PromptComposer } from '../components/PromptComposer'
@@ -295,8 +294,7 @@ export function AgentView({ project, onRegisterActions, keyboardOpen = false }: 
 		<div
 			className={`workspace-pane agent-view${keyboardOpen ? ' agent-view--keyboard-open' : ''}`}
 		>
-			<AgentStatusBar status={turnStatus} />
-			<Conversation items={items} />
+			<Conversation items={items} status={turnStatus} />
 			{error && <div className="agent-error">{error}</div>}
 			<PermissionPrompt projectId={project.id} incoming={permissionRequests} />
 			<PromptComposer
