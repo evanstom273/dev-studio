@@ -33,7 +33,10 @@ export function formatTokenCount(value: number): string {
 
 export function formatTurnMeta(status: LiveTurnStatus, nowMs: number): string {
 	const parts: string[] = []
-	const elapsed = status.durationMs ?? Math.max(0, nowMs - status.startedAt)
+	const elapsed =
+		status.status === 'complete' && status.durationMs !== undefined
+			? status.durationMs
+			: Math.max(0, nowMs - status.startedAt)
 	parts.push(formatDuration(elapsed))
 
 	const tps = status.tokensPerSecond
