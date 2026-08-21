@@ -14,39 +14,33 @@ export type ServerUpdateResult = {
 	error?: string
 }
 
-export type TokenBreakdown = {
-	inputTokens: number
-	outputTokens: number
-	thinkingTokens: number
-	totalTokens: number
-	cacheReadTokens?: number
+export type QuotaBucket = {
+	kind: string
+	label: string
+	remainingFraction: number | null
+	usedFraction: number | null
+	percentRemaining: number | null
+	percentUsed: number | null
+	resetAt: string | null
+	resetSeconds: number | null
+	available: boolean
+	description: string | null
 }
 
-export type SessionQuotaInfo = {
-	inputTokens: number
-	outputTokens: number
-	thinkingTokens: number
-	totalTokens: number
-	turnsCount: number
-	messagesCount: number
-	tokenLimit: number
-	tokensRemaining: number
-	percentUsed: number
-	activeModel?: string
-	updatedAt?: string
+export type QuotaGroup = {
+	name: string
+	models: string
+	buckets: QuotaBucket[]
 }
 
-export type WeeklyQuotaInfo = {
-	inputTokens: number
-	outputTokens: number
-	thinkingTokens: number
-	totalTokens: number
-	promptsCount: number
-	tokenLimit: number
-	tokensRemaining: number
-	percentUsed: number
-	resetAt: string
-	resetSeconds: number
+export type AgyQuotaSnapshot = {
+	account: string | null
+	tier: string | null
+	fetchedAt: string
+	source: 'api' | 'pty'
+	host: string | null
+	note: string | null
+	groups: QuotaGroup[]
 }
 
 export type AgyQuotaUsage = {
@@ -54,10 +48,13 @@ export type AgyQuotaUsage = {
 	version?: string
 	authenticated?: boolean
 	message?: string
-	totalTokens: TokenBreakdown
-	activeSessionTokens?: TokenBreakdown
-	sessionQuota?: SessionQuotaInfo
-	weeklyQuota?: WeeklyQuotaInfo
+	quota?: AgyQuotaSnapshot
+	quotaError?: string
+	quotaHealth?: {
+		exhausted: boolean
+		low: boolean
+		worstRemainingPercent: number | null
+	}
 	activeModel?: string
 	availableModels: string[]
 	laptopStats?: {
@@ -70,4 +67,3 @@ export type AgyQuotaUsage = {
 		nodeVersion: string
 	}
 }
-
