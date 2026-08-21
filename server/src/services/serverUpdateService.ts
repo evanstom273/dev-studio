@@ -1,7 +1,7 @@
 import { access, appendFile, mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { ServerConfig } from '../config.js'
-import { RESTART_FLAG_NAME } from '../supervisor.js'
+import { RESTART_FLAG_NAME } from '../restart.js'
 import type { ServerUpdateResult, ServerUpdateStep } from '../types/system.js'
 import { runPlatformShell } from '../utils/exec.js'
 

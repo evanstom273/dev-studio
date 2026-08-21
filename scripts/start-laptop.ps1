@@ -6,6 +6,8 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Port = 3847
 $DataDir = Join-Path $env:USERPROFILE ".dev-studio"
+$RestartFlag = Join-Path $DataDir "RESTART_REQUESTED"
+$ServerEntry = Join-Path $RepoRoot "server\dist\index.js"
 
 Set-Location $RepoRoot
 
@@ -17,20 +19,21 @@ Write-Host "Repo: $RepoRoot"
 Write-Host "Remote restart: keep this window open"
 Write-Host ""
 
-# Kill orphaned server processes from failed restarts
-$connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
-if ($connections) {
-	Write-Host "Stopping orphaned process on port $Port..."
+function Stop-PortListener {
+	param([int]$TargetPort)
+	$connections = Get-NetTCPConnection -LocalPort $TargetPort -State Listen -ErrorAction SilentlyContinue
+	if (-not $connections) { return }
+	Write-Host "Stopping process on port $TargetPort..."
 	$connections | ForEach-Object {
 		Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue
 	}
 	Start-Sleep -Seconds 2
 }
 
-# Clear stale restart flag from failed phone restarts
-$restartFlag = Join-Path $DataDir "RESTART_REQUESTED"
-if (Test-Path $restartFlag) {
-	Remove-Item $restartFlag -Force
+Stop-PortListener -TargetPort $Port
+
+if (Test-Path $RestartFlag) {
+	Remove-Item $RestartFlag -Force
 	Write-Host "Cleared stale restart flag"
 }
 
@@ -49,4 +52,16 @@ Write-Host "Close this window to stop the server."
 Write-Host ""
 
 npm run build:server
-npm run start:server
+
+while ($true) {
+	Stop-PortListener -TargetPort $Port
+	Write-Host "Starting backend..."
+	& node $ServerEntry
+	if (-not (Test-Path $RestartFlag)) {
+		Write-Host "Server stopped."
+		break
+	}
+	Remove-Item $RestartFlag -Force
+	Write-Host "Restart requested - waiting 3 seconds..."
+	Start-Sleep -Seconds 3
+}
