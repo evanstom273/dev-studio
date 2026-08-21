@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dev-studio-v3'
+const CACHE_NAME = 'dev-studio-v4'
 const PRECACHE_ASSETS = [
 	'./',
 	'./index.html',

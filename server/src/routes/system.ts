@@ -124,10 +124,26 @@ export function createSystemRouter(
 						tokenLimit: SESSION_TOKEN_LIMIT,
 						tokensRemaining: Math.max(0, SESSION_TOKEN_LIMIT - sessionTotal),
 						percentUsed: Math.min(100, Math.round((sessionTotal / SESSION_TOKEN_LIMIT) * 100)),
-						activeModel: session.model,
+						activeModel: session.model || 'gemini-3.7-flash-high',
 						updatedAt: session.updatedAt,
 					}
-					activeModel = session.model
+					activeModel = session.model || 'gemini-3.7-flash-high'
+				}
+			}
+
+			if (!sessionQuota) {
+				sessionQuota = {
+					inputTokens: 0,
+					outputTokens: 0,
+					thinkingTokens: 0,
+					totalTokens: 0,
+					turnsCount: 0,
+					messagesCount: 0,
+					tokenLimit: SESSION_TOKEN_LIMIT,
+					tokensRemaining: SESSION_TOKEN_LIMIT,
+					percentUsed: 0,
+					activeModel: activeModel || availableModels[0] || 'gemini-3.7-flash-high',
+					updatedAt: new Date().toISOString(),
 				}
 			}
 

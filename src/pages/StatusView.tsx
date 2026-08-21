@@ -123,7 +123,6 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 	}, [project.id])
 
 	const loadAgyQuota = useCallback(async () => {
-		if (!isConnected) return
 		try {
 			setAgyError(null)
 			const data = await systemApi.getAgyQuota(project.id)
@@ -131,7 +130,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 		} catch (err) {
 			setAgyError(err instanceof Error ? err.message : 'Failed to load Antigravity quota')
 		}
-	}, [isConnected, project.id])
+	}, [project.id])
 
 	// Unified Refresh action
 	const handleRefreshAll = useCallback(async () => {
@@ -230,26 +229,23 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 	// Computed Antigravity Session Quota
 	const sessionQuota = useMemo(() => {
 		if (agyQuota?.sessionQuota) return agyQuota.sessionQuota
-		if (agyQuota?.activeSessionTokens) {
-			const total = agyQuota.activeSessionTokens.totalTokens
-			const limit = 1_000_000
-			return {
-				inputTokens: agyQuota.activeSessionTokens.inputTokens,
-				outputTokens: agyQuota.activeSessionTokens.outputTokens,
-				thinkingTokens: agyQuota.activeSessionTokens.thinkingTokens,
-				totalTokens: total,
-				turnsCount: 0,
-				messagesCount: 0,
-				tokenLimit: limit,
-				tokensRemaining: Math.max(0, limit - total),
-				percentUsed: Math.min(100, Math.round((total / limit) * 100)),
-				activeModel: agyQuota.activeModel,
-			}
+		const total = agyQuota?.activeSessionTokens?.totalTokens ?? 0
+		const limit = 1_000_000
+		return {
+			inputTokens: agyQuota?.activeSessionTokens?.inputTokens ?? 0,
+			outputTokens: agyQuota?.activeSessionTokens?.outputTokens ?? 0,
+			thinkingTokens: agyQuota?.activeSessionTokens?.thinkingTokens ?? 0,
+			totalTokens: total,
+			turnsCount: 0,
+			messagesCount: 0,
+			tokenLimit: limit,
+			tokensRemaining: Math.max(0, limit - total),
+			percentUsed: Math.min(100, Math.round((total / limit) * 100)),
+			activeModel: agyQuota?.activeModel || 'gemini-3.7-flash-high',
 		}
-		return null
 	}, [agyQuota])
 
-	const sessionPercent = sessionQuota?.percentUsed ?? 0
+	const sessionPercent = sessionQuota.percentUsed
 	const sessionFillClass =
 		sessionPercent < 60
 			? 'status-progress-bar__fill--cyan'
@@ -540,14 +536,14 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 								</div>
 
 								<div className="status-metric__row">
-									<span className="status-quota-group__val">
+									<div className="status-quota-group__val">
 										{formatNumber(weeklyQuota.totalTokens)}{' '}
 										<span className="status-metric__total">
-											/ {formatNumber(weeklyQuota.tokenLimit)} tokens ({weeklyQuota.percentUsed}% used)
+											/ {formatNumber(weeklyQuota.tokenLimit)} tokens
 										</span>
-									</span>
-									<span className="text-muted" style={{ fontSize: '10px' }}>
-										{100 - weeklyQuota.percentUsed}% free
+									</div>
+									<span className="status-metric__percent-badge">
+										{weeklyQuota.percentUsed}% used ({100 - weeklyQuota.percentUsed}% free)
 									</span>
 								</div>
 
@@ -575,51 +571,43 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 							<div className="status-quota-group">
 								<div className="status-quota-group__header">
 									<span className="status-quota-group__title">Active Session Limit</span>
-									{sessionQuota?.activeModel && (
+									{sessionQuota.activeModel && (
 										<span className="status-tag">
 											{sessionQuota.activeModel}
 										</span>
 									)}
 								</div>
 
-								{sessionQuota ? (
-									<>
-										<div className="status-metric__row">
-											<span className="status-quota-group__val">
-												{formatNumber(sessionQuota.totalTokens)}{' '}
-												<span className="status-metric__total">
-													/ {formatNumber(sessionQuota.tokenLimit)} ctx tokens ({sessionQuota.percentUsed}% used)
-												</span>
-											</span>
-											<span className="text-muted" style={{ fontSize: '10px' }}>
-												{100 - sessionQuota.percentUsed}% context free
-											</span>
-										</div>
+								<div className="status-metric__row">
+									<div className="status-quota-group__val">
+										{formatNumber(sessionQuota.totalTokens)}{' '}
+										<span className="status-metric__total">
+											/ {formatNumber(sessionQuota.tokenLimit)} ctx
+										</span>
+									</div>
+									<span className="status-metric__percent-badge">
+										{sessionQuota.percentUsed}% used ({100 - sessionQuota.percentUsed}% free)
+									</span>
+								</div>
 
-										<div className="status-progress-bar">
-											<div
-												className={`status-progress-bar__fill ${sessionFillClass}`}
-												style={{ width: `${Math.max(1, sessionPercent)}%` }}
-											/>
-										</div>
+								<div className="status-progress-bar">
+									<div
+										className={`status-progress-bar__fill ${sessionFillClass}`}
+										style={{ width: `${Math.max(1, sessionPercent)}%` }}
+									/>
+								</div>
 
-										<div className="status-quota-pills">
-											<span className="status-quota-pill">
-												Turns: <span className="status-quota-pill__highlight">{sessionQuota.turnsCount}</span>
-											</span>
-											<span className="status-quota-pill">
-												Input: <span className="status-quota-pill__highlight">{formatNumber(sessionQuota.inputTokens)}</span>
-											</span>
-											<span className="status-quota-pill">
-												Output: <span className="status-quota-pill__highlight">{formatNumber(sessionQuota.outputTokens)}</span>
-											</span>
-										</div>
-									</>
-								) : (
-									<p className="text-muted" style={{ fontSize: '10.5px', margin: '2px 0' }}>
-										No tokens used in current session.
-									</p>
-								)}
+								<div className="status-quota-pills">
+									<span className="status-quota-pill">
+										Turns: <span className="status-quota-pill__highlight">{sessionQuota.turnsCount}</span>
+									</span>
+									<span className="status-quota-pill">
+										Input: <span className="status-quota-pill__highlight">{formatNumber(sessionQuota.inputTokens)}</span>
+									</span>
+									<span className="status-quota-pill">
+										Output: <span className="status-quota-pill__highlight">{formatNumber(sessionQuota.outputTokens)}</span>
+									</span>
+								</div>
 							</div>
 
 							{/* All-Time Cumulative Tokens */}

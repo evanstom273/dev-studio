@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { appendFile, mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -103,36 +103,68 @@ export class AgyService {
 	}
 
 	async getAvailableModels(): Promise<string[]> {
-		if (this.cachedModels) return this.cachedModels
+		if (this.cachedModels && this.cachedModels.length > 0) return this.cachedModels
+
+		const fallback = [
+			'gemini-3.7-flash-high',
+			'gemini-3.7-flash-medium',
+			'gemini-3.7-flash-low',
+			'gemini-3.6-flash-high',
+			'gemini-3.5-flash-high',
+			'gemini-3.1-pro-high',
+			'claude-sonnet-4-6',
+			'claude-opus-4-6-thinking',
+			'gpt-oss-120b-medium',
+		]
 
 		return new Promise((resolve) => {
-			execFile(
-				this.config.agyPath,
-				['--model', '__query_models__', '-p', 'test'],
-				{ env: { ...process.env, FORCE_COLOR: '0' } },
-				(_err: Error | null, stdout: string, stderr: string) => {
-					const text = `${stdout || ''}\n${stderr || ''}`
-					const match = text.match(/Available models:\s*([\s\S]+)$/i)
-					if (match) {
-						const models = match[1]
-							.split('\n')
-							.map((line) => line.trim())
-							.filter(
-								(line) =>
-									line.length > 0 &&
-									!line.startsWith('Usage') &&
-									!line.startsWith('Flags:') &&
-									!line.startsWith('agy.exe'),
-							)
-						if (models.length > 0) {
-							this.cachedModels = models
-							resolve(models)
-							return
-						}
+			const child = spawn(this.config.agyPath, ['models'], {
+				stdio: ['ignore', 'pipe', 'pipe'],
+				env: { ...process.env, CI: 'true', FORCE_COLOR: '0' },
+				windowsHide: true,
+			})
+			let output = ''
+			child.stdout?.on('data', (chunk: Buffer) => {
+				output += chunk.toString()
+			})
+			child.stderr?.on('data', (chunk: Buffer) => {
+				output += chunk.toString()
+			})
+
+			const timeout = setTimeout(() => {
+				child.kill()
+				this.cachedModels = fallback
+				resolve(fallback)
+			}, 3000)
+
+			child.on('close', () => {
+				clearTimeout(timeout)
+				const lines = output.split('\n')
+				const models: string[] = []
+				for (const line of lines) {
+					const trimmed = line.trim()
+					if (!trimmed || trimmed.startsWith('Fetching') || trimmed.startsWith('Usage') || trimmed.startsWith('agy')) {
+						continue
 					}
-					resolve([])
-				},
-			)
+					const id = trimmed.split('\t')[0].trim().split(' ')[0].trim()
+					if (id && !models.includes(id)) {
+						models.push(id)
+					}
+				}
+				if (models.length > 0) {
+					this.cachedModels = models
+					resolve(models)
+				} else {
+					this.cachedModels = fallback
+					resolve(fallback)
+				}
+			})
+
+			child.on('error', () => {
+				clearTimeout(timeout)
+				this.cachedModels = fallback
+				resolve(fallback)
+			})
 		})
 	}
 

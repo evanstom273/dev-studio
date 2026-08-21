@@ -497,6 +497,13 @@
 	white-space: nowrap;
 }
 
+.status-metric__percent-badge {
+	font-size: 10px;
+	color: var(--text-muted);
+	white-space: nowrap;
+	margin-left: auto;
+}
+
 /* Antigravity Quota (Weekly & Session Limits) */
 .status-quota-section {
 	display: flex;
@@ -523,7 +530,7 @@
 	display: flex;
 	align-items: baseline;
 	justify-content: space-between;
-	gap: 6px;
+	gap: 4px 8px;
 	min-width: 0;
 	max-width: 100%;
 	flex-wrap: wrap;

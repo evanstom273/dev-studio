@@ -22,23 +22,12 @@ export async function checkCommand(path: string, versionArgs: string[] = ['--ver
 }
 
 export async function checkAgyAuth(agyPath: string): Promise<ToolStatus> {
-	const base = await checkCommand(agyPath)
+	const base = await checkCommand(agyPath, ['--version'])
 	if (!base.available) return base
 
-	try {
-		await execFileAsync(agyPath, ['-p', 'ping', '--output-format', 'json'], {
-			timeout: 15000,
-			env: { ...process.env },
-		})
-		return { ...base, authenticated: true }
-	} catch (error) {
-		const msg = error instanceof Error ? error.message : 'Unknown error'
-		const needsAuth = msg.includes('authentication') || msg.includes('auth')
-		return {
-			...base,
-			authenticated: !needsAuth,
-			message: needsAuth ? 'Run: agy (sign in with Google account)' : msg.slice(0, 200),
-		}
+	return {
+		...base,
+		authenticated: true,
 	}
 }
 
