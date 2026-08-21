@@ -1,9 +1,11 @@
 import { Router } from 'express'
 import { asyncHandler } from '../middleware.js'
+import type { ServerConfig } from '../config.js'
 import type { AgyService, PermissionQueue } from '../services/agyService.js'
 import type { ProjectService } from '../services/projectService.js'
 import { SessionStore } from '../store.js'
 import { param } from '../utils/params.js'
+import { resolveGitHubToken } from '../utils/githubToken.js'
 import type { AgentMode } from '../types/agent.js'
 
 export function createAgentRouter(
@@ -11,6 +13,7 @@ export function createAgentRouter(
 	agy: AgyService,
 	sessions: SessionStore,
 	permissions: PermissionQueue,
+	config: ServerConfig,
 ): Router {
 	const router = Router()
 
@@ -36,9 +39,14 @@ export function createAgentRouter(
 				return
 			}
 
-			const projectPath = await projects.getPath(projectId)
-			if (!projectPath) {
-				res.status(404).json({ error: 'Project not found' })
+			let projectPath: string
+			try {
+				const token = resolveGitHubToken(req, config)
+				projectPath = (await projects.ensureAgentWorkspace(projectId, token)).path
+			} catch (error) {
+				res.status(404).json({
+					error: error instanceof Error ? error.message : 'Project not found',
+				})
 				return
 			}
 
@@ -52,6 +60,11 @@ export function createAgentRouter(
 				res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
 			}
 
+			const onPermission = (permission: unknown) => {
+				send('stream', { type: 'permission_request', permission })
+			}
+			permissions.on('permission', onPermission)
+
 			try {
 				await agy.runPrompt(projectPath, projectId, content.trim(), mode, (streamEvent) => {
 					send('stream', streamEvent)
@@ -61,6 +74,8 @@ export function createAgentRouter(
 					type: 'error',
 					message: error instanceof Error ? error.message : 'Agent failed',
 				})
+			} finally {
+				permissions.off('permission', onPermission)
 			}
 
 			res.end()
