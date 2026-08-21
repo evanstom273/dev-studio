@@ -1,8 +1,9 @@
 .app-shell {
 	display: flex;
 	flex-direction: column;
-	min-height: 100dvh;
-	height: 100dvh;
+	flex: 1;
+	min-height: 0;
+	height: 100%;
 	background: var(--bg-base);
 }
 
@@ -36,17 +37,18 @@
 	overflow: hidden;
 }
 
-/* Mobile: single active view */
-@media (max-width: 767px) {
-	.workspace-shell--keyboard-open {
+/* Mobile + touch (portrait phone, fold inner screen, tablets) */
+@media (max-width: 767px), (hover: none) and (pointer: coarse) {
+	html.ds-keyboard-open .app-shell--workspace {
 		position: fixed;
+		top: var(--vv-offset-top, 0px);
 		left: 0;
 		right: 0;
-		top: 0;
 		width: 100%;
-		z-index: 30;
+		height: var(--vv-height, 100dvh);
+		max-height: var(--vv-height, 100dvh);
 		overflow: hidden;
-		background: var(--bg-base);
+		z-index: 50;
 	}
 
 	.project-header--keyboard-hidden {
@@ -56,6 +58,9 @@
 	.workspace-sidebar {
 		display: none;
 	}
+}
+
+@media (max-width: 767px) {
 
 	.workspace-pane--secondary {
 		display: none;

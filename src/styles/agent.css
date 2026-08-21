@@ -810,7 +810,7 @@
 	background: #d86666 !important;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 767px), (hover: none) and (pointer: coarse) {
 	.agent-view--keyboard-open .agent-toolbar {
 		display: none;
 	}

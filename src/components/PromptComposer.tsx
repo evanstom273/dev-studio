@@ -290,6 +290,11 @@ export function PromptComposer({
 					onChange={(e) => onChange(e.target.value)}
 					onKeyDown={handleKeyDown}
 					onPaste={handlePaste}
+					onFocus={() => {
+						requestAnimationFrame(() => {
+							textareaRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
+						})
+					}}
 					placeholder={
 						mode === 'ask'
 							? 'Ask a question about the code...'
