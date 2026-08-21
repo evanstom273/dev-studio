@@ -35,7 +35,7 @@ app.use('/api/agent', createAgentRouter(projects, agy, sessions, permissions))
 app.use('/api/run', createRunRouter(projects))
 app.use('/api/git', createGitRouter(projects))
 app.use('/api/files', createFilesRouter(projects))
-app.use('/api/github', createGitHubRouter(projects))
+app.use('/api/github', createGitHubRouter(projects, config))
 
 app.use(errorHandler)
 
@@ -49,6 +49,9 @@ async function main(): Promise<void> {
 		console.log(`Data dir: ${config.dataDir}`)
 		if (!config.token) {
 			console.warn('WARNING: DEV_STUDIO_TOKEN not set — API is unauthenticated')
+		}
+		if (!config.githubToken) {
+			console.warn('WARNING: DEV_STUDIO_GITHUB_TOKEN not set — GitHub API disabled')
 		}
 	})
 }

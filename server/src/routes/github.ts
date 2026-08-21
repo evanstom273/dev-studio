@@ -1,14 +1,15 @@
 import { Router } from 'express'
 import { simpleGit } from 'simple-git'
+import type { ServerConfig } from '../config.js'
 import { asyncHandler } from '../middleware.js'
 import type { ProjectService } from '../services/projectService.js'
 import { GitHubService } from '../services/githubService.js'
 import { param, queryParam } from '../utils/params.js'
 import type { GitHubPullRequestState } from '../types/github.js'
 
-export function createGitHubRouter(projects: ProjectService): Router {
+export function createGitHubRouter(projects: ProjectService, config: ServerConfig): Router {
 	const router = Router()
-	const github = new GitHubService()
+	const github = new GitHubService(config)
 
 	async function getProjectContext(projectId: string) {
 		const projectPath = await projects.getPath(projectId)

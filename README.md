@@ -8,7 +8,7 @@ Mobile-first coding agent interface connected to your laptop over Tailscale.
 - **Backend:** Node.js + Express (runs on your laptop)
 - **Agent:** Antigravity CLI (`agy`) via Google account auth
 - **Git:** Native git + simple-git
-- **GitHub:** GitHub CLI (`gh`)
+- **GitHub:** GitHub REST API (PAT on laptop)
 
 ## Quick start (frontend only)
 
@@ -22,8 +22,8 @@ npm run dev
 See **[docs/LAPTOP_SETUP.md](docs/LAPTOP_SETUP.md)** for complete laptop configuration.
 
 Summary:
-1. Install `agy`, `gh`, Tailscale on laptop
-2. Authenticate both CLIs
+1. Install `agy`, Tailscale on laptop
+2. Set `DEV_STUDIO_GITHUB_TOKEN` (GitHub PAT) and authenticate `agy`
 3. Start backend: `DEV_STUDIO_TOKEN=xxx npm run dev:server`
 4. Connect phone app via Settings → Tailscale URL + token
 

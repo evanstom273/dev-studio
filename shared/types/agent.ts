@@ -56,7 +56,7 @@ export type BackendHealth = {
 	version: string
 	agy: ToolStatus
 	git: ToolStatus
-	gh: ToolStatus
+	github: ToolStatus
 	uptime: number
 }
 

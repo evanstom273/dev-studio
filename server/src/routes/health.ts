@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import type { ServerConfig } from '../config.js'
 import { asyncHandler } from '../middleware.js'
-import { checkAgyAuth, checkCommand, checkGhAuth } from '../utils/exec.js'
+import { checkGitHubApi } from '../services/githubRestClient.js'
+import { checkAgyAuth, checkCommand } from '../utils/exec.js'
 
 const startTime = Date.now()
 
@@ -11,10 +12,10 @@ export function createHealthRouter(config: ServerConfig): Router {
 	router.get(
 		'/health',
 		asyncHandler(async (_req, res) => {
-			const [agy, git, gh] = await Promise.all([
+			const [agy, git, github] = await Promise.all([
 				checkAgyAuth(config.agyPath),
 				checkCommand('git'),
-				checkGhAuth(),
+				checkGitHubApi(config.githubToken),
 			])
 
 			const allOk = agy.available && git.available
@@ -25,7 +26,7 @@ export function createHealthRouter(config: ServerConfig): Router {
 				version: '0.2.0',
 				agy,
 				git,
-				gh,
+				github,
 				uptime: Math.floor((Date.now() - startTime) / 1000),
 			})
 		}),

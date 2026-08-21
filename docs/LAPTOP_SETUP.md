@@ -8,7 +8,7 @@ This guide covers everything you need to configure on your **laptop** so Dev Stu
 Phone (Dev Studio PWA)
   → Tailscale network
   → Dev Studio backend (this laptop, port 3847)
-  → Git / GitHub CLI / Antigravity CLI (agy)
+  → Git / GitHub REST API / Antigravity CLI (agy)
   → Your local repositories
 ```
 
@@ -26,7 +26,7 @@ Install on your laptop:
 |------|---------|---------|
 | **Node.js 20+** | Run the backend | [nodejs.org](https://nodejs.org) |
 | **Git** | Repository operations | Preinstalled on most systems |
-| **GitHub CLI (`gh`)** | GitHub repos, PRs | `brew install gh` / `sudo apt install gh` |
+| **GitHub PAT** | GitHub repos, PRs via REST API | Create at GitHub → Settings → Developer settings |
 | **Antigravity CLI (`agy`)** | Agent sessions | [Antigravity CLI docs](https://www.antigravity.google/docs/cli/install/) |
 | **Tailscale** | Private network | [tailscale.com](https://tailscale.com) |
 
@@ -63,14 +63,28 @@ Important:
 
 ---
 
-## 4. GitHub CLI authentication
+## 4. GitHub Personal Access Token
+
+Create a **Personal Access Token (classic)** on GitHub:
+
+1. GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
+2. **Generate new token (classic)**
+3. Enable the **`repo`** scope (required for private repos, PRs, and repo management)
+4. Copy the token — you won't see it again
+
+Set it on your laptop only (never in the phone app):
 
 ```bash
-gh auth login
-gh auth status
+export DEV_STUDIO_GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
 ```
 
-Follow the prompts to authenticate with your GitHub account.
+Or add it to your `.env` file (see section 6).
+
+Verify the backend can reach GitHub:
+
+```bash
+curl -H "Authorization: Bearer $DEV_STUDIO_GITHUB_TOKEN" https://api.github.com/user
+```
 
 ---
 
@@ -99,6 +113,9 @@ Create a `.env` file in the project root (or export these variables):
 ```bash
 # Required: shared secret between phone and laptop
 DEV_STUDIO_TOKEN=your-long-random-token-here
+
+# Required for GitHub repos/PRs (PAT — laptop only, never on phone)
+DEV_STUDIO_GITHUB_TOKEN=ghp_xxxxxxxxxxxx
 
 # Optional (defaults shown)
 DEV_STUDIO_HOST=0.0.0.0
@@ -163,7 +180,7 @@ curl -H "Authorization: Bearer your-token" http://my-laptop.tail-abc123.ts.net:3
 The status panel should show:
 - Antigravity CLI: available + authenticated
 - Git: Available
-- GitHub CLI: Authenticated
+- GitHub API: Authenticated (@your-username)
 
 ---
 
@@ -217,7 +234,7 @@ DEV_STUDIO_AUTO_APPROVE=true
 | Phone can't connect | Check Tailscale on both devices, verify laptop hostname and port |
 | 401 Unauthorized | Token mismatch between phone and `DEV_STUDIO_TOKEN` |
 | agy not authenticated | Run `agy` interactively and sign in with Google |
-| gh not authenticated | Run `gh auth login` |
+| GitHub API not configured | Set `DEV_STUDIO_GITHUB_TOKEN` with a PAT that has `repo` scope |
 | Agent produces no output | Ensure `agy` works headless: `agy -p "test" --output-format stream-json` |
 | Empty project list | Check `DEV_STUDIO_PROJECTS_ROOT` contains git repos |
 

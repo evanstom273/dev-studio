@@ -5,6 +5,7 @@ export type ServerConfig = {
 	host: string
 	port: number
 	token: string
+	githubToken: string
 	projectsRoot: string
 	dataDir: string
 	agyPath: string
@@ -27,6 +28,7 @@ export function loadConfig(): ServerConfig {
 		host: process.env.DEV_STUDIO_HOST ?? '0.0.0.0',
 		port: envInt('DEV_STUDIO_PORT', 3847),
 		token: process.env.DEV_STUDIO_TOKEN ?? '',
+		githubToken: process.env.DEV_STUDIO_GITHUB_TOKEN ?? process.env.GITHUB_TOKEN ?? '',
 		projectsRoot,
 		dataDir,
 		agyPath: process.env.AGY_PATH ?? 'agy',
