@@ -1,12 +1,9 @@
-import { spawn } from 'node:child_process'
-import { access, mkdir, writeFile } from 'node:fs/promises'
+import { access, appendFile, mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { ServerConfig } from '../config.js'
+import { RESTART_FLAG_NAME } from '../supervisor.js'
 import type { ServerUpdateResult, ServerUpdateStep } from '../types/system.js'
 import { runPlatformShell } from '../utils/exec.js'
-
-/** Seconds to wait in restart.bat before binding the port (old process must exit first). */
-const RESTART_DELAY_SEC = 4
 
 export class ServerUpdateService {
 	constructor(private config: ServerConfig) {}
@@ -94,7 +91,7 @@ export class ServerUpdateService {
 			}
 		}
 
-		const restartLogPath = await this.scheduleRestart(installPath)
+		const restartLogPath = await this.scheduleRestart()
 
 		return {
 			ok: true,
@@ -105,93 +102,24 @@ export class ServerUpdateService {
 		}
 	}
 
-	private async scheduleRestart(installPath: string): Promise<string> {
-		const cwd = resolve(installPath)
-		const restartCmd = this.config.restartCommand
-		const scriptDir = join(this.config.dataDir, 'scripts')
-		const batPath = join(scriptDir, 'restart-server.bat')
+	/** Signal the running supervisor to restart - no bat/spawn. */
+	private async scheduleRestart(): Promise<string> {
 		const logPath = join(this.config.dataDir, 'restart.log')
+		const flagPath = join(this.config.dataDir, RESTART_FLAG_NAME)
 
-		await mkdir(scriptDir, { recursive: true })
-		await writeFile(batPath, buildRestartBat(cwd, restartCmd, logPath), 'utf8')
+		await mkdir(this.config.dataDir, { recursive: true })
+		await appendFile(
+			logPath,
+			`[${new Date().toISOString()}] update complete, requesting restart (pid ${process.pid})\n`,
+		)
+		await writeFile(flagPath, new Date().toISOString(), 'utf8')
 
-		if (process.platform === 'win32') {
-			spawnWindowsRestart(batPath, cwd)
-		} else {
-			spawn('sh', ['-c', `sleep ${RESTART_DELAY_SEC} && "${batPath}" >> "${logPath}" 2>&1`], {
-				detached: true,
-				stdio: 'ignore',
-			}).unref()
-		}
-
-		// Exit quickly; restart.bat waits before binding the port.
 		setTimeout(() => {
 			process.exit(0)
-		}, 800)
+		}, 500)
 
 		return logPath
 	}
-}
-
-function buildRestartBat(cwd: string, restartCmd: string, logPath: string): string {
-	const log = batQuote(logPath)
-	const lines = [
-		'@echo off',
-		'setlocal',
-		`cd /d ${batQuote(cwd)}`,
-		`set ${batAssign('DEV_STUDIO_INSTALL_PATH', cwd)}`,
-		`set ${batAssign('DEV_STUDIO_RESTART_COMMAND', restartCmd)}`,
-	]
-
-	for (const [key, value] of Object.entries(process.env)) {
-		if (!value) continue
-		if (key.startsWith('DEV_STUDIO_') && key !== 'DEV_STUDIO_INSTALL_PATH' && key !== 'DEV_STUDIO_RESTART_COMMAND') {
-			lines.push(`set ${batAssign(key, value)}`)
-		}
-	}
-
-	if (process.env.AGY_PATH) {
-		lines.push(`set ${batAssign('AGY_PATH', process.env.AGY_PATH)}`)
-	}
-
-	lines.push(
-		`echo [%date% %time%] waiting ${RESTART_DELAY_SEC}s for old server to exit >> ${log}`,
-		`timeout /t ${RESTART_DELAY_SEC} /nobreak >nul`,
-		`echo [%date% %time%] starting: ${restartCmd} >> ${log}`,
-		`call ${restartCmd} >> ${log} 2>&1`,
-		`echo [%date% %time%] server exited with code %errorlevel% >> ${log}`,
-		'endlocal',
-		'',
-	)
-
-	return lines.join('\r\n')
-}
-
-/** Spawn restart via PowerShell Start-Process so it survives after this Node process exits. */
-function spawnWindowsRestart(batPath: string, cwd: string): void {
-	const batArg = batPath.replace(/'/g, "''")
-	const cwdArg = cwd.replace(/'/g, "''")
-	const ps = [
-		'Start-Process',
-		"-FilePath 'cmd.exe'",
-		`-ArgumentList '/c','${batArg}'`,
-		'-WindowStyle Hidden',
-		`-WorkingDirectory '${cwdArg}'`,
-	].join(' ')
-
-	spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps], {
-		detached: true,
-		stdio: 'ignore',
-		windowsHide: true,
-	}).unref()
-}
-
-function batQuote(value: string): string {
-	return `"${value.replace(/"/g, '""')}"`
-}
-
-function batAssign(name: string, value: string): string {
-	return `"${name}=${value.replace(/"/g, '""')}"`
 }
 
 function tailOutput(text: string, maxLines = 12): string {

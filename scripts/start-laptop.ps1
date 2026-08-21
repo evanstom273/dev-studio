@@ -8,12 +8,11 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $RepoRoot
 
 $env:DEV_STUDIO_INSTALL_PATH = $RepoRoot
-$env:DEV_STUDIO_RESTART_COMMAND = "npm run start:server"
 
 Write-Host ""
 Write-Host "Dev Studio laptop backend"
 Write-Host "Repo: $RepoRoot"
-Write-Host ""
+Write-Host "Remote restart: keep this window open"
 
 # Tailscale HTTPS proxy (background, no extra window)
 $tailscale = "${env:ProgramFiles}\Tailscale\tailscale.exe"
