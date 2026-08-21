@@ -123,10 +123,11 @@ export class ServerUpdateService {
 		)
 
 		if (process.platform === 'win32') {
-			spawn('cmd.exe', ['/k', batPath], {
+			// Hidden restart — phone update must not stack new cmd windows
+			spawn('cmd.exe', ['/c', batPath], {
 				detached: true,
 				stdio: 'ignore',
-				windowsHide: false,
+				windowsHide: true,
 			}).unref()
 		} else {
 			spawn('sh', ['-c', `sleep 2 && "${batPath}"`], {
