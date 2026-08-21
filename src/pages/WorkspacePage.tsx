@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react'
 import type { Project, WorkspaceView } from '@shared/types/project'
 import { BottomNav, SidebarNav } from '../components/Navigation'
 import { ProjectHeader } from '../components/ProjectHeader'
@@ -22,27 +21,19 @@ function WorkspacePageContent({
 	onNavigate,
 	onBack,
 }: WorkspacePageProps) {
-	const { keyboardOpen, height, offsetTop } = useKeyboardViewport()
-
-	const shellStyle: CSSProperties | undefined = keyboardOpen
-		? {
-				height: `${height}px`,
-				transform: `translateY(${offsetTop}px)`,
-			}
-		: undefined
+	const { keyboardOpen } = useKeyboardViewport()
 
 	const hideChrome = keyboardOpen && activeView === 'agent'
 
 	return (
-		<div className="app-shell app-shell--workspace">
+		<div
+			className={`app-shell app-shell--workspace${keyboardOpen ? ' app-shell--keyboard-open' : ''}`}
+		>
 			<aside className="workspace-sidebar">
 				<SidebarNav activeView={activeView} onNavigate={onNavigate} />
 			</aside>
 
-			<div
-				className={`workspace-shell${keyboardOpen ? ' workspace-shell--keyboard-open' : ''}`}
-				style={shellStyle}
-			>
+			<div className="workspace-shell">
 				<ProjectHeader
 					project={project}
 					onBack={onBack}
