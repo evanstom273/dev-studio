@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ConversationItem } from '@shared/types/agent'
+import type { LiveTurnStatus } from '../utils/turnStatus'
 import { ActivityItem } from './ActivityItem'
+import { AgentStatusBar } from './AgentStatusBar'
 import { IconCheck, IconCopy } from './Icons'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import '../styles/agent.css'
 
 type ConversationProps = {
 	items: ConversationItem[]
+	status?: LiveTurnStatus | null
 }
 
 function MessageCard({ item }: { item: Extract<ConversationItem, { kind: 'message' }> }) {
@@ -52,12 +55,12 @@ function MessageCard({ item }: { item: Extract<ConversationItem, { kind: 'messag
 	)
 }
 
-export function Conversation({ items }: ConversationProps) {
+export function Conversation({ items, status }: ConversationProps) {
 	const endRef = useRef<HTMLDivElement>(null)
 
 	useEffect(() => {
 		endRef.current?.scrollIntoView({ behavior: 'smooth' })
-	}, [items])
+	}, [items, status])
 
 	return (
 		<div className="conversation" role="log" aria-label="Agent conversation">
@@ -68,6 +71,7 @@ export function Conversation({ items }: ConversationProps) {
 
 				return <MessageCard key={item.id} item={item} />
 			})}
+			{status && <AgentStatusBar status={status} />}
 			<div ref={endRef} style={{ height: 1 }} />
 		</div>
 	)
