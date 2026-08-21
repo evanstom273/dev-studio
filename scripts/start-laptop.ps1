@@ -20,6 +20,7 @@ $LogFile = Join-Path $DataDir "laptop.log"
 Set-Location $RepoRoot
 
 $env:DEV_STUDIO_INSTALL_PATH = $RepoRoot
+$env:DEV_STUDIO_AUTO_APPROVE = "true"
 
 function Write-Log {
 	param([string]$Message)
