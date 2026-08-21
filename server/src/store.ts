@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile, readdir, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { ServerConfig } from './config.js'
 import type { AgentSession } from './types/agent.js'
 
@@ -65,6 +65,7 @@ export class ProjectRegistry {
 
 	async init(): Promise<void> {
 		await mkdir(this.projectsRoot, { recursive: true })
+		await mkdir(dirname(this.registryPath), { recursive: true })
 		try {
 			await readFile(this.registryPath, 'utf8')
 		} catch {
