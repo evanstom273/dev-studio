@@ -1,5 +1,7 @@
 import type {
 	ClosePullRequestRequest,
+	CommitAndPrRequest,
+	CommitAndPrResponse,
 	CreateGitHubRepoRequest,
 	CreatePullRequestRequest,
 	DeleteRepoRequest,
@@ -9,6 +11,8 @@ import type {
 	GitHubPullRequestState,
 	GitHubRepoDetails,
 	LinkRemoteRequest,
+	MergeAndSyncRequest,
+	MergeAndSyncResponse,
 	MergePullRequestRequest,
 	UpdatePullRequestRequest,
 	UpdateRepoRequest,
@@ -75,7 +79,16 @@ export const githubApi = {
 	reopenPullRequest(projectId: string, number: number): Promise<void> {
 		return apiFetch(`${projectPath(projectId)}/prs/${number}/reopen`, { method: 'POST' })
 	},
+
+	commitAndOpenPr(projectId: string, body: CommitAndPrRequest): Promise<CommitAndPrResponse> {
+		return apiFetch(`${projectPath(projectId)}/commit-pr`, { method: 'POST', body: JSON.stringify(body) })
+	},
+
+	mergeAndSync(projectId: string, body: MergeAndSyncRequest): Promise<MergeAndSyncResponse> {
+		return apiFetch(`${projectPath(projectId)}/prs/merge-sync`, { method: 'POST', body: JSON.stringify(body) })
+	},
 }
+
 
 export const permissionsApi = {
 	list(projectId?: string) {

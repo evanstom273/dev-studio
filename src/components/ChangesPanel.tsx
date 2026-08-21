@@ -1,16 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { ChangeStatus, ChangedFile, FileDiff } from '@shared/types/git'
-import { Field, GhTextarea, GhToggle, Sheet, SheetActions } from './github/GitHubUi'
+import type { GitHubPullRequest } from '@shared/types/github'
+import { Field, GhInput, GhSelect, GhTextarea, GhToggle, Sheet, SheetActions } from './github/GitHubUi'
 import '../styles/panels.css'
 
 type ChangesListProps = {
 	files: ChangedFile[]
 	selectedPath: string | null
 	onSelect: (path: string) => void
-	onStage?: (path: string) => void
-	onUnstage?: (path: string) => void
-	onStageAll?: () => void
-	onUnstageAll?: () => void
 	onDiscard?: (path: string) => void
 	busy?: boolean
 }
@@ -28,22 +25,15 @@ export function ChangesList({
 	files,
 	selectedPath,
 	onSelect,
-	onStage,
-	onUnstage,
-	onStageAll,
-	onUnstageAll,
 	onDiscard,
 	busy,
 }: ChangesListProps) {
-	const stagedFiles = files.filter((f) => f.staged)
-	const unstagedFiles = files.filter((f) => !f.staged)
-
 	if (files.length === 0) {
 		return (
 			<div className="changes-list" role="list">
 				<div className="empty-state">
 					<p className="empty-state__text">Working tree clean</p>
-					<p className="empty-state__subtext">No staged or unstaged changes</p>
+					<p className="empty-state__subtext">No changed files detected</p>
 				</div>
 			</div>
 		)
@@ -51,133 +41,44 @@ export function ChangesList({
 
 	return (
 		<div className="changes-list" role="list">
-			{/* Staged files section */}
-			{stagedFiles.length > 0 && (
-				<div className="changes-section">
-					<div className="changes-section__header">
-						<span className="changes-section__title">
-							Staged Changes ({stagedFiles.length})
-						</span>
-						{onUnstageAll && (
-							<button
-								type="button"
-								className="btn btn--ghost btn--xs"
-								onClick={onUnstageAll}
-								disabled={busy}
-								title="Unstage all files"
-							>
-								Unstage all
-							</button>
-						)}
-					</div>
-					{stagedFiles.map((file) => (
-						<div
-							key={`staged:${file.path}`}
-							className="changes-list__row"
-						>
-							<button
-								type="button"
-								className={`changes-list__item${selectedPath === file.path ? ' is-selected' : ''}`}
-								onClick={() => onSelect(file.path)}
-								role="listitem"
-							>
-								<span className="changes-list__status changes-list__status--staged">
-									Staged
-								</span>
-								<span className="changes-list__path">{file.path}</span>
-							</button>
-							<div className="changes-list__actions">
-								{onUnstage && (
-									<button
-										type="button"
-										className="btn btn--ghost btn--xs"
-										onClick={() => onUnstage(file.path)}
-										disabled={busy}
-										title="Unstage this file"
-									>
-										Unstage
-									</button>
-								)}
-								{onDiscard && (
-									<button
-										type="button"
-										className="btn btn--ghost btn--xs"
-										onClick={() => onDiscard(file.path)}
-										disabled={busy}
-										title="Discard changes"
-									>
-										Discard
-									</button>
-								)}
-							</div>
-						</div>
-					))}
+			<div className="changes-section">
+				<div className="changes-section__header">
+					<span className="changes-section__title">
+						Changed Files ({files.length})
+					</span>
 				</div>
-			)}
-
-			{/* Unstaged files section */}
-			{unstagedFiles.length > 0 && (
-				<div className="changes-section">
-					<div className="changes-section__header">
-						<span className="changes-section__title">
-							Changes ({unstagedFiles.length})
-						</span>
-						{onStageAll && (
-							<button
-								type="button"
-								className="btn btn--ghost btn--xs"
-								onClick={onStageAll}
-								disabled={busy}
-								title="Stage all changes"
-							>
-								Stage all
-							</button>
-						)}
-					</div>
-					{unstagedFiles.map((file) => (
-						<div
-							key={`unstaged:${file.path}`}
-							className="changes-list__row"
+				{files.map((file) => (
+					<div
+						key={file.path}
+						className="changes-list__row"
+					>
+						<button
+							type="button"
+							className={`changes-list__item${selectedPath === file.path ? ' is-selected' : ''}`}
+							onClick={() => onSelect(file.path)}
+							role="listitem"
 						>
-							<button
-								type="button"
-								className={`changes-list__item${selectedPath === file.path ? ' is-selected' : ''}`}
-								onClick={() => onSelect(file.path)}
-								role="listitem"
-							>
-								<span className={`changes-list__status changes-list__status--${file.status}`}>
-									{STATUS_LABELS[file.status]}
-								</span>
-								<span className="changes-list__path">{file.path}</span>
-							</button>
-							<div className="changes-list__actions">
-								{onStage && (
-									<button
-										type="button"
-										className="btn btn--ghost btn--xs"
-										onClick={() => onStage(file.path)}
-										disabled={busy}
-										title="Stage this file"
-									>
-										Stage
-									</button>
-								)}
-								{onDiscard && (
-									<button
-										type="button"
-										className="btn btn--ghost btn--xs"
-										onClick={() => onDiscard(file.path)}
-										disabled={busy}
-										title="Discard changes"
-									>
-										Discard
-									</button>
-								)}
-							</div>
+							<span className={`changes-list__status changes-list__status--${file.status}`}>
+								{STATUS_LABELS[file.status] ?? file.status}
+							</span>
+							<span className="changes-list__path">{file.path}</span>
+						</button>
+						<div className="changes-list__actions">
+							{onDiscard && (
+								<button
+									type="button"
+									className="btn btn--ghost btn--xs"
+									onClick={() => onDiscard(file.path)}
+									disabled={busy}
+									title="Discard changes to this file"
+								>
+									Discard
+								</button>
+							)}
 						</div>
-					))}
-				</div>
-			)}
+					</div>
+				))}
+			</div>
 		</div>
 	)
 }
@@ -225,82 +126,128 @@ export function DiffView({ diff }: DiffViewProps) {
 	)
 }
 
-type CommitSheetProps = {
+type CommitPrSheetProps = {
 	open: boolean
-	stagedCount: number
-	unstagedCount: number
+	fileCount: number
+	currentBranch: string
+	hasGitHub: boolean
 	onClose: () => void
-	onCommit: (message: string, stageAllFirst: boolean) => Promise<void>
+	onCommit: (data: { message: string; description?: string; branch?: string }) => Promise<void>
 	busy?: boolean
 	error?: string | null
 }
 
-export function CommitSheet({
+function slugify(text: string): string {
+	return text
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/(^-|-$)/g, '')
+		.slice(0, 28)
+}
+
+export function CommitPrSheet({
 	open,
-	stagedCount,
-	unstagedCount,
+	fileCount,
+	currentBranch,
+	hasGitHub,
 	onClose,
 	onCommit,
 	busy,
 	error,
-}: CommitSheetProps) {
-	const [message, setMessage] = useState('')
-	const [stageAll, setStageAll] = useState(stagedCount === 0 && unstagedCount > 0)
+}: CommitPrSheetProps) {
+	const [title, setTitle] = useState('')
+	const [description, setDescription] = useState('')
+	const [branchName, setBranchName] = useState('')
+	const [userEditedBranch, setUserEditedBranch] = useState(false)
+
+	const isDefaultBranch = !currentBranch || currentBranch === 'main' || currentBranch === 'master' || currentBranch === 'HEAD'
+
+	useEffect(() => {
+		if (open) {
+			setTitle('')
+			setDescription('')
+			setBranchName('')
+			setUserEditedBranch(false)
+		}
+	}, [open])
+
+	const handleTitleChange = (val: string) => {
+		setTitle(val)
+		if (isDefaultBranch && !userEditedBranch) {
+			const slug = slugify(val)
+			setBranchName(slug ? `feat/${slug}` : '')
+		}
+	}
 
 	const handleSubmit = () => {
-		const trimmed = message.trim()
-		if (!trimmed || busy) return
-		void onCommit(trimmed, stageAll).then(() => {
-			setMessage('')
+		const trimmedTitle = title.trim()
+		if (!trimmedTitle || busy) return
+		void onCommit({
+			message: trimmedTitle,
+			description: description.trim() || undefined,
+			branch: isDefaultBranch ? (branchName.trim() || undefined) : undefined,
 		})
 	}
 
 	return (
-		<Sheet open={open} title="Commit Changes" onClose={onClose}>
+		<Sheet
+			open={open}
+			title={hasGitHub ? 'Commit & Open Pull Request' : 'Commit Changes'}
+			onClose={onClose}
+		>
 			{error && <div className="panel-alert panel-alert--error">{error}</div>}
 
 			<div className="commit-sheet__summary">
-				{stagedCount > 0 ? (
-					<div className="commit-sheet__badge commit-sheet__badge--staged">
-						{stagedCount} file{stagedCount === 1 ? '' : 's'} staged
-					</div>
-				) : (
-					<div className="commit-sheet__badge commit-sheet__badge--warn">
-						No files staged
-					</div>
-				)}
-				{unstagedCount > 0 && (
+				<div className="commit-sheet__badge commit-sheet__badge--staged">
+					{fileCount} changed file{fileCount === 1 ? '' : 's'} (auto-staged)
+				</div>
+				{hasGitHub && !isDefaultBranch && (
 					<div className="commit-sheet__badge">
-						{unstagedCount} unstaged change{unstagedCount === 1 ? '' : 's'}
+						Branch: <code>{currentBranch}</code>
 					</div>
 				)}
 			</div>
 
-			{unstagedCount > 0 && (
-				<GhToggle
-					checked={stageAll}
-					onChange={setStageAll}
-					label={
-						stagedCount === 0
-							? `Stage all ${unstagedCount} file(s) before commit`
-							: `Include all remaining ${unstagedCount} unstaged file(s)`
-					}
+			<Field label="Title / Commit Message" hint="Press Enter or Ctrl+Enter to commit">
+				<GhInput
+					value={title}
+					onChange={(e) => handleTitleChange(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key === 'Enter' && !e.shiftKey) {
+							e.preventDefault()
+							handleSubmit()
+						}
+					}}
+					placeholder="e.g. Add dark mode toggle or fix search bug"
+					autoFocus
 				/>
+			</Field>
+
+			{hasGitHub && isDefaultBranch && (
+				<Field label="Feature Branch Name" hint="Branch to create and push to GitHub for this PR">
+					<GhInput
+						value={branchName}
+						onChange={(e) => {
+							setUserEditedBranch(true)
+							setBranchName(e.target.value)
+						}}
+						placeholder="feat/my-feature"
+					/>
+				</Field>
 			)}
 
-			<Field label="Commit message" hint="Press Ctrl+Enter to commit">
+			<Field label="Description (optional)" hint="Additional context for the PR description">
 				<GhTextarea
-					value={message}
-					onChange={(e) => setMessage(e.target.value)}
+					value={description}
+					onChange={(e) => setDescription(e.target.value)}
 					onKeyDown={(e) => {
 						if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
 							e.preventDefault()
 							handleSubmit()
 						}
 					}}
-					rows={4}
+					rows={3}
 					placeholder="Describe what changed..."
-					autoFocus
 				/>
 			</Field>
 
@@ -316,16 +263,103 @@ export function CommitSheet({
 				<button
 					type="button"
 					className="btn btn--primary"
-					disabled={!message.trim() || busy || (stagedCount === 0 && !stageAll)}
+					disabled={!title.trim() || busy}
 					onClick={handleSubmit}
 				>
 					{busy
-						? 'Committing…'
-						: stageAll && stagedCount === 0
-							? 'Stage All & Commit'
-							: 'Commit'}
+						? 'Committing & Creating PR…'
+						: hasGitHub
+							? 'Commit & Open PR'
+							: 'Commit Changes'}
 				</button>
 			</SheetActions>
 		</Sheet>
 	)
 }
+
+type PrMergeSheetProps = {
+	open: boolean
+	pr: GitHubPullRequest | null
+	onClose: () => void
+	onMerge: (method: 'squash' | 'merge' | 'rebase', deleteBranch: boolean) => Promise<void>
+	busy?: boolean
+	error?: string | null
+}
+
+export function PrMergeSheet({
+	open,
+	pr,
+	onClose,
+	onMerge,
+	busy,
+	error,
+}: PrMergeSheetProps) {
+	const [method, setMethod] = useState<'squash' | 'merge' | 'rebase'>('squash')
+	const [deleteBranch, setDeleteBranch] = useState(true)
+
+	if (!pr) return null
+
+	return (
+		<Sheet
+			open={open}
+			title={`PR #${pr.number}: ${pr.title}`}
+			onClose={onClose}
+		>
+			{error && <div className="panel-alert panel-alert--error">{error}</div>}
+
+			<div className="gh-pr-detail__meta" style={{ marginBottom: 'var(--space-md)' }}>
+				<span className="gh-badge gh-badge--open">{pr.state}</span>
+				<span><code>{pr.headBranch}</code> → <code>{pr.baseBranch}</code></span>
+				{pr.changedFiles !== undefined && (
+					<span>{pr.changedFiles} files · +{pr.additions ?? 0} −{pr.deletions ?? 0}</span>
+				)}
+			</div>
+
+			{pr.body && (
+				<p className="gh-repo-card__desc" style={{ marginBottom: 'var(--space-md)', whiteSpace: 'pre-wrap' }}>
+					{pr.body}
+				</p>
+			)}
+
+			<Field label="Merge method">
+				<GhSelect value={method} onChange={(e) => setMethod(e.target.value as typeof method)}>
+					<option value="squash">Squash and merge (Recommended)</option>
+					<option value="merge">Create merge commit</option>
+					<option value="rebase">Rebase and merge</option>
+				</GhSelect>
+			</Field>
+
+			<GhToggle
+				checked={deleteBranch}
+				onChange={setDeleteBranch}
+				label="Delete feature branch on GitHub after merge"
+			/>
+
+			<div style={{ marginTop: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+				<a href={pr.url} target="_blank" rel="noopener noreferrer" className="gh-link">
+					View PR on GitHub ↗
+				</a>
+			</div>
+
+			<SheetActions>
+				<button
+					type="button"
+					className="btn btn--ghost"
+					onClick={onClose}
+					disabled={busy}
+				>
+					Done
+				</button>
+				<button
+					type="button"
+					className="btn btn--primary"
+					disabled={busy}
+					onClick={() => void onMerge(method, deleteBranch)}
+				>
+					{busy ? 'Merging & Syncing…' : 'Merge Pull Request'}
+				</button>
+			</SheetActions>
+		</Sheet>
+	)
+}
+

@@ -1,6 +1,8 @@
 import { simpleGit } from 'simple-git'
 import type {
 	ClosePullRequestRequest,
+	CommitAndPrRequest,
+	CommitAndPrResponse,
 	CreateGitHubRepoRequest,
 	CreatePullRequestRequest,
 	DeleteRepoRequest,
@@ -12,6 +14,8 @@ import type {
 	GitHubRepoDetails,
 	GitHubRepoInfo,
 	LinkRemoteRequest,
+	MergeAndSyncRequest,
+	MergeAndSyncResponse,
 	MergePullRequestRequest,
 	UpdatePullRequestRequest,
 	UpdateRepoRequest,
@@ -288,4 +292,106 @@ export class GitHubService {
 		}
 		await this.client.deleteRepo(info.owner, info.repo)
 	}
+
+	async commitAndOpenPr(
+		projectPath: string,
+		req: CommitAndPrRequest,
+		token?: string,
+	): Promise<CommitAndPrResponse> {
+		const status = await this.git.status(projectPath)
+		if (status.clean) {
+			throw new Error('No changes to commit')
+		}
+
+		// 1. Stage all changes automatically (no manual staging)
+		await this.git.stageAll(projectPath)
+
+		// 2. Determine target branch and default branch
+		const defaultBranch = (await this.git.getDefaultBranch(projectPath)) || 'main'
+		let currentBranch = status.branch || 'HEAD'
+
+		if (req.branch?.trim() && req.branch.trim() !== currentBranch) {
+			const branches = await this.git.branches(projectPath)
+			const exists = branches.some((b) => b.name === req.branch!.trim())
+			await this.git.checkout(projectPath, req.branch.trim(), !exists)
+			currentBranch = req.branch.trim()
+		} else if (currentBranch === defaultBranch || currentBranch === 'HEAD') {
+			const slug = req.message
+				.toLowerCase()
+				.replace(/[^a-z0-9]+/g, '-')
+				.replace(/(^-|-$)/g, '')
+				.slice(0, 30)
+			const newBranch = slug ? `feat/${slug}` : `patch-${Date.now()}`
+			await this.git.checkout(projectPath, newBranch, true)
+			currentBranch = newBranch
+		}
+
+		// 3. Commit changes
+		const fullCommitMsg = req.description?.trim()
+			? `${req.message.trim()}\n\n${req.description.trim()}`
+			: req.message.trim()
+		const hash = await this.git.commit(projectPath, fullCommitMsg)
+
+		// 4. Check if GitHub repo & token are available
+		const repoInfo = await this.getRepoInfo(projectPath, undefined)
+		if (!repoInfo || !this.client.hasToken()) {
+			return {
+				hash,
+				branch: currentBranch,
+				pr: null,
+				message: 'Committed locally (GitHub not connected)',
+			}
+		}
+
+		// Push branch to remote
+		await this.git.push(projectPath, 'origin', currentBranch, false, token)
+
+		// 5. Create or find existing PR
+		let pr: GitHubPullRequest | null = null
+		try {
+			pr = await this.createPullRequest(projectPath, {
+				title: req.message.trim(),
+				body: req.description?.trim() || undefined,
+				head: currentBranch,
+				base: defaultBranch,
+				draft: req.draft,
+			})
+		} catch (err) {
+			const existingPrs = await this.listPullRequests(projectPath, 'open', 20).catch(() => [])
+			const found = existingPrs.find((p) => p.headBranch === currentBranch)
+			if (found) {
+				pr = found
+			} else {
+				throw err
+			}
+		}
+
+		return {
+			hash,
+			branch: currentBranch,
+			pr,
+			message: `Committed & created PR #${pr.number}`,
+		}
+	}
+
+	async mergeAndSync(
+		projectPath: string,
+		req: MergeAndSyncRequest,
+		token?: string,
+	): Promise<MergeAndSyncResponse> {
+		const pr = await this.getPullRequest(projectPath, req.number)
+		const baseBranch = pr.baseBranch || 'main'
+
+		await this.mergePullRequest(projectPath, req)
+
+		// Switch back to base branch and pull latest merged changes
+		await this.git.checkout(projectPath, baseBranch, false)
+		await this.git.pull(projectPath, 'origin', baseBranch, false, token)
+
+		return {
+			merged: true,
+			currentBranch: baseBranch,
+		}
+	}
 }
+
