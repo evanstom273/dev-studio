@@ -128,5 +128,18 @@ export function createGitHubRouter(projects: ProjectService, config: ServerConfi
 		res.json({ ok: true })
 	}))
 
+	router.post('/:projectId/commit-pr', asyncHandler(async (req, res) => {
+		const { projectPath, github } = await getProjectContext(param(req, 'projectId'), req)
+		const token = resolveGitHubToken(req, config)
+		res.json(await github.commitAndOpenPr(projectPath, req.body, token))
+	}))
+
+	router.post('/:projectId/prs/merge-sync', asyncHandler(async (req, res) => {
+		const { projectPath, github } = await getProjectContext(param(req, 'projectId'), req)
+		const token = resolveGitHubToken(req, config)
+		res.json(await github.mergeAndSync(projectPath, req.body, token))
+	}))
+
 	return router
 }
+

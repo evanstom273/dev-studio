@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ChangedFile, FileDiff } from '@shared/types/git'
+import type { GitHubPullRequest } from '@shared/types/github'
 import type { Project } from '@shared/types/project'
-import { ChangesList, CommitSheet, DiffView } from '../components/ChangesPanel'
+import { ChangesList, CommitPrSheet, DiffView, PrMergeSheet } from '../components/ChangesPanel'
 import { IconBack } from '../components/Icons'
 import { useWideLayout } from '../hooks/useMediaQuery'
 import { agentApi } from '../services/agentApi'
 import { gitApi } from '../services/gitApi'
+import { githubApi } from '../services/githubApi'
 import '../styles/panels.css'
 
 type ChangesViewProps = {
@@ -16,22 +18,34 @@ export function ChangesView({ project }: ChangesViewProps) {
 	const [files, setFiles] = useState<ChangedFile[]>([])
 	const [selectedPath, setSelectedPath] = useState<string | null>(null)
 	const [diff, setDiff] = useState<FileDiff | null>(null)
+	const [currentBranch, setCurrentBranch] = useState<string>('main')
+	const [hasGitHub, setHasGitHub] = useState<boolean>(false)
 	const [loading, setLoading] = useState(false)
 	const [busy, setBusy] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [message, setMessage] = useState<string | null>(null)
 	const [showCommitSheet, setShowCommitSheet] = useState(false)
 	const [commitError, setCommitError] = useState<string | null>(null)
+	const [createdPr, setCreatedPr] = useState<GitHubPullRequest | null>(null)
+	const [showMergeSheet, setShowMergeSheet] = useState(false)
+	const [mergeError, setMergeError] = useState<string | null>(null)
 	const isWide = useWideLayout()
-
-	const stagedCount = files.filter((f) => f.staged).length
-	const unstagedCount = files.filter((f) => !f.staged).length
 
 	const loadChanges = useCallback(async () => {
 		setLoading(true)
 		try {
-			const changed = await agentApi.listChanges(project.id)
-			setFiles(changed)
+			const [status, repoDetails] = await Promise.all([
+				gitApi.status(project.id).catch(() => null),
+				githubApi.getRepo(project.id).catch(() => null),
+			])
+			if (status) {
+				setFiles(status.changed)
+				setCurrentBranch(status.branch || 'main')
+			} else {
+				const changed = await agentApi.listChanges(project.id)
+				setFiles(changed)
+			}
+			setHasGitHub(Boolean(repoDetails))
 		} catch (err) {
 			setError(err instanceof Error ? err.message : 'Failed to load changes')
 		} finally {
@@ -59,62 +73,6 @@ export function ChangesView({ project }: ChangesViewProps) {
 		setMessage(null)
 	}
 
-	const handleStage = async (path: string) => {
-		clearAlerts()
-		setBusy(true)
-		try {
-			await gitApi.stage(project.id, { paths: [path] })
-			setMessage(`Staged ${path}`)
-			await loadChanges()
-		} catch (err) {
-			setError(err instanceof Error ? err.message : `Failed to stage ${path}`)
-		} finally {
-			setBusy(false)
-		}
-	}
-
-	const handleUnstage = async (path: string) => {
-		clearAlerts()
-		setBusy(true)
-		try {
-			await gitApi.unstage(project.id, { paths: [path] })
-			setMessage(`Unstaged ${path}`)
-			await loadChanges()
-		} catch (err) {
-			setError(err instanceof Error ? err.message : `Failed to unstage ${path}`)
-		} finally {
-			setBusy(false)
-		}
-	}
-
-	const handleStageAll = async () => {
-		clearAlerts()
-		setBusy(true)
-		try {
-			await gitApi.stageAll(project.id)
-			setMessage('All changes staged')
-			await loadChanges()
-		} catch (err) {
-			setError(err instanceof Error ? err.message : 'Failed to stage all changes')
-		} finally {
-			setBusy(false)
-		}
-	}
-
-	const handleUnstageAll = async () => {
-		clearAlerts()
-		setBusy(true)
-		try {
-			await gitApi.unstageAll(project.id)
-			setMessage('All files unstaged')
-			await loadChanges()
-		} catch (err) {
-			setError(err instanceof Error ? err.message : 'Failed to unstage files')
-		} finally {
-			setBusy(false)
-		}
-	}
-
 	const handleDiscard = async (path: string) => {
 		clearAlerts()
 		if (!confirm(`Discard all changes to "${path}"? This cannot be undone.`)) return
@@ -131,20 +89,59 @@ export function ChangesView({ project }: ChangesViewProps) {
 		}
 	}
 
-	const handleCommitSubmit = async (commitMsg: string, stageAllFirst: boolean) => {
+	const handleCommitSubmit = async (data: {
+		message: string
+		description?: string
+		branch?: string
+	}) => {
 		setCommitError(null)
 		setBusy(true)
 		try {
-			if (stageAllFirst && unstagedCount > 0) {
-				await gitApi.stageAll(project.id)
-			}
-			const result = await gitApi.commit(project.id, { message: commitMsg })
+			const result = await githubApi.commitAndOpenPr(project.id, {
+				message: data.message,
+				description: data.description,
+				branch: data.branch,
+			})
 			setShowCommitSheet(false)
-			setMessage(`Committed ${result.hash.slice(0, 7)}: ${commitMsg}`)
 			await loadChanges()
+
+			if (result.pr) {
+				setCreatedPr(result.pr)
+				setShowMergeSheet(true)
+				setMessage(`Created PR #${result.pr.number}: ${result.pr.title}`)
+			} else {
+				setMessage(`Committed ${result.hash.slice(0, 7)}: ${data.message}`)
+			}
 		} catch (err) {
 			const errText = err instanceof Error ? err.message : 'Commit failed'
 			setCommitError(errText)
+			setError(errText)
+		} finally {
+			setBusy(false)
+		}
+	}
+
+	const handleMergeSubmit = async (
+		method: 'squash' | 'merge' | 'rebase',
+		deleteBranch: boolean,
+	) => {
+		if (!createdPr) return
+		setMergeError(null)
+		setBusy(true)
+		try {
+			const res = await githubApi.mergeAndSync(project.id, {
+				number: createdPr.number,
+				method,
+				deleteBranch,
+			})
+			setShowMergeSheet(false)
+			const mergedPrNumber = createdPr.number
+			setCreatedPr(null)
+			setMessage(`✓ PR #${mergedPrNumber} merged into ${res.currentBranch} and synced locally!`)
+			await loadChanges()
+		} catch (err) {
+			const errText = err instanceof Error ? err.message : 'Merge failed'
+			setMergeError(errText)
 			setError(errText)
 		} finally {
 			setBusy(false)
@@ -168,28 +165,10 @@ export function ChangesView({ project }: ChangesViewProps) {
 				</div>
 			) : (
 				<div className="panel-header panel-header--actions">
-					<h2 className="panel-header__title">Changes</h2>
+					<h2 className="panel-header__title">
+						Changes {files.length > 0 && `(${files.length})`}
+					</h2>
 					<div className="panel-header__buttons">
-						{unstagedCount > 0 && (
-							<button
-								type="button"
-								className="btn btn--ghost btn--sm"
-								onClick={() => void handleStageAll()}
-								disabled={loading || busy}
-							>
-								Stage all
-							</button>
-						)}
-						{stagedCount > 0 && (
-							<button
-								type="button"
-								className="btn btn--ghost btn--sm"
-								onClick={() => void handleUnstageAll()}
-								disabled={loading || busy}
-							>
-								Unstage all
-							</button>
-						)}
 						<button
 							type="button"
 							className="btn btn--ghost btn--sm"
@@ -207,8 +186,7 @@ export function ChangesView({ project }: ChangesViewProps) {
 							}}
 							disabled={files.length === 0 || busy}
 						>
-							Commit
-							{stagedCount > 0 && ` (${stagedCount})`}
+							{hasGitHub ? 'Commit & Open PR' : 'Commit'}
 						</button>
 					</div>
 				</div>
@@ -249,10 +227,6 @@ export function ChangesView({ project }: ChangesViewProps) {
 							files={files}
 							selectedPath={selectedPath}
 							onSelect={setSelectedPath}
-							onStage={(path) => void handleStage(path)}
-							onUnstage={(path) => void handleUnstage(path)}
-							onStageAll={() => void handleStageAll()}
-							onUnstageAll={() => void handleUnstageAll()}
 							onDiscard={(path) => void handleDiscard(path)}
 							busy={busy || loading}
 						/>
@@ -261,15 +235,26 @@ export function ChangesView({ project }: ChangesViewProps) {
 				{showDetail && <DiffView diff={diff} />}
 			</div>
 
-			<CommitSheet
+			<CommitPrSheet
 				open={showCommitSheet}
-				stagedCount={stagedCount}
-				unstagedCount={unstagedCount}
+				fileCount={files.length}
+				currentBranch={currentBranch}
+				hasGitHub={hasGitHub}
 				onClose={() => setShowCommitSheet(false)}
 				onCommit={handleCommitSubmit}
 				busy={busy}
 				error={commitError}
 			/>
+
+			<PrMergeSheet
+				open={showMergeSheet}
+				pr={createdPr}
+				onClose={() => setShowMergeSheet(false)}
+				onMerge={handleMergeSubmit}
+				busy={busy}
+				error={mergeError}
+			/>
 		</div>
 	)
 }
+

@@ -125,3 +125,29 @@ export type PullRequestListQuery = {
 	state?: GitHubPullRequestState
 	limit?: number
 }
+
+export type CommitAndPrRequest = {
+	message: string
+	description?: string
+	branch?: string
+	draft?: boolean
+}
+
+export type CommitAndPrResponse = {
+	hash: string
+	branch: string
+	pr: GitHubPullRequest | null
+	message: string
+}
+
+export type MergeAndSyncRequest = {
+	number: number
+	method?: 'merge' | 'squash' | 'rebase'
+	deleteBranch?: boolean
+}
+
+export type MergeAndSyncResponse = {
+	merged: boolean
+	currentBranch: string
+}
+
