@@ -23,6 +23,8 @@ app.use(
 	cors({
 		origin: config.allowedOrigins.includes('*') ? true : config.allowedOrigins,
 		credentials: true,
+		allowedHeaders: ['Content-Type', 'Authorization', 'X-GitHub-Token', 'X-Dev-Studio-Token'],
+		methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 	}),
 )
 app.use(express.json({ limit: '1mb' }))
