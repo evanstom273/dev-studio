@@ -1116,3 +1116,24 @@
 .markdown-link:hover {
 	opacity: 0.85;
 }
+.markdown-image {
+	max-width: 100%;
+	height: auto;
+	border-radius: var(--radius-md);
+	margin: var(--space-xs) 0;
+}
+
+@media (max-width: 767px), (hover: none) and (pointer: coarse) {
+	.agent-view--keyboard-open .conversation {
+		padding-bottom: var(--space-sm);
+	}
+
+	.composer--keyboard-open .composer__attachments {
+		max-height: 72px;
+	}
+
+	.composer--keyboard-open .composer__input {
+		max-height: 120px;
+	}
+}
+

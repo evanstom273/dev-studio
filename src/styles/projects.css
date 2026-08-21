@@ -6,14 +6,17 @@
 	display: flex;
 	flex-direction: column;
 	flex: 1;
-	min-height: 100dvh;
+	min-height: 0;
 	background: var(--bg-base);
 	overflow-y: auto;
-	padding: var(--space-md);
+	overflow-x: hidden;
+	-webkit-overflow-scrolling: touch;
+	padding: calc(var(--safe-top) + var(--space-md)) var(--space-md) calc(var(--space-xl) + var(--safe-bottom));
 	padding-left: calc(var(--space-md) + var(--safe-left));
 	padding-right: calc(var(--space-md) + var(--safe-right));
-	padding-bottom: calc(var(--space-xl) + var(--safe-bottom));
-	-webkit-overflow-scrolling: touch;
+	max-width: 680px;
+	margin: 0 auto;
+	width: 100%;
 }
 
 .projects-page__header {

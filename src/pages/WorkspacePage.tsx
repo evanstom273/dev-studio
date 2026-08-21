@@ -6,6 +6,7 @@ import {
 	IconRepo,
 } from '../components/Icons'
 import { ProjectHeader } from '../components/ProjectHeader'
+import { KeyboardViewportProvider, useKeyboardViewport } from '../hooks/KeyboardViewportContext'
 import { useWideLayout } from '../hooks/useMediaQuery'
 import { gitApi } from '../services/gitApi'
 import { AgentView, type AgentActions } from './AgentView'
@@ -29,13 +30,14 @@ const RIGHT_TOOLS: { id: RightTool; label: string; Icon: typeof IconChanges }[] 
 	{ id: 'repo', label: 'Git', Icon: IconRepo },
 ]
 
-export function WorkspacePage({
+function WorkspacePageContent({
 	project,
 	activeView,
 	onNavigate,
 	onBack,
 }: WorkspacePageProps) {
 	const isWide = useWideLayout()
+	const { keyboardOpen } = useKeyboardViewport()
 	const [rightTool, setRightTool] = useState<RightTool>('changes')
 	const [changedCount, setChangedCount] = useState<number>(0)
 	const [currentBranch, setCurrentBranch] = useState<string>('main')
@@ -89,12 +91,17 @@ export function WorkspacePage({
 		setSplitPercent(50)
 	}
 
+	const hideChrome = keyboardOpen && activeView === 'agent' && !isWide
+
 	return (
-		<div className="app-shell app-shell--workspace">
+		<div
+			className={`app-shell app-shell--workspace${keyboardOpen ? ' app-shell--keyboard-open' : ''}`}
+		>
 			<div className="workspace-shell">
 				<ProjectHeader
 					project={project}
 					onBack={onBack}
+					className={hideChrome ? 'project-header--keyboard-hidden' : undefined}
 					currentBranch={currentBranch}
 					activeView={activeView}
 					onNavigate={onNavigate}
@@ -114,7 +121,11 @@ export function WorkspacePage({
 								style={{ width: `${splitPercent}%` }}
 								aria-label="Agent workspace"
 							>
-								<AgentView project={project} onRegisterActions={setAgentActions} />
+								<AgentView
+									project={project}
+									onRegisterActions={setAgentActions}
+									keyboardOpen={keyboardOpen}
+								/>
 							</section>
 
 							{/* Resizable Divider Handle */}
@@ -173,7 +184,11 @@ export function WorkspacePage({
 						/* Folded Narrow Mobile: Single Focused Workspace Pane */
 						<div className="workspace-main">
 							{activeView === 'agent' && (
-								<AgentView project={project} onRegisterActions={setAgentActions} />
+								<AgentView
+									project={project}
+									onRegisterActions={setAgentActions}
+									keyboardOpen={keyboardOpen}
+								/>
 							)}
 							{activeView === 'changes' && <ChangesView project={project} />}
 							{activeView === 'files' && <FilesView project={project} />}
@@ -186,3 +201,10 @@ export function WorkspacePage({
 	)
 }
 
+export function WorkspacePage(props: WorkspacePageProps) {
+	return (
+		<KeyboardViewportProvider>
+			<WorkspacePageContent {...props} />
+		</KeyboardViewportProvider>
+	)
+}

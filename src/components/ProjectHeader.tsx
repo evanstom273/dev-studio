@@ -18,6 +18,7 @@ import '../styles/agent.css'
 type ProjectHeaderProps = {
 	project: Project
 	onBack: () => void
+	className?: string
 	currentBranch?: string
 	activeView?: WorkspaceView
 	onNavigate?: (view: WorkspaceView) => void
@@ -30,6 +31,7 @@ type ProjectHeaderProps = {
 export function ProjectHeader({
 	project,
 	onBack,
+	className,
 	currentBranch = 'main',
 	activeView = 'agent',
 	onNavigate,
@@ -69,7 +71,7 @@ export function ProjectHeader({
 				: 'Disconnected'
 
 	return (
-		<header className="project-header">
+		<header className={`project-header${className ? ` ${className}` : ''}`}>
 			{/* Left: Back Arrow + Project Name + Branch */}
 			<div className="project-header__left">
 				<button

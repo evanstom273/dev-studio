@@ -8,13 +8,23 @@
 
 html {
 	height: 100%;
+	overflow: hidden;
+	overflow-x: clip;
 	-webkit-text-size-adjust: 100%;
 	background: var(--bg-base);
+	touch-action: manipulation;
+	overscroll-behavior: none;
 }
 
 body {
 	margin: 0;
-	min-height: 100dvh;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+	overflow-x: clip;
+	overscroll-behavior: none;
+	position: fixed;
+	inset: 0;
 	font-family: var(--font-sans);
 	font-size: 14px;
 	line-height: 1.5;
@@ -26,7 +36,9 @@ body {
 }
 
 #root {
-	min-height: 100dvh;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
 	display: flex;
 	flex-direction: column;
 	background: var(--bg-base);

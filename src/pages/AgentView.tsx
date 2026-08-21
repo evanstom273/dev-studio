@@ -5,7 +5,6 @@ import { AgentStatusBar } from '../components/AgentStatusBar'
 import { Conversation } from '../components/Conversation'
 import { PermissionPrompt } from '../components/PermissionPrompt'
 import { PromptComposer } from '../components/PromptComposer'
-import { useVisualViewport } from '../hooks/useVisualViewport'
 import { agentApi } from '../services/agentApi'
 import { mergeTurnStatus, type LiveTurnStatus } from '../utils/turnStatus'
 import '../styles/agent.css'
@@ -18,9 +17,10 @@ export type AgentActions = {
 type AgentViewProps = {
 	project: Project
 	onRegisterActions?: (actions: AgentActions) => void
+	keyboardOpen?: boolean
 }
 
-export function AgentView({ project, onRegisterActions }: AgentViewProps) {
+export function AgentView({ project, onRegisterActions, keyboardOpen = false }: AgentViewProps) {
 	const [items, setItems] = useState<ConversationItem[]>([])
 	const [prompt, setPrompt] = useState('')
 	const [mode, setMode] = useState<AgentMode>('agent')
@@ -31,7 +31,6 @@ export function AgentView({ project, onRegisterActions }: AgentViewProps) {
 	const [error, setError] = useState<string | null>(null)
 	const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([])
 	const [turnStatus, setTurnStatus] = useState<LiveTurnStatus | null>(null)
-	const viewport = useVisualViewport()
 
 	const loadSession = useCallback(async () => {
 		try {
@@ -292,12 +291,10 @@ export function AgentView({ project, onRegisterActions }: AgentViewProps) {
 		})
 	}, [onRegisterActions, runCommand, clearChat])
 
-	const shellStyle = viewport.keyboardOpen
-		? { height: `${viewport.height}px`, transform: `translateY(${viewport.offsetTop}px)` }
-		: undefined
-
 	return (
-		<div className="workspace-pane agent-view" style={shellStyle}>
+		<div
+			className={`workspace-pane agent-view${keyboardOpen ? ' agent-view--keyboard-open' : ''}`}
+		>
 			<AgentStatusBar status={turnStatus} />
 			<Conversation items={items} />
 			{error && <div className="agent-error">{error}</div>}
@@ -316,7 +313,7 @@ export function AgentView({ project, onRegisterActions }: AgentViewProps) {
 				attachments={attachments}
 				onAddAttachments={(files) => void handleAddAttachments(files)}
 				onRemoveAttachment={handleRemoveAttachment}
-				keyboardOpen={viewport.keyboardOpen}
+				keyboardOpen={keyboardOpen}
 			/>
 		</div>
 	)
