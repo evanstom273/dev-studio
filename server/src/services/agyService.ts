@@ -28,6 +28,8 @@ const PERMISSION_DENIED_RE =
 	/permission check failed for command "([^"]+)"/i
 const PERMISSION_REQUEST_RE = /Requesting permission for:\s*(.+)/i
 const AGY_TURN_TIMEOUT_MS = 30 * 60_000
+/** agy default is 5m — long agent tasks hit this and exit with code 1. */
+const AGY_PRINT_TIMEOUT = '30m'
 /** Above this size, pass the prompt on stdin (text mode) instead of -p (Windows argv limits). */
 const STDIN_PROMPT_BYTES = 3500
 
@@ -195,7 +197,7 @@ export class AgyService {
 		onEvent: (event: StreamEvent) => void,
 	): Promise<{ agentContent: string; conversationId: string; failed: boolean }> {
 		const useStdin = Buffer.byteLength(prompt, 'utf8') > STDIN_PROMPT_BYTES
-		const args = ['--output-format', 'stream-json']
+		const args = ['--output-format', 'stream-json', '--print-timeout', AGY_PRINT_TIMEOUT]
 		if (this.config.autoApproveTools) {
 			args.push('--dangerously-skip-permissions')
 		}
