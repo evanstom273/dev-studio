@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { appendFile } from 'node:fs/promises'
+import { appendFile, mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -80,14 +80,18 @@ export class PermissionQueue extends EventEmitter {
 export class AgyService {
 	private agyPermissions = new AgyPermissionService()
 	private logPath = join(process.env.DEV_STUDIO_DATA_DIR ?? join(homedir(), '.dev-studio'), 'agy.log')
+	private scratchDir: string
 
 	constructor(
 		private config: ServerConfig,
 		private sessions: SessionStore,
 		private permissions: PermissionQueue,
-	) {}
+	) {
+		this.scratchDir = join(config.dataDir, 'agy-scratch')
+	}
 
 	async init(): Promise<void> {
+		await mkdir(this.scratchDir, { recursive: true })
 		await this.agyPermissions.init()
 	}
 
@@ -197,7 +201,7 @@ export class AgyService {
 		onEvent: (event: StreamEvent) => void,
 	): Promise<{ agentContent: string; conversationId: string; failed: boolean }> {
 		const useStdin = Buffer.byteLength(prompt, 'utf8') > STDIN_PROMPT_BYTES
-		// agy -p sets server cwd but does not grant the repo to the agent workspace — tools run blind without --add-dir.
+		// Repo access via --add-dir; cwd must stay outside the repo or agy sandboxes writes to brain/ only.
 		const args = ['--add-dir', projectPath, '--output-format', 'stream-json', '--print-timeout', AGY_PRINT_TIMEOUT]
 		if (this.config.autoApproveTools) {
 			args.push('--dangerously-skip-permissions')
@@ -214,7 +218,7 @@ export class AgyService {
 		)
 
 		const child = spawn(this.config.agyPath, args, {
-			cwd: projectPath,
+			cwd: this.scratchDir,
 			env: { ...process.env, FORCE_COLOR: '0', CI: 'true' },
 			stdio: ['pipe', 'pipe', 'pipe'],
 			windowsHide: true,
