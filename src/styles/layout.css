@@ -1,0 +1,125 @@
+.app-shell {
+	display: flex;
+	flex-direction: column;
+	min-height: 100dvh;
+	height: 100dvh;
+	background: var(--bg-base);
+}
+
+.workspace-shell {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	height: 100%;
+}
+
+.workspace-body {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+}
+
+.workspace-main {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+
+.workspace-pane {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+/* Mobile: single active view */
+@media (max-width: 767px) {
+	.workspace-sidebar {
+		display: none;
+	}
+
+	.workspace-pane--secondary {
+		display: none;
+	}
+
+	.workspace-pane--secondary.is-visible {
+		display: flex;
+		position: fixed;
+		inset: 0;
+		z-index: 20;
+		background: var(--bg-base);
+		padding-top: var(--safe-top);
+		padding-bottom: calc(var(--nav-height) + var(--safe-bottom));
+	}
+}
+
+/* Tablet / Fold unfolded */
+@media (min-width: 768px) {
+	.app-shell--workspace {
+		flex-direction: row;
+	}
+
+	.workspace-sidebar {
+		display: flex;
+		flex-direction: column;
+		width: 72px;
+		flex-shrink: 0;
+		border-right: 1px solid var(--border-subtle);
+		background: var(--bg-elevated);
+		padding-top: calc(var(--safe-top) + var(--space-sm));
+		padding-bottom: var(--safe-bottom);
+	}
+
+	.bottom-nav {
+		display: none;
+	}
+
+	.workspace-pane--secondary.is-visible {
+		display: flex;
+		width: 320px;
+		flex-shrink: 0;
+		border-right: 1px solid var(--border-subtle);
+		background: var(--bg-elevated);
+	}
+}
+
+/* Desktop / large fold inner */
+@media (min-width: 1024px) {
+	.workspace-sidebar {
+		width: 200px;
+	}
+
+	.workspace-pane--secondary.is-visible {
+		width: 360px;
+	}
+
+	.files-layout {
+		flex-direction: row;
+	}
+
+	.files-layout .file-tree-panel {
+		width: 280px;
+		flex-shrink: 0;
+		border-right: 1px solid var(--border-subtle);
+	}
+
+	.changes-layout {
+		flex-direction: row;
+	}
+
+	.changes-layout .changes-list-panel {
+		width: 280px;
+		flex-shrink: 0;
+		border-right: 1px solid var(--border-subtle);
+	}
+}
+
+@media (min-width: 1280px) {
+	.workspace-pane--secondary.is-visible {
+		width: 400px;
+	}
+}
