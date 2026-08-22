@@ -14,6 +14,13 @@ import type {
 } from '../../types/agent.js'
 import type { AgentProvider, SessionTurnContext, TurnExecutionResult } from './agentProvider.js'
 import { setLatestCodexRateLimits, type CodexRateLimitsPayload } from '../codexQuotaService.js'
+import type { ServerConfig } from '../../config.js'
+import {
+	createRunningActivityFromCodexItem,
+	finalizeActivityFromCodexItem,
+	isCodexCommentaryItemType,
+	type CodexStreamItem,
+} from './codexItemParser.js'
 import { appendTimelineActivity, appendTimelineCommentary, updateTimelineActivity } from './timeline.js'
 
 type ActiveProcess = {
@@ -34,6 +41,7 @@ export function buildCodexExecArgs(options: {
 	reasoningEffort?: string
 	speed?: string
 	mode: AgentMode
+	autoApprove?: boolean
 }): string[] {
 	const args: string[] = []
 	const isResume = Boolean(options.threadId)
@@ -42,6 +50,10 @@ export function buildCodexExecArgs(options: {
 		args.push('exec', 'resume', options.threadId!, '--json', '--skip-git-repo-check')
 	} else {
 		args.push('exec', '--json', '--skip-git-repo-check')
+	}
+
+	if (options.autoApprove) {
+		args.push('--ask-for-approval', 'never')
 	}
 
 	if (options.model) {
@@ -74,6 +86,8 @@ export class CodexProvider implements AgentProvider {
 
 	private activeProcesses = new Map<string, ActiveProcess>()
 	private resolvedExec: { execPath: string; isNodeJs: boolean } | null = null
+
+	constructor(private config?: ServerConfig) {}
 
 	async init(): Promise<void> {
 		this.findExecutable()
@@ -552,6 +566,7 @@ export class CodexProvider implements AgentProvider {
 			reasoningEffort: context.reasoningEffort,
 			speed: context.speed,
 			mode,
+			autoApprove: this.config?.autoApproveTools,
 		})
 
 		// Build prompt with mode instructions and handoff context if switching
@@ -571,13 +586,14 @@ export class CodexProvider implements AgentProvider {
 		child.stdin.write(fullPrompt)
 		child.stdin.end()
 
-		return this.consumeCodexStream(child, activeProcess, projectId, onEvent)
+		return this.consumeCodexStream(child, activeProcess, projectId, mode, onEvent)
 	}
 
 	private consumeCodexStream(
 		child: ChildProcessWithoutNullStreams,
 		activeProcess: ActiveProcess,
 		projectId: string,
+		mode: AgentMode,
 		onEvent: (event: StreamEvent) => void,
 	): Promise<TurnExecutionResult> {
 		return new Promise((resolveResult) => {
@@ -586,7 +602,9 @@ export class CodexProvider implements AgentProvider {
 			let failed = false
 			const startedAt = Date.now()
 			const activities: AgentActivityItem[] = []
+			const agentMessages: string[] = []
 			let tokenUsage: TokenUsage | undefined
+			let turnCompleted = false
 
 			const timeline: ActivityTimelineItem = {
 				id: `timeline-${Date.now()}`,
@@ -600,6 +618,21 @@ export class CodexProvider implements AgentProvider {
 
 			let buffer = ''
 
+			const emitCommentary = (text: string) => {
+				const trimmed = text.trim()
+				if (!trimmed) return
+				appendTimelineCommentary(timeline, trimmed)
+				onEvent({ type: 'commentary_delta', content: trimmed })
+			}
+
+			const finalizeAgentContent = () => {
+				if (agentContent.trim()) return
+				const last = agentMessages.at(-1)?.trim()
+				if (!last) return
+				agentContent = last
+				onEvent({ type: 'message_delta', content: last })
+			}
+
 			const processLine = (line: string) => {
 				const trimmed = line.trim()
 				if (!trimmed) return
@@ -608,16 +641,7 @@ export class CodexProvider implements AgentProvider {
 					const event = JSON.parse(trimmed) as {
 						type: string
 						thread_id?: string
-						item?: {
-							id?: string
-							type?: string
-							text?: string
-							command?: string
-							aggregated_output?: string
-							exit_code?: number | null
-							status?: string
-							message?: string
-						}
+						item?: CodexStreamItem
 						usage?: {
 							input_tokens?: number
 							cached_input_tokens?: number
@@ -645,79 +669,57 @@ export class CodexProvider implements AgentProvider {
 					}
 
 					if (event.type === 'item.started' && event.item) {
-						const item = event.item
-						if (item.type === 'command_execution') {
-							const act: AgentActivityItem = {
-								id: item.id || `act-${Date.now()}`,
-								type: 'command',
-								status: 'running',
-								title: item.command ? `$ ${item.command}` : 'Running command',
-								detail: { command: item.command },
-								startedAt: Date.now(),
-								toolName: 'bash',
-							}
+						const act = createRunningActivityFromCodexItem(event.item, mode)
+						if (act) {
 							appendTimelineActivity(timeline, act)
 							onEvent({ type: 'activity_start', activity: act })
 							onEvent({
 								type: 'turn_status',
 								status: 'running',
-								label: item.command ? `$ ${item.command}` : 'Running command…',
-								tool: { name: 'bash', label: item.command || 'command' },
+								label: act.title,
+								tool: { name: act.toolName || act.type, label: act.title },
 							})
 						}
 					}
 
 					if (event.type === 'item.completed' && event.item) {
 						const item = event.item
-						if (item.type === 'command_execution') {
+						const itemType = item.type || ''
+
+						if (itemType === 'command_execution' || itemType === 'file_change' || itemType === 'web_search' || itemType === 'mcp_tool_call' || itemType === 'error') {
 							const existing = activities.find((a) => a.id === item.id)
-							const isSuccess = item.exit_code === 0
-							if (existing) {
-								existing.status = isSuccess ? 'completed' : 'failed'
-								existing.completedAt = Date.now()
-								existing.durationMs = existing.completedAt - existing.startedAt
-								existing.detail = {
-									command: item.command,
-									output: item.aggregated_output,
-									exitCode: item.exit_code ?? undefined,
+							const act = finalizeActivityFromCodexItem(existing, item, mode)
+							if (act) {
+								if (existing) {
+									updateTimelineActivity(timeline, act)
+								} else {
+									appendTimelineActivity(timeline, act)
 								}
-								updateTimelineActivity(timeline, existing)
-								onEvent({ type: 'activity_complete', activity: existing })
+								onEvent({ type: 'activity_complete', activity: act })
 							}
 							onEvent({ type: 'turn_status', status: 'running', label: 'Thinking…' })
-						} else if (
-							(item.type === 'reasoning' || item.type === 'agent_reasoning' || item.type === 'commentary' || item.type === 'progress') &&
-							item.text
-						) {
-							appendTimelineCommentary(timeline, item.text)
-							onEvent({ type: 'commentary_delta', content: item.text })
-						} else if (item.type === 'agent_message' && item.text) {
-							agentContent += (agentContent ? '\n' : '') + item.text
-							onEvent({ type: 'message_delta', content: item.text })
-						} else if (item.type === 'error' && item.message) {
-							const act: AgentActivityItem = {
-								id: item.id || `err-${Date.now()}`,
-								type: 'error',
-								status: 'failed',
-								title: item.message,
-								detail: { error: item.message },
-								startedAt: Date.now(),
-								completedAt: Date.now(),
-								durationMs: 0,
-							}
-							appendTimelineActivity(timeline, act)
-							onEvent({ type: 'activity_complete', activity: act })
+						} else if (isCodexCommentaryItemType(itemType) && item.text) {
+							emitCommentary(item.text)
+						} else if (itemType === 'agent_message' && item.text) {
+							agentMessages.push(item.text)
+							emitCommentary(item.text)
+						} else if (itemType === 'plan_update' && item.text) {
+							emitCommentary(item.text)
 						}
 					}
 
-					if (event.type === 'turn.completed' && event.usage) {
-						tokenUsage = {
-							inputTokens: event.usage.input_tokens,
-							outputTokens: event.usage.output_tokens,
-							cacheReadTokens: event.usage.cached_input_tokens,
-							thinkingTokens: event.usage.reasoning_output_tokens,
+					if (event.type === 'turn.completed') {
+						turnCompleted = true
+						if (event.usage) {
+							tokenUsage = {
+								inputTokens: event.usage.input_tokens,
+								outputTokens: event.usage.output_tokens,
+								cacheReadTokens: event.usage.cached_input_tokens,
+								thinkingTokens: event.usage.reasoning_output_tokens,
+							}
+							timeline.usage = tokenUsage
 						}
-						timeline.usage = tokenUsage
+						finalizeAgentContent()
 						onEvent({
 							type: 'turn_status',
 							status: 'complete',
@@ -732,7 +734,7 @@ export class CodexProvider implements AgentProvider {
 						onEvent({ type: 'error', message: msg })
 					}
 				} catch {
-					// Non-JSON output line - ignore or log
+					// Non-JSON output line
 				}
 			}
 
@@ -747,9 +749,9 @@ export class CodexProvider implements AgentProvider {
 
 			child.stderr.on('data', (chunk: Buffer) => {
 				const text = chunk.toString()
-				// Only emit as error if it's a real failure message
-				if (text.includes('ERROR') && !text.includes('rmcp::transport')) {
-					// keep internal logs from cluttering UI unless fatal
+				if (text.includes('not logged in') || text.includes('authentication')) {
+					failed = true
+					onEvent({ type: 'error', message: 'Codex authentication required. Run `codex login` on your laptop.' })
 				}
 			})
 
@@ -757,6 +759,10 @@ export class CodexProvider implements AgentProvider {
 				this.activeProcesses.delete(projectId)
 				if (buffer.trim()) {
 					processLine(buffer)
+				}
+
+				if (!turnCompleted) {
+					finalizeAgentContent()
 				}
 
 				if (code !== 0 && !agentContent && !activeProcess.stopped) {
