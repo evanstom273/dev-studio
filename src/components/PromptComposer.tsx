@@ -85,20 +85,23 @@ export function PromptComposer({
 
 	const valueRef = useRef(value)
 	valueRef.current = value
-	const dictationBaseRef = useRef('')
+	const initialValueRef = useRef('')
 
-	const handleSpeechResult = useCallback(
-		(spokenChunk: string) => {
-			const trimmed = spokenChunk.trim()
-			if (!trimmed) return
-
-			const base = dictationBaseRef.current
-			if (base.endsWith(trimmed)) return
-
-			const needsSpace = base.length > 0 && !/\s$/.test(base)
-			const next = `${base}${needsSpace ? ' ' : ''}${trimmed}`
-			dictationBaseRef.current = next
-			onChange(next)
+	const handleTranscript = useCallback(
+		(sessionTranscript: string) => {
+			const base = initialValueRef.current
+			const transcript = sessionTranscript.trim()
+			let combined: string
+			if (!base) {
+				combined = transcript
+			} else if (!transcript) {
+				combined = base
+			} else {
+				const needsSpace = !base.endsWith(' ') && !base.endsWith('\n')
+				combined = `${base}${needsSpace ? ' ' : ''}${transcript}`
+			}
+			valueRef.current = combined
+			onChange(combined)
 		},
 		[onChange],
 	)
@@ -107,13 +110,10 @@ export function PromptComposer({
 		isSupported: isSpeechSupported,
 		isListening,
 		interimText,
-		toggleListening,
+		startListening,
 		stopListening,
 	} = useSpeechRecognition({
-		onStart: () => {
-			dictationBaseRef.current = valueRef.current
-		},
-		onResult: handleSpeechResult,
+		onTranscript: handleTranscript,
 		onError: (err) => {
 			setSpeechError(err)
 			setTimeout(() => {
@@ -121,6 +121,15 @@ export function PromptComposer({
 			}, 5000)
 		},
 	})
+
+	const handleToggleListening = useCallback(() => {
+		if (isListening) {
+			stopListening()
+		} else {
+			initialValueRef.current = valueRef.current
+			startListening()
+		}
+	}, [isListening, startListening, stopListening])
 
 	useEffect(() => {
 		const textarea = textareaRef.current
@@ -156,7 +165,7 @@ export function PromptComposer({
 			onStop?.()
 			return
 		}
-		if (value.trim() || attachments.length > 0) {
+		if (valueRef.current.trim() || attachments.length > 0) {
 			onSend()
 		}
 	}
@@ -167,7 +176,7 @@ export function PromptComposer({
 			if (isListening) {
 				stopListening()
 			}
-			if (value.trim() || attachments.length > 0) {
+			if (valueRef.current.trim() || attachments.length > 0) {
 				onSend()
 			}
 		}
@@ -330,7 +339,7 @@ export function PromptComposer({
 						<button
 							type="button"
 							className={`composer__mic-btn${isListening ? ' is-listening' : ''}${!isSpeechSupported ? ' is-unsupported' : ''}`}
-							onClick={toggleListening}
+							onClick={handleToggleListening}
 							disabled={loading}
 							aria-label={isListening ? 'Stop dictation' : 'Dictate with voice'}
 							title={

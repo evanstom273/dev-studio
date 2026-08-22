@@ -58,19 +58,19 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | undef
 }
 
 export type UseSpeechRecognitionOptions = {
+	onTranscript?: (fullTranscript: string) => void
 	onResult?: (finalText: string) => void
 	onInterim?: (interimText: string) => void
 	onError?: (errorMessage: string) => void
-	onStart?: () => void
 	lang?: string
 	continuous?: boolean
 }
 
 export function useSpeechRecognition({
+	onTranscript,
 	onResult,
 	onInterim,
 	onError,
-	onStart,
 	lang,
 	continuous = true,
 }: UseSpeechRecognitionOptions = {}) {
@@ -80,75 +80,65 @@ export function useSpeechRecognition({
 	const recognitionRef = useRef<ISpeechRecognition | null>(null)
 	const shouldBeListeningRef = useRef(false)
 	const restartTimeoutRef = useRef<number | null>(null)
-	const processedResultsRef = useRef(0)
+
+	// Session transcript accumulation across mobile auto-restarts
+	const cumulativeTranscriptRef = useRef('')
+	const currentSubsessionFinalRef = useRef('')
+	const currentInterimRef = useRef('')
 
 	const isSupported = typeof window !== 'undefined' && Boolean(getSpeechRecognitionConstructor())
 
+	// Store callbacks in refs to avoid re-binding
+	const onTranscriptRef = useRef(onTranscript)
+	onTranscriptRef.current = onTranscript
 	const onResultRef = useRef(onResult)
 	onResultRef.current = onResult
 	const onInterimRef = useRef(onInterim)
 	onInterimRef.current = onInterim
 	const onErrorRef = useRef(onError)
 	onErrorRef.current = onError
-	const onStartRef = useRef(onStart)
-	onStartRef.current = onStart
 
-	const clearRestartTimeout = useCallback(() => {
+	const emitTranscript = useCallback((text: string) => {
+		const trimmed = text.trim()
+		if (trimmed) {
+			onTranscriptRef.current?.(trimmed)
+			onResultRef.current?.(trimmed)
+		}
+	}, [])
+
+	const cleanup = useCallback(() => {
 		if (restartTimeoutRef.current) {
 			window.clearTimeout(restartTimeoutRef.current)
 			restartTimeoutRef.current = null
 		}
-	}, [])
-
-	const disposeRecognition = useCallback(() => {
-		if (!recognitionRef.current) return
-		try {
-			recognitionRef.current.onresult = null
-			recognitionRef.current.onerror = null
-			recognitionRef.current.onend = null
-			recognitionRef.current.onstart = null
-			recognitionRef.current.abort()
-		} catch {
-			// ignore abort error
-		}
-		recognitionRef.current = null
-	}, [])
-
-	const cleanup = useCallback(() => {
-		clearRestartTimeout()
-		disposeRecognition()
-		processedResultsRef.current = 0
-		setIsListening(false)
-		setInterimText('')
-	}, [clearRestartTimeout, disposeRecognition])
-
-	const stopListening = useCallback(() => {
-		shouldBeListeningRef.current = false
-		clearRestartTimeout()
 		if (recognitionRef.current) {
 			try {
-				recognitionRef.current.stop()
+				recognitionRef.current.onresult = null
+				recognitionRef.current.onerror = null
+				recognitionRef.current.onend = null
+				recognitionRef.current.onstart = null
+				recognitionRef.current.abort()
 			} catch {
-				// ignore stop error
+				// ignore abort error
 			}
+			recognitionRef.current = null
 		}
-		disposeRecognition()
-		processedResultsRef.current = 0
 		setIsListening(false)
 		setInterimText('')
-	}, [clearRestartTimeout, disposeRecognition])
+		currentSubsessionFinalRef.current = ''
+		currentInterimRef.current = ''
+	}, [])
 
-	const launchRecognition = useCallback(() => {
+	const initRecognition = useCallback(() => {
 		const Constructor = getSpeechRecognitionConstructor()
 		if (!Constructor) {
 			const msg = 'Speech recognition is not supported in this browser.'
 			setError(msg)
 			onErrorRef.current?.(msg)
-			return
+			setIsListening(false)
+			shouldBeListeningRef.current = false
+			return null
 		}
-
-		disposeRecognition()
-		processedResultsRef.current = 0
 
 		try {
 			const recognition = new Constructor()
@@ -157,34 +147,43 @@ export function useSpeechRecognition({
 			recognition.lang =
 				lang || (typeof navigator !== 'undefined' ? navigator.language : 'en-US') || 'en-US'
 
+			currentSubsessionFinalRef.current = ''
+			currentInterimRef.current = ''
+
 			recognition.onstart = () => {
 				setIsListening(true)
-				onStartRef.current?.()
 			}
 
 			recognition.onresult = (event: SpeechRecognitionEvent) => {
-				let finalChunk = ''
-				let currentInterim = ''
-				const startAt = Math.max(event.resultIndex, processedResultsRef.current)
+				let subsessionFinal = ''
+				let subsessionInterim = ''
 
-				for (let i = startAt; i < event.results.length; i++) {
+				for (let i = 0; i < event.results.length; i++) {
 					const res = event.results[i]
-					const text = res[0]?.transcript || ''
+					const text = res[0]?.transcript?.trim() || ''
+					if (!text) continue
+
 					if (res.isFinal) {
-						finalChunk += text
-						processedResultsRef.current = i + 1
+						subsessionFinal = subsessionFinal ? `${subsessionFinal} ${text}` : text
 					} else {
-						currentInterim += text
+						subsessionInterim = subsessionInterim ? `${subsessionInterim} ${text}` : text
 					}
 				}
 
-				const trimmedFinal = finalChunk.trim()
-				if (trimmedFinal) {
-					onResultRef.current?.(trimmedFinal)
-				}
+				currentSubsessionFinalRef.current = subsessionFinal
+				currentInterimRef.current = subsessionInterim
 
-				setInterimText(currentInterim)
-				onInterimRef.current?.(currentInterim)
+				const cumulative = cumulativeTranscriptRef.current.trim()
+				const fullTranscript = cumulative
+					? subsessionFinal
+						? `${cumulative} ${subsessionFinal}`
+						: cumulative
+					: subsessionFinal
+
+				emitTranscript(fullTranscript)
+
+				setInterimText(subsessionInterim)
+				onInterimRef.current?.(subsessionInterim)
 			}
 
 			recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -194,6 +193,7 @@ export function useSpeechRecognition({
 					shouldBeListeningRef.current = false
 					setIsListening(false)
 				} else if (event.error === 'no-speech') {
+					// No speech detected, keep listening if user intended
 					return
 				} else if (event.error === 'network') {
 					userMsg = 'Speech recognition network error. Please check your connection.'
@@ -212,22 +212,104 @@ export function useSpeechRecognition({
 			}
 
 			recognition.onend = () => {
-				setInterimText('')
-				disposeRecognition()
+				// Commit the completed subsession's final text + any leftover interim to cumulativeTranscript
+				let subsessionText = currentSubsessionFinalRef.current.trim()
+				const pendingInterim = currentInterimRef.current.trim()
 
+				if (pendingInterim) {
+					subsessionText = subsessionText ? `${subsessionText} ${pendingInterim}` : pendingInterim
+				}
+
+				if (subsessionText) {
+					cumulativeTranscriptRef.current = cumulativeTranscriptRef.current
+						? `${cumulativeTranscriptRef.current} ${subsessionText}`
+						: subsessionText
+				}
+
+				currentSubsessionFinalRef.current = ''
+				currentInterimRef.current = ''
+				setInterimText('')
+
+				// If user still wants to listen (e.g. browser auto-stopped on mobile), auto-restart with a fresh instance
 				if (shouldBeListeningRef.current) {
 					restartTimeoutRef.current = window.setTimeout(() => {
 						if (shouldBeListeningRef.current) {
-							launchRecognition()
+							const nextRec = initRecognition()
+							if (nextRec) {
+								recognitionRef.current = nextRec
+								try {
+									nextRec.start()
+								} catch {
+									setIsListening(false)
+									shouldBeListeningRef.current = false
+								}
+							}
 						}
-					}, 250)
-					return
+					}, 150)
+				} else {
+					setIsListening(false)
 				}
-
-				setIsListening(false)
 			}
 
-			recognitionRef.current = recognition
+			return recognition
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : 'Failed to initialize speech recognition'
+			setError(msg)
+			onErrorRef.current?.(msg)
+			setIsListening(false)
+			shouldBeListeningRef.current = false
+			return null
+		}
+	}, [continuous, emitTranscript, lang])
+
+	const stopListening = useCallback(() => {
+		shouldBeListeningRef.current = false
+		if (restartTimeoutRef.current) {
+			window.clearTimeout(restartTimeoutRef.current)
+			restartTimeoutRef.current = null
+		}
+		if (recognitionRef.current) {
+			try {
+				recognitionRef.current.stop()
+			} catch {
+				// ignore stop error
+			}
+		}
+
+		// Flush any pending interim text immediately into the final transcript
+		let subsessionText = currentSubsessionFinalRef.current.trim()
+		const pendingInterim = currentInterimRef.current.trim()
+		if (pendingInterim) {
+			subsessionText = subsessionText ? `${subsessionText} ${pendingInterim}` : pendingInterim
+		}
+		const fullTranscript = cumulativeTranscriptRef.current
+			? subsessionText
+				? `${cumulativeTranscriptRef.current} ${subsessionText}`
+				: cumulativeTranscriptRef.current
+			: subsessionText
+
+		emitTranscript(fullTranscript)
+
+		currentSubsessionFinalRef.current = ''
+		currentInterimRef.current = ''
+		setInterimText('')
+		setIsListening(false)
+	}, [emitTranscript])
+
+	const startListening = useCallback(() => {
+		cleanup()
+		setError(null)
+		setInterimText('')
+		cumulativeTranscriptRef.current = ''
+		currentSubsessionFinalRef.current = ''
+		currentInterimRef.current = ''
+		shouldBeListeningRef.current = true
+
+		const recognition = initRecognition()
+		if (!recognition) return
+
+		recognitionRef.current = recognition
+		try {
 			recognition.start()
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : 'Failed to start speech recognition'
@@ -236,27 +318,10 @@ export function useSpeechRecognition({
 			setIsListening(false)
 			shouldBeListeningRef.current = false
 		}
-	}, [continuous, disposeRecognition, lang])
-
-	const startListening = useCallback(() => {
-		if (!getSpeechRecognitionConstructor()) {
-			const msg = 'Speech recognition is not supported in this browser.'
-			setError(msg)
-			onErrorRef.current?.(msg)
-			return
-		}
-
-		clearRestartTimeout()
-		disposeRecognition()
-		setError(null)
-		setInterimText('')
-		processedResultsRef.current = 0
-		shouldBeListeningRef.current = true
-		launchRecognition()
-	}, [clearRestartTimeout, disposeRecognition, launchRecognition])
+	}, [cleanup, initRecognition])
 
 	const toggleListening = useCallback(() => {
-		if (isListening || shouldBeListeningRef.current) {
+		if (isListening) {
 			stopListening()
 		} else {
 			startListening()
@@ -265,7 +330,6 @@ export function useSpeechRecognition({
 
 	useEffect(() => {
 		return () => {
-			shouldBeListeningRef.current = false
 			cleanup()
 		}
 	}, [cleanup])
