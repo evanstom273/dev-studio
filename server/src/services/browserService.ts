@@ -765,6 +765,10 @@ export class BrowserService {
 			if (!record.cdp) {
 				record.cdp = await record.page.context().newCDPSession(record.page)
 				await record.cdp.send('Page.enable').catch(() => {})
+				await record.cdp.send('Emulation.setTouchEmulationEnabled', {
+					enabled: true,
+					maxTouchPoints: 5,
+				}).catch(() => {})
 
 				record.cdp.on('Page.screencastFrame', ({ data, metadata, sessionId }) => {
 					// Send frame to all subscribed sockets for this tab

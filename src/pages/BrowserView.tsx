@@ -25,6 +25,7 @@ import {
 	IconForward,
 	IconHistory,
 	IconHome,
+	IconKeyboard,
 	IconLock,
 	IconMaximize,
 	IconMinimize,
@@ -105,6 +106,17 @@ export function BrowserView({
 	const activeTabIdRef = useRef<string | null>(null)
 	activeTabIdRef.current = activeTabId
 
+	const lastAppliedViewportRef = useRef<{ width: number; height: number } | null>(null)
+	const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const touchTrackingRef = useRef<{
+		startX: number
+		startY: number
+		startTime: number
+		lastClientX: number
+		lastClientY: number
+		isDragging: boolean
+	} | null>(null)
+
 	const activeTab = tabs.find((t) => t.id === activeTabId) || null
 	const isBookmarked = activeTab ? bookmarks.some((b) => b.url === activeTab.url) : false
 
@@ -180,7 +192,7 @@ export function BrowserView({
 		void loadBrowserState()
 	}, [loadBrowserState])
 
-	// Auto-fit viewport to container when selectedPreset is 'responsive'
+	// Auto-fit viewport to container when selectedPreset is 'responsive' (debounced to avoid thrashing/zooming oscillation)
 	useEffect(() => {
 		if (selectedPreset !== 'responsive' || !activeTabId) return
 
@@ -189,24 +201,38 @@ export function BrowserView({
 			if (!container) return
 			const w = Math.floor(container.clientWidth) || (isWide ? 1280 : window.innerWidth)
 			const h = Math.floor(container.clientHeight) || (isWide ? 800 : window.innerHeight - 150)
-			if (w > 0 && h > 0) {
-				const viewport: BrowserViewport = {
-					width: w,
-					height: h,
-					deviceScaleFactor: 1,
-					isMobile: !isWide,
-					hasTouch: !isWide,
-				}
-				void browserApi.setViewport(activeTabId, viewport).catch(() => {})
+			if (w <= 0 || h <= 0) return
+
+			// Avoid thrashing if dimensions changed by less than 20px (e.g. mobile address bar shifts)
+			const last = lastAppliedViewportRef.current
+			if (last && Math.abs(last.width - w) < 20 && Math.abs(last.height - h) < 30) {
+				return
 			}
+
+			lastAppliedViewportRef.current = { width: w, height: h }
+
+			const viewport: BrowserViewport = {
+				width: w,
+				height: h,
+				deviceScaleFactor: 1,
+				isMobile: !isWide,
+				hasTouch: !isWide,
+			}
+			void browserApi.setViewport(activeTabId, viewport).catch(() => {})
 		}
 
-		updateDimensions()
+		if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
+		resizeTimeoutRef.current = setTimeout(updateDimensions, 200)
+
 		const observer = new ResizeObserver(() => {
-			updateDimensions()
+			if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
+			resizeTimeoutRef.current = setTimeout(updateDimensions, 300)
 		})
 		if (containerRef.current) observer.observe(containerRef.current)
-		return () => observer.disconnect()
+		return () => {
+			if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current)
+			observer.disconnect()
+		}
 	}, [activeTabId, selectedPreset, isWide])
 
 	// Update omnibox when active tab changes and not manually editing
@@ -528,34 +554,26 @@ export function BrowserView({
 	// Input Dispatching (Pointer / Touch / Keys)
 	// ==========================================
 
-	const getCanvasCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
+	const getCanvasCoordinates = (clientX: number, clientY: number) => {
 		const canvas = canvasRef.current
 		if (!canvas) return { x: 0, y: 0 }
 
 		const rect = canvas.getBoundingClientRect()
-		let clientX = 0
-		let clientY = 0
-
-		if ('touches' in e && e.touches.length > 0) {
-			clientX = e.touches[0].clientX
-			clientY = e.touches[0].clientY
-		} else if ('clientX' in e) {
-			clientX = e.clientX
-			clientY = e.clientY
-		}
+		if (rect.width <= 0 || rect.height <= 0) return { x: 0, y: 0 }
 
 		const scaleX = canvas.width / rect.width
 		const scaleY = canvas.height / rect.height
 
 		return {
-			x: Math.round((clientX - rect.left) * scaleX),
-			y: Math.round((clientY - rect.top) * scaleY),
+			x: Math.max(0, Math.min(canvas.width, Math.round((clientX - rect.left) * scaleX))),
+			y: Math.max(0, Math.min(canvas.height, Math.round((clientY - rect.top) * scaleY))),
 		}
 	}
 
 	const handlePointerDown = (e: React.MouseEvent) => {
-		if (!activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
-		const { x, y } = getCanvasCoordinates(e)
+		// Ignore simulated mouse events if touch was recently used
+		if (touchTrackingRef.current || !activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
+		const { x, y } = getCanvasCoordinates(e.clientX, e.clientY)
 		const button = e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left'
 
 		wsRef.current.send(
@@ -568,14 +586,11 @@ export function BrowserView({
 				button,
 			} satisfies BrowserClientMessage),
 		)
-
-		// Focus invisible input proxy for mobile virtual keyboard
-		inputProxyRef.current?.focus()
 	}
 
 	const handlePointerUp = (e: React.MouseEvent) => {
-		if (!activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
-		const { x, y } = getCanvasCoordinates(e)
+		if (touchTrackingRef.current || !activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
+		const { x, y } = getCanvasCoordinates(e.clientX, e.clientY)
 		const button = e.button === 2 ? 'right' : e.button === 1 ? 'middle' : 'left'
 
 		wsRef.current.send(
@@ -591,8 +606,8 @@ export function BrowserView({
 	}
 
 	const handlePointerMove = (e: React.MouseEvent) => {
-		if (!activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
-		const { x, y } = getCanvasCoordinates(e)
+		if (touchTrackingRef.current || !activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
+		const { x, y } = getCanvasCoordinates(e.clientX, e.clientY)
 
 		wsRef.current.send(
 			JSON.stringify({
@@ -605,86 +620,97 @@ export function BrowserView({
 		)
 	}
 
+	// Mobile Touch Handling (Tap = Click, Swipe = Smooth Scroll)
 	const handleTouchStart = (e: React.TouchEvent) => {
-		if (!activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
-		const points = Array.from(e.touches).map((t, idx) => {
-			const canvas = canvasRef.current
-			if (!canvas) return { x: 0, y: 0, id: idx }
-			const rect = canvas.getBoundingClientRect()
-			const scaleX = canvas.width / rect.width
-			const scaleY = canvas.height / rect.height
-			return {
-				x: Math.round((t.clientX - rect.left) * scaleX),
-				y: Math.round((t.clientY - rect.top) * scaleY),
-				id: t.identifier,
-			}
-		})
+		if (!activeTabId || e.touches.length === 0) return
+		const touch = e.touches[0]
+		const coords = getCanvasCoordinates(touch.clientX, touch.clientY)
 
-		wsRef.current.send(
-			JSON.stringify({
-				type: 'touch',
-				tabId: activeTabId,
-				eventType: 'touchstart',
-				points,
-			} satisfies BrowserClientMessage),
-		)
-
-		inputProxyRef.current?.focus()
+		touchTrackingRef.current = {
+			startX: coords.x,
+			startY: coords.y,
+			startTime: Date.now(),
+			lastClientX: touch.clientX,
+			lastClientY: touch.clientY,
+			isDragging: false,
+		}
 	}
 
 	const handleTouchMove = (e: React.TouchEvent) => {
-		if (!activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
-		const points = Array.from(e.touches).map((t, idx) => {
-			const canvas = canvasRef.current
-			if (!canvas) return { x: 0, y: 0, id: idx }
-			const rect = canvas.getBoundingClientRect()
-			const scaleX = canvas.width / rect.width
-			const scaleY = canvas.height / rect.height
-			return {
-				x: Math.round((t.clientX - rect.left) * scaleX),
-				y: Math.round((t.clientY - rect.top) * scaleY),
-				id: t.identifier,
-			}
-		})
+		if (!activeTabId || !touchTrackingRef.current || e.touches.length === 0) return
+		const touch = e.touches[0]
+		const tracking = touchTrackingRef.current
+		const dx = touch.clientX - tracking.lastClientX
+		const dy = touch.clientY - tracking.lastClientY
 
-		wsRef.current.send(
-			JSON.stringify({
-				type: 'touch',
-				tabId: activeTabId,
-				eventType: 'touchmove',
-				points,
-			} satisfies BrowserClientMessage),
-		)
+		if (!tracking.isDragging) {
+			const totalDist = Math.hypot(touch.clientX - tracking.lastClientX, touch.clientY - tracking.lastClientY)
+			if (totalDist > 6) {
+				tracking.isDragging = true
+			}
+		}
+
+		if (tracking.isDragging && wsRef.current?.readyState === WebSocket.OPEN) {
+			// Convert swipe to smooth scroll deltas
+			wsRef.current.send(
+				JSON.stringify({
+					type: 'scroll',
+					tabId: activeTabId,
+					x: tracking.startX,
+					y: tracking.startY,
+					deltaX: -dx * 2.5,
+					deltaY: -dy * 2.5,
+				} satisfies BrowserClientMessage),
+			)
+		}
+
+		tracking.lastClientX = touch.clientX
+		tracking.lastClientY = touch.clientY
 	}
 
-	const handleTouchEnd = (e: React.TouchEvent) => {
-		if (!activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
-		const points = Array.from(e.changedTouches).map((t, idx) => {
-			const canvas = canvasRef.current
-			if (!canvas) return { x: 0, y: 0, id: idx }
-			const rect = canvas.getBoundingClientRect()
-			const scaleX = canvas.width / rect.width
-			const scaleY = canvas.height / rect.height
-			return {
-				x: Math.round((t.clientX - rect.left) * scaleX),
-				y: Math.round((t.clientY - rect.top) * scaleY),
-				id: t.identifier,
-			}
-		})
+	const handleTouchEnd = () => {
+		if (!activeTabId || !touchTrackingRef.current) return
+		const tracking = touchTrackingRef.current
+		const elapsed = Date.now() - tracking.startTime
 
-		wsRef.current.send(
-			JSON.stringify({
-				type: 'touch',
-				tabId: activeTabId,
-				eventType: 'touchend',
-				points,
-			} satisfies BrowserClientMessage),
-		)
+		// Clean tap: Send immediate click (mousedown + mouseup) at canvas coordinates
+		if (!tracking.isDragging && elapsed < 600 && wsRef.current?.readyState === WebSocket.OPEN) {
+			const currentTab = activeTabId
+			wsRef.current.send(
+				JSON.stringify({
+					type: 'pointer',
+					tabId: currentTab,
+					eventType: 'mousedown',
+					x: tracking.startX,
+					y: tracking.startY,
+					button: 'left',
+					clickCount: 1,
+				} satisfies BrowserClientMessage),
+			)
+
+			setTimeout(() => {
+				if (wsRef.current?.readyState === WebSocket.OPEN && activeTabIdRef.current === currentTab) {
+					wsRef.current.send(
+						JSON.stringify({
+							type: 'pointer',
+							tabId: currentTab,
+							eventType: 'mouseup',
+							x: tracking.startX,
+							y: tracking.startY,
+							button: 'left',
+							clickCount: 1,
+						} satisfies BrowserClientMessage),
+					)
+				}
+			}, 40)
+		}
+
+		touchTrackingRef.current = null
 	}
 
 	const handleWheel = (e: React.WheelEvent) => {
 		if (!activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
-		const { x, y } = getCanvasCoordinates(e)
+		const { x, y } = getCanvasCoordinates(e.clientX, e.clientY)
 
 		wsRef.current.send(
 			JSON.stringify({
@@ -733,6 +759,13 @@ export function BrowserView({
 		)
 	}
 
+	const handleToggleKeyboard = () => {
+		if (inputProxyRef.current) {
+			inputProxyRef.current.focus()
+			showNotice('Keyboard enabled — start typing')
+		}
+	}
+
 	const handleProxyInput = (e: React.ChangeEvent<HTMLInputElement>) => {
 		if (!activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
 		const val = e.target.value
@@ -745,6 +778,34 @@ export function BrowserView({
 				} satisfies BrowserClientMessage),
 			)
 			e.target.value = ''
+		}
+	}
+
+	const handleProxyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+		if (!activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
+		if (e.key === 'Backspace' || e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape') {
+			wsRef.current.send(
+				JSON.stringify({
+					type: 'key',
+					tabId: activeTabId,
+					eventType: 'keydown',
+					key: e.key,
+					code: e.code,
+				} satisfies BrowserClientMessage),
+			)
+			setTimeout(() => {
+				if (wsRef.current?.readyState === WebSocket.OPEN && activeTabIdRef.current === activeTabId) {
+					wsRef.current.send(
+						JSON.stringify({
+							type: 'key',
+							tabId: activeTabId,
+							eventType: 'keyup',
+							key: e.key,
+							code: e.code,
+						} satisfies BrowserClientMessage),
+					)
+				}
+			}, 30)
 		}
 	}
 
@@ -920,6 +981,16 @@ export function BrowserView({
 								</option>
 							))}
 						</select>
+
+						<button
+							type="button"
+							className="browser-nav-btn"
+							onClick={handleToggleKeyboard}
+							title="Toggle On-Screen Keyboard"
+							aria-label="Toggle Keyboard"
+						>
+							<IconKeyboard />
+						</button>
 
 						<button
 							type="button"
@@ -1118,6 +1189,7 @@ export function BrowserView({
 					type="text"
 					className="browser-input-proxy"
 					onChange={handleProxyInput}
+					onKeyDown={handleProxyKeyDown}
 					aria-hidden="true"
 				/>
 			</div>
