@@ -651,6 +651,16 @@ export function IconKeyboard({ className, style }: IconProps) {
 	)
 }
 
+export function IconPaste({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" strokeLinecap="round" strokeLinejoin="round" />
+			<rect x="8" y="2" width="8" height="4" rx="1" ry="1" strokeLinecap="round" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+
 
 
 

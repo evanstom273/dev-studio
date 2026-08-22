@@ -29,6 +29,7 @@ import {
 	IconLock,
 	IconMaximize,
 	IconMinimize,
+	IconPaste,
 	IconPlus,
 	IconRefresh,
 	IconSearch,
@@ -276,9 +277,23 @@ export function BrowserView({
 							renderFrame(msg)
 						}
 					} else if (msg.type === 'tabUpdated') {
-						setTabs((prev) => prev.map((t) => (t.id === msg.tab.id ? msg.tab : t)))
+						setTabs((prev) => {
+							const exists = prev.some((t) => t.id === msg.tab.id)
+							if (exists) {
+								return prev.map((t) => (t.id === msg.tab.id ? msg.tab : t))
+							}
+							return [...prev, msg.tab]
+						})
 					} else if (msg.type === 'tabClosed') {
-						setTabs((prev) => prev.filter((t) => t.id !== msg.tabId))
+						setTabs((prev) => {
+							const filtered = prev.filter((t) => t.id !== msg.tabId)
+							if (activeTabIdRef.current === msg.tabId && filtered.length > 0) {
+								const nextTab = filtered[filtered.length - 1]
+								setActiveTabId(nextTab.id)
+								setOmniboxInput(nextTab.url)
+							}
+							return filtered
+						})
 					} else if (msg.type === 'console') {
 						setConsoleLogs((prev) => [msg.entry, ...prev.slice(0, 499)])
 					} else if (msg.type === 'networkError') {
@@ -296,7 +311,7 @@ export function BrowserView({
 					} else if (msg.type === 'status') {
 						setIsRunning(msg.isRunning)
 						setIsRecovering(Boolean(msg.isRecovering))
-						if (msg.activeTabId && !activeTabIdRef.current) {
+						if (msg.activeTabId && msg.activeTabId !== activeTabIdRef.current) {
 							setActiveTabId(msg.activeTabId)
 						}
 					}
@@ -512,6 +527,43 @@ export function BrowserView({
 			showNotice('URL copied to clipboard')
 		} catch {
 			showNotice('Failed to copy URL')
+		}
+	}
+
+	const handlePasteClipboard = async () => {
+		if (!activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
+		try {
+			const text = await navigator.clipboard.readText()
+			if (text) {
+				wsRef.current.send(
+					JSON.stringify({
+						type: 'insertText',
+						tabId: activeTabId,
+						text,
+					} satisfies BrowserClientMessage),
+				)
+				showNotice('Pasted text into page')
+			} else {
+				showNotice('Clipboard is empty')
+			}
+		} catch {
+			showNotice('Clipboard access denied — use Ctrl+V or keyboard input')
+		}
+	}
+
+	const handlePaste = (e: React.ClipboardEvent) => {
+		if (!activeTabId || wsRef.current?.readyState !== WebSocket.OPEN) return
+		const text = e.clipboardData.getData('text')
+		if (text) {
+			e.preventDefault()
+			wsRef.current.send(
+				JSON.stringify({
+					type: 'insertText',
+					tabId: activeTabId,
+					text,
+				} satisfies BrowserClientMessage),
+			)
+			showNotice('Pasted text into page')
 		}
 	}
 
@@ -818,6 +870,7 @@ export function BrowserView({
 			tabIndex={0}
 			onKeyDown={handleKeyDown}
 			onKeyUp={handleKeyUp}
+			onPaste={handlePaste}
 		>
 			{/* Notice popup */}
 			{copiedNotice && <div className="browser-notice">{copiedNotice}</div>}
@@ -985,6 +1038,16 @@ export function BrowserView({
 						<button
 							type="button"
 							className="browser-nav-btn"
+							onClick={() => void handlePasteClipboard()}
+							title="Paste clipboard text into page"
+							aria-label="Paste clipboard text"
+						>
+							<IconPaste />
+						</button>
+
+						<button
+							type="button"
+							className="browser-nav-btn"
 							onClick={handleToggleKeyboard}
 							title="Toggle On-Screen Keyboard"
 							aria-label="Toggle Keyboard"
@@ -1026,6 +1089,17 @@ export function BrowserView({
 										}}
 									>
 										<span>Reopen Closed Tab</span>
+									</button>
+									<button
+										type="button"
+										className="browser-dropdown-item"
+										onClick={() => {
+											void handlePasteClipboard()
+											setMenuOpen(false)
+										}}
+									>
+										<IconPaste />
+										<span>Paste into Page</span>
 									</button>
 									<div className="browser-dropdown-divider" />
 									<button

@@ -146,8 +146,14 @@ export class BrowserService {
 		this.broadcastStatus()
 
 		try {
+			const userAgent =
+				'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36'
+
 			this.context = await chromium.launchPersistentContext(this.profileDir, {
 				headless: true,
+				userAgent,
+				locale: 'en-US',
+				permissions: ['clipboard-read', 'clipboard-write', 'notifications'],
 				args: [
 					'--disable-blink-features=AutomationControlled',
 					'--no-default-browser-check',
@@ -156,10 +162,61 @@ export class BrowserService {
 					'--disable-background-timer-throttling',
 					'--disable-backgrounding-occluded-windows',
 					'--disable-renderer-backgrounding',
+					'--password-store=basic',
+					'--use-mock-keychain',
 				],
 				viewport: { width: 1280, height: 800 },
 				deviceScaleFactor: 1,
 				acceptDownloads: true,
+			})
+
+			// Add stealth init script so websites don't detect automation or block logins
+			await this.context.addInitScript(() => {
+				// Mask navigator.webdriver
+				try {
+					Object.defineProperty(navigator, 'webdriver', {
+						get: () => undefined,
+					})
+				} catch {
+					// ignore
+				}
+
+				// Ensure window.chrome runtime object exists
+				try {
+					const win = window as unknown as { chrome?: Record<string, unknown> }
+					if (!win.chrome) {
+						win.chrome = {
+							runtime: {},
+							loadTimes: () => {},
+							csi: () => {},
+							app: {},
+						}
+					}
+				} catch {
+					// ignore
+				}
+
+				// Ensure navigator.plugins is populated
+				try {
+					if (!navigator.plugins || navigator.plugins.length === 0) {
+						Object.defineProperty(navigator, 'plugins', {
+							get: () => [1, 2, 3, 4, 5],
+						})
+					}
+				} catch {
+					// ignore
+				}
+
+				// Ensure navigator.languages is populated
+				try {
+					if (!navigator.languages || navigator.languages.length === 0) {
+						Object.defineProperty(navigator, 'languages', {
+							get: () => ['en-US', 'en'],
+						})
+					}
+				} catch {
+					// ignore
+				}
 			})
 
 			this.isRunning = true
@@ -173,9 +230,15 @@ export class BrowserService {
 				this.broadcastStatus()
 			})
 
-			this.context.on('page', (page) => {
-				// Handle popups or window.open
-				void this.registerPage(page)
+			this.context.on('page', async (page) => {
+				// Handle popups or window.open (e.g. OAuth login popups)
+				try {
+					const record = await this.registerPage(page)
+					this.activeTabId = record.id
+					this.broadcastStatus()
+				} catch (err) {
+					console.error('[BrowserService] Failed to register popup page:', err)
+				}
 			})
 
 			// Set up existing pages
