@@ -542,11 +542,12 @@
 	flex: 1;
 	position: relative;
 	background: #09090b;
-	overflow: auto;
+	overflow: hidden;
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	justify-content: center;
-	min-height: 100px;
+	width: 100%;
+	height: 100%;
 }
 
 .browser-canvas {
@@ -556,7 +557,20 @@
 	cursor: default;
 	touch-action: none;
 	background: #ffffff;
+}
+
+.browser-view--wide .browser-viewport-container {
+	align-items: center;
+}
+
+.browser-view--wide .browser-canvas {
 	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+.browser-view--mobile .browser-canvas {
+	width: 100%;
+	height: 100%;
+	object-fit: fill;
 }
 
 .browser-input-proxy {

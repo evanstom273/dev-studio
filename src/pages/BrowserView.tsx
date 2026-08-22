@@ -113,16 +113,16 @@ export function BrowserView({
 		const canvas = canvasRef.current
 		if (!canvas) return
 
-		const ctx = canvas.getContext('2d')
-		if (!ctx) return
-
 		const img = new Image()
 		img.onload = () => {
 			if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
 				canvas.width = img.naturalWidth
 				canvas.height = img.naturalHeight
 			}
-			ctx.drawImage(img, 0, 0)
+			const ctx = canvas.getContext('2d')
+			if (ctx) {
+				ctx.drawImage(img, 0, 0)
+			}
 		}
 		img.src = `data:image/jpeg;base64,${msg.data}`
 	}, [])
@@ -143,8 +143,19 @@ export function BrowserView({
 				const cur = state.tabs.find((t) => t.id === active)
 				if (cur) setOmniboxInput(cur.url)
 			} else {
-				// Create initial tab
-				const newTab = await browserApi.createTab({ url: 'https://github.com' })
+				// Measure initial viewport on mobile
+				const initialW = containerRef.current?.clientWidth || (isWide ? 1280 : window.innerWidth || 412)
+				const initialH = containerRef.current?.clientHeight || (isWide ? 800 : window.innerHeight - 150 || 750)
+				const newTab = await browserApi.createTab({
+					url: 'https://duckduckgo.com',
+					viewport: {
+						width: initialW,
+						height: initialH,
+						deviceScaleFactor: 1,
+						isMobile: !isWide,
+						hasTouch: !isWide,
+					},
+				})
 				setTabs([newTab])
 				setActiveTabId(newTab.id)
 				setOmniboxInput(newTab.url)
@@ -163,11 +174,40 @@ export function BrowserView({
 		} finally {
 			setLoading(false)
 		}
-	}, [])
+	}, [isWide])
 
 	useEffect(() => {
 		void loadBrowserState()
 	}, [loadBrowserState])
+
+	// Auto-fit viewport to container when selectedPreset is 'responsive'
+	useEffect(() => {
+		if (selectedPreset !== 'responsive' || !activeTabId) return
+
+		const updateDimensions = () => {
+			const container = containerRef.current
+			if (!container) return
+			const w = Math.floor(container.clientWidth) || (isWide ? 1280 : window.innerWidth)
+			const h = Math.floor(container.clientHeight) || (isWide ? 800 : window.innerHeight - 150)
+			if (w > 0 && h > 0) {
+				const viewport: BrowserViewport = {
+					width: w,
+					height: h,
+					deviceScaleFactor: 1,
+					isMobile: !isWide,
+					hasTouch: !isWide,
+				}
+				void browserApi.setViewport(activeTabId, viewport).catch(() => {})
+			}
+		}
+
+		updateDimensions()
+		const observer = new ResizeObserver(() => {
+			updateDimensions()
+		})
+		if (containerRef.current) observer.observe(containerRef.current)
+		return () => observer.disconnect()
+	}, [activeTabId, selectedPreset, isWide])
 
 	// Update omnibox when active tab changes and not manually editing
 	useEffect(() => {
