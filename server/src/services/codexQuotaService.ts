@@ -55,11 +55,12 @@ export function parseCodexRateLimits(
 	const buckets: QuotaBucket[] = []
 
 	if (payload.primary) {
-		const usedPct = typeof payload.primary.used_percent === 'number' ? payload.primary.used_percent : 0
-		const percentUsed = Math.max(0, Math.min(100, Math.round(usedPct)))
-		const percentRemaining = Math.max(0, 100 - percentUsed)
-		const remainingFraction = percentRemaining / 100
-		const usedFraction = percentUsed / 100
+		const percentUsed = typeof payload.primary.used_percent === 'number'
+			? Math.max(0, Math.min(100, Math.round(payload.primary.used_percent)))
+			: null
+		const percentRemaining = percentUsed === null ? null : Math.max(0, 100 - percentUsed)
+		const remainingFraction = percentRemaining === null ? null : percentRemaining / 100
+		const usedFraction = percentUsed === null ? null : percentUsed / 100
 
 		let resetAt: string | null = null
 		let resetSeconds: number | null = null
@@ -72,14 +73,16 @@ export function parseCodexRateLimits(
 		const windowLabel = formatWindowLabel(payload.primary.window_minutes, 'Primary Quota')
 		buckets.push({
 			kind: 'primary',
-			label: `Primary (${windowLabel})`,
+			label: windowLabel === 'Weekly Window (7d)' ? 'Weekly Limit' : `Primary (${windowLabel})`,
 			remainingFraction,
 			usedFraction,
 			percentRemaining,
 			percentUsed,
 			resetAt,
 			resetSeconds,
-			available: percentRemaining > 0 && !payload.rate_limit_reached_type,
+			available: percentRemaining === null
+				? !payload.rate_limit_reached_type
+				: percentRemaining > 0 && !payload.rate_limit_reached_type,
 			description: payload.primary.window_minutes
 				? `${windowLabel} – resets ${resetAt ? new Date(resetAt).toLocaleString() : 'soon'}`
 				: null,
@@ -87,11 +90,12 @@ export function parseCodexRateLimits(
 	}
 
 	if (payload.secondary) {
-		const usedPct = typeof payload.secondary.used_percent === 'number' ? payload.secondary.used_percent : 0
-		const percentUsed = Math.max(0, Math.min(100, Math.round(usedPct)))
-		const percentRemaining = Math.max(0, 100 - percentUsed)
-		const remainingFraction = percentRemaining / 100
-		const usedFraction = percentUsed / 100
+		const percentUsed = typeof payload.secondary.used_percent === 'number'
+			? Math.max(0, Math.min(100, Math.round(payload.secondary.used_percent)))
+			: null
+		const percentRemaining = percentUsed === null ? null : Math.max(0, 100 - percentUsed)
+		const remainingFraction = percentRemaining === null ? null : percentRemaining / 100
+		const usedFraction = percentUsed === null ? null : percentUsed / 100
 
 		let resetAt: string | null = null
 		let resetSeconds: number | null = null
@@ -111,7 +115,7 @@ export function parseCodexRateLimits(
 			percentUsed,
 			resetAt,
 			resetSeconds,
-			available: percentRemaining > 0,
+			available: percentRemaining === null ? true : percentRemaining > 0,
 			description: payload.secondary.window_minutes
 				? `${windowLabel} – resets ${resetAt ? new Date(resetAt).toLocaleString() : 'soon'}`
 				: null,
