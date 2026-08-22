@@ -37,7 +37,7 @@ export type AgyQuotaSnapshot = {
 	account: string | null
 	tier: string | null
 	fetchedAt: string
-	source: 'api' | 'pty'
+	source: 'api' | 'pty' | 'local'
 	host: string | null
 	note: string | null
 	groups: QuotaGroup[]

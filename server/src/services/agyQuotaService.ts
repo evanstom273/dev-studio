@@ -1,6 +1,14 @@
-import { getAccessToken, CredentialError } from 'agy-cli-usage/dist/src/credentials.js'
-import { fromApi } from 'agy-cli-usage/dist/src/quota.js'
-import type { AgyQuotaSnapshot, QuotaBucket, QuotaGroup } from '../types/system.js'
+import { existsSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import {
+	CredentialError,
+	decodeSecret,
+	getAccessToken,
+} from 'agy-cli-usage/dist/src/credentials.js'
+import { fetchLocalAgyQuota } from './agyLocalQuotaService.js'
+import { extractQuotaGroups, hasUsableQuotaGroups, parseQuotaGroups } from './agyQuotaParse.js'
+import type { AgyQuotaSnapshot } from '../types/system.js'
 
 export type FetchAgyQuotaOptions = {
 	agyPath: string
@@ -13,6 +21,7 @@ const CLOUD_CODE_HOSTS = [
 ] as const
 
 const CACHE_TTL_MS = 5 * 60_000
+const TOKEN_FILE = join(homedir(), '.gemini', 'antigravity-cli', 'antigravity-oauth-token')
 
 type CachedQuota = {
 	ts: number
@@ -21,57 +30,28 @@ type CachedQuota = {
 
 let cachedQuota: CachedQuota | null = null
 
-type SnapshotLike = ReturnType<typeof fromApi>
-
-function toPercent(fraction: number | null | undefined): number | null {
-	if (fraction === null || fraction === undefined || !Number.isFinite(fraction)) return null
-	return Math.max(0, Math.min(100, Math.round(fraction * 100)))
-}
-
-function mapBucket(raw: {
-	kind: string
-	label: string
-	remainingFraction: number | null
-	usedFraction: number | null
-	resetAt: string | null
-	resetsInSeconds: number | null
-	available: boolean
-	description: string | null
-}): QuotaBucket {
-	const percentRemaining = raw.available ? 100 : toPercent(raw.remainingFraction)
-	const percentUsed =
-		percentRemaining === null ? null : raw.available ? 0 : Math.max(0, 100 - percentRemaining)
-
-	return {
-		kind: raw.kind,
-		label: raw.label,
-		remainingFraction: raw.remainingFraction,
-		usedFraction: raw.usedFraction,
-		percentRemaining,
-		percentUsed,
-		resetAt: raw.resetAt,
-		resetSeconds: raw.resetsInSeconds,
-		available: raw.available,
-		description: raw.description,
+async function resolveAccessToken(forceRefresh = false): Promise<string> {
+	if (!forceRefresh) {
+		try {
+			const { accessToken } = await getAccessToken()
+			if (accessToken) return accessToken
+		} catch {
+			// fall through to token file retry
+		}
 	}
-}
 
-function mapSnapshot(snapshot: SnapshotLike): AgyQuotaSnapshot {
-	return {
-		account: snapshot.account,
-		tier: snapshot.tier,
-		fetchedAt: snapshot.fetchedAt,
-		source: snapshot.source,
-		host: snapshot.host,
-		note: snapshot.note,
-		groups: snapshot.groups.map(
-			(group): QuotaGroup => ({
-				name: group.name,
-				models: group.models,
-				buckets: group.buckets.map(mapBucket),
-			}),
-		),
+	if (existsSync(TOKEN_FILE)) {
+		try {
+			const raw = readFileSync(TOKEN_FILE, 'utf8').trim()
+			const cred = decodeSecret(raw)
+			if (cred.accessToken) return cred.accessToken
+		} catch {
+			// fall through
+		}
 	}
+
+	const { accessToken } = await getAccessToken()
+	return accessToken
 }
 
 function extractEmail(uri: unknown): string | null {
@@ -86,39 +66,11 @@ function extractEmail(uri: unknown): string | null {
 }
 
 function extractProject(raw: Record<string, unknown>): string | null {
-	const candidates = [
-		raw.cloudaicompanionProject,
-		raw.cloudAiCompanionProject,
-		raw.cloud_aicompanion_project,
-	]
-	for (const candidate of candidates) {
-		if (typeof candidate === 'string' && candidate.trim()) {
-			return candidate.trim()
-		}
+	for (const key of ['cloudaicompanionProject', 'cloudAiCompanionProject', 'cloud_aicompanion_project']) {
+		const value = raw[key]
+		if (typeof value === 'string' && value.trim()) return value.trim()
 	}
 	return null
-}
-
-function extractGroups(raw: unknown): unknown[] | null {
-	if (!raw || typeof raw !== 'object') return null
-	const record = raw as Record<string, unknown>
-
-	const direct = record.groups
-	if (Array.isArray(direct)) return direct
-
-	for (const wrapperKey of ['response', 'summary'] as const) {
-		const wrapper = record[wrapperKey]
-		if (!wrapper || typeof wrapper !== 'object') continue
-		const nested = (wrapper as Record<string, unknown>).groups
-		if (Array.isArray(nested)) return nested
-	}
-
-	return null
-}
-
-function hasQuotaGroups(raw: unknown): boolean {
-	const groups = extractGroups(raw)
-	return Array.isArray(groups) && groups.length > 0
 }
 
 async function postInternal(
@@ -132,14 +84,14 @@ async function postInternal(
 		headers: {
 			Authorization: `Bearer ${accessToken}`,
 			'Content-Type': 'application/json',
-			'User-Agent': 'dev-studio-quota/0.2.0',
+			'User-Agent': 'antigravity/1.11.3 dev-studio-quota',
 		},
 		body: JSON.stringify(body),
 	})
 
 	if (!response.ok) {
 		const detail = (await response.text()).slice(0, 300)
-		const error = new Error(`${method} -> HTTP ${response.status}: ${detail}`)
+		const error = new Error(`${method}@${host} -> HTTP ${response.status}: ${detail}`)
 		;(error as Error & { status?: number }).status = response.status
 		throw error
 	}
@@ -147,7 +99,8 @@ async function postInternal(
 	return (await response.json()) as Record<string, unknown>
 }
 
-async function fetchQuotaViaApi(accessToken: string): Promise<SnapshotLike> {
+async function fetchCloudQuota(accessToken: string): Promise<AgyQuotaSnapshot> {
+	const nowMs = Date.now()
 	let lastError: Error | null = null
 
 	for (const host of CLOUD_CODE_HOSTS) {
@@ -169,41 +122,46 @@ async function fetchQuotaViaApi(accessToken: string): Promise<SnapshotLike> {
 		} catch (error) {
 			lastError = error instanceof Error ? error : new Error(String(error))
 			const status = (error as Error & { status?: number }).status
-			if (status === 401 || status === 403) {
-				throw lastError
-			}
+			if (status === 401 || status === 403) throw lastError
 		}
 
-		const quotaBodies: Record<string, unknown>[] = project ? [{ project }] : [{}, { project: '' }]
+		const quotaBodies: Record<string, unknown>[] = [{ }]
+		if (project) quotaBodies.unshift({ project })
 
 		for (const body of quotaBodies) {
 			try {
 				const raw = await postInternal(host, accessToken, 'retrieveUserQuotaSummary', body)
-				if (!hasQuotaGroups(raw)) continue
+				const groups = parseQuotaGroups(raw, nowMs)
+				if (!hasUsableQuotaGroups(groups)) {
+					if (!extractQuotaGroups(raw)?.length) continue
+					lastError = new Error('retrieveUserQuotaSummary returned groups without quota fractions')
+					continue
+				}
 
-				return fromApi({
-					raw: raw as Parameters<typeof fromApi>[0]['raw'],
-					host,
+				return {
 					account,
 					tier,
-				})
+					fetchedAt: new Date(nowMs).toISOString(),
+					source: 'api',
+					host,
+					note: null,
+					groups,
+				}
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error))
 				const status = (error as Error & { status?: number }).status
-				if (status === 401 || status === 403) {
-					throw lastError
-				}
+				if (status === 401 || status === 403) throw lastError
 			}
 		}
 	}
 
-	throw lastError ?? new Error('Antigravity quota API returned no usable data')
+	throw lastError ?? new Error('Antigravity cloud quota API returned no usable data')
 }
 
 function formatQuotaError(error: unknown): Error {
 	if (error instanceof CredentialError) {
 		return new Error(
-			'Antigravity is not signed in on this laptop. Run `agy` in PowerShell, sign in, then refresh.',
+			'Antigravity credentials not readable. Keep `agy` open and signed in, or run `agy` once in PowerShell to refresh login.',
 		)
 	}
 
@@ -213,13 +171,13 @@ function formatQuotaError(error: unknown): Error {
 
 	if (/401|403|unauthorized|invalid authentication/i.test(error.message)) {
 		return new Error(
-			'Antigravity session expired. Run `agy` on the laptop, sign in again, then refresh.',
+			'Antigravity session expired. Run `agy` in PowerShell, sign in again, leave it open, then refresh.',
 		)
 	}
 
-	if (/no cloudaicompanionProject|returned no quota groups|no usable data/i.test(error.message)) {
+	if (/no usable data|without quota fractions|timed out/i.test(error.message)) {
 		return new Error(
-			'Antigravity quota API did not return project quota. Run `agy`, open `/usage` once to refresh your account, then retry.',
+			'Could not read quota. Leave `agy` running and signed in (same laptop), open `/usage` once, then tap Refresh All.',
 		)
 	}
 
@@ -233,13 +191,37 @@ export async function fetchAgyQuota(options: FetchAgyQuotaOptions): Promise<AgyQ
 		return cachedQuota.snapshot
 	}
 
+	const errors: string[] = []
+
 	try {
-		const { accessToken } = await getAccessToken()
-		const snapshot = mapSnapshot(await fetchQuotaViaApi(accessToken))
-		cachedQuota = { ts: Date.now(), snapshot }
-		return snapshot
+		const local = await fetchLocalAgyQuota()
+		if (local) {
+			cachedQuota = { ts: Date.now(), snapshot: local }
+			return local
+		}
 	} catch (error) {
-		throw formatQuotaError(error)
+		errors.push(error instanceof Error ? error.message : String(error))
+	}
+
+	try {
+		let accessToken = await resolveAccessToken(false)
+		try {
+			const snapshot = await fetchCloudQuota(accessToken)
+			cachedQuota = { ts: Date.now(), snapshot }
+			return snapshot
+		} catch (firstError) {
+			const status = (firstError as Error & { status?: number }).status
+			if (status === 401 || status === 403) {
+				accessToken = await resolveAccessToken(true)
+				const snapshot = await fetchCloudQuota(accessToken)
+				cachedQuota = { ts: Date.now(), snapshot }
+				return snapshot
+			}
+			throw firstError
+		}
+	} catch (error) {
+		errors.push(error instanceof Error ? error.message : String(error))
+		throw formatQuotaError(new Error(errors.join(' | ')))
 	}
 }
 
