@@ -89,12 +89,15 @@ export function PromptComposer({
 	const handleSpeechResult = useCallback(
 		(spokenChunk: string) => {
 			const current = valueRef.current
+			let updated: string
 			if (!current) {
-				onChange(spokenChunk)
+				updated = spokenChunk
 			} else {
 				const needsSpace = !current.endsWith(' ') && !current.endsWith('\n')
-				onChange(`${current}${needsSpace ? ' ' : ''}${spokenChunk}`)
+				updated = `${current}${needsSpace ? ' ' : ''}${spokenChunk}`
 			}
+			valueRef.current = updated
+			onChange(updated)
 		},
 		[onChange],
 	)
@@ -149,7 +152,7 @@ export function PromptComposer({
 			onStop?.()
 			return
 		}
-		if (value.trim() || attachments.length > 0) {
+		if (valueRef.current.trim() || attachments.length > 0) {
 			onSend()
 		}
 	}
@@ -160,7 +163,7 @@ export function PromptComposer({
 			if (isListening) {
 				stopListening()
 			}
-			if (value.trim() || attachments.length > 0) {
+			if (valueRef.current.trim() || attachments.length > 0) {
 				onSend()
 			}
 		}
