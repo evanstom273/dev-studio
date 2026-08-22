@@ -241,7 +241,8 @@ export function EditorView({
 							title="Send selected code to Agent Chat"
 						>
 							<IconChat className="editor-btn__icon" />
-							<span className="editor-btn__text">Ask Agent</span>
+							<span className="editor-btn__text editor-btn__text--full">Ask Agent</span>
+							<span className="editor-btn__text editor-btn__text--short">Ask</span>
 						</button>
 
 						<button

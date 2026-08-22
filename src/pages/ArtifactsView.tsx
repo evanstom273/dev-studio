@@ -11,7 +11,7 @@ import {
 } from '../components/Icons'
 import { ArtifactList } from '../components/artifacts/ArtifactList'
 import { ArtifactViewer } from '../components/artifacts/ArtifactViewer'
-import { useWideLayout } from '../hooks/useMediaQuery'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { agentApi } from '../services/agentApi'
 import { artifactApi } from '../services/artifactApi'
 import '../styles/artifacts.css'
@@ -48,7 +48,7 @@ export function ArtifactsView({
 	onNavigateToChat,
 	onOpenInEditor,
 }: ArtifactsViewProps) {
-	const isWide = useWideLayout()
+	const isDesktop = useMediaQuery('(min-width: 1100px)')
 	const [artifacts, setArtifacts] = useState<Artifact[]>([])
 	const [selectedId, setSelectedId] = useState<string | null>(null)
 	const [error, setError] = useState<string | null>(null)
@@ -74,14 +74,14 @@ export function ArtifactsView({
 		try {
 			const list = await artifactApi.listArtifacts(project.id)
 			setArtifacts(list)
-			if (list.length > 0 && !selectedId && isWide) {
+			if (list.length > 0 && !selectedId && isDesktop) {
 				setSelectedId(list[0].id)
 			}
 			setError(null)
 		} catch (err) {
 			setError(err instanceof Error ? err.message : 'Failed to load artifacts')
 		}
-	}, [isWide, project.id, selectedId])
+	}, [isDesktop, project.id, selectedId])
 
 	useEffect(() => {
 		void loadArtifacts()
@@ -208,7 +208,7 @@ export function ArtifactsView({
 			{/* Master-Detail / Responsive Body */}
 			<div className="artifacts-view__layout">
 				{/* Left / List Column */}
-				{(!selectedArtifact || isWide) && (
+				{(!selectedArtifact || isDesktop) && (
 					<div className="artifacts-view__list-pane">
 						<div className="artifacts-pane-header">
 							<div className="artifacts-pane-header__title">
@@ -242,7 +242,7 @@ export function ArtifactsView({
 							artifact={selectedArtifact}
 							onUpdate={handleUpdateArtifact}
 							onDelete={(id) => void handleDeleteArtifact(id)}
-							onBack={!isWide ? () => setSelectedId(null) : undefined}
+							onBack={!isDesktop ? () => setSelectedId(null) : undefined}
 							onAskAgent={(snippet) => {
 								onSendToChat?.(snippet)
 								onNavigateToChat?.()
@@ -250,7 +250,7 @@ export function ArtifactsView({
 							onExportToRepo={handleStartExport}
 						/>
 					</div>
-				) : isWide ? (
+				) : isDesktop ? (
 					<div className="artifacts-view__detail-pane artifacts-view__detail-pane--empty">
 						<IconArtifact className="artifact-empty-state__icon" />
 						<p className="artifact-empty-state__title">Select or create an artifact</p>

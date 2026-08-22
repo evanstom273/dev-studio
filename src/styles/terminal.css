@@ -14,9 +14,15 @@
 	background: var(--bg-elevated);
 	border-bottom: 1px solid var(--border-subtle);
 	min-height: 40px;
-	padding-right: var(--space-xs);
+	padding: 0 var(--space-xs);
 	gap: var(--space-xs);
 	flex-shrink: 0;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.terminal-view__header::-webkit-scrollbar {
+	display: none;
 }
 
 /* Terminal Tabs */
@@ -42,18 +48,19 @@
 .terminal-tab {
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	padding: 0 10px;
+	gap: 4px;
+	padding: 0 8px;
 	height: 38px;
 	background: transparent;
 	border-right: 1px solid var(--border-subtle);
 	color: var(--text-secondary);
-	font-size: 12px;
+	font-size: 11px;
 	font-family: var(--font-mono);
 	cursor: pointer;
 	white-space: nowrap;
 	transition: background 0.15s, color 0.15s;
 	user-select: none;
+	flex-shrink: 0;
 }
 
 .terminal-tab:hover {
@@ -69,14 +76,14 @@
 }
 
 .terminal-tab__icon {
-	width: 14px;
-	height: 14px;
+	width: 13px;
+	height: 13px;
 	color: var(--accent);
 	flex-shrink: 0;
 }
 
 .terminal-tab__title {
-	max-width: 140px;
+	max-width: 90px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
@@ -100,8 +107,8 @@
 }
 
 .terminal-tab__close-icon {
-	width: 12px;
-	height: 12px;
+	width: 11px;
+	height: 11px;
 }
 
 .terminal-tabs__add-btn {
@@ -111,11 +118,11 @@
 	background: transparent;
 	border: none;
 	color: var(--text-muted);
-	width: 32px;
-	height: 32px;
+	width: 28px;
+	height: 28px;
 	cursor: pointer;
 	border-radius: var(--radius-xs);
-	margin-left: 4px;
+	margin-left: 2px;
 	flex-shrink: 0;
 }
 
@@ -125,27 +132,27 @@
 }
 
 .terminal-tabs__add-icon {
-	width: 16px;
-	height: 16px;
+	width: 14px;
+	height: 14px;
 }
 
 /* Metadata & Actions */
 .terminal-view__meta {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 4px;
 	flex-shrink: 0;
 }
 
 .terminal-view__cwd {
-	font-size: 11px;
+	font-size: 10px;
 	font-family: var(--font-mono);
 	color: var(--text-muted);
 	background: var(--bg-surface);
-	padding: 2px 6px;
+	padding: 1px 5px;
 	border-radius: var(--radius-xs);
 	border: 1px solid var(--border-subtle);
-	max-width: 120px;
+	max-width: 90px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -155,8 +162,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 28px;
-	height: 28px;
+	width: 26px;
+	height: 26px;
 	background: var(--bg-surface);
 	border: 1px solid var(--border-medium);
 	border-radius: var(--radius-sm);
@@ -171,8 +178,8 @@
 }
 
 .terminal-btn-icon__svg {
-	width: 14px;
-	height: 14px;
+	width: 13px;
+	height: 13px;
 }
 
 .terminal-view__error {

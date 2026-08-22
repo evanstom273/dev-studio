@@ -106,34 +106,42 @@
 .tool-switcher-bar {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
 	height: var(--header-height);
-	padding: 0 var(--space-md);
+	padding: 0 var(--space-xs);
 	background: var(--bg-elevated);
 	border-bottom: 1px solid var(--border-subtle);
 	flex-shrink: 0;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.tool-switcher-bar::-webkit-scrollbar {
+	display: none;
 }
 
 .tool-switcher-tabs {
 	display: flex;
 	align-items: center;
-	gap: var(--space-2xs);
+	gap: 2px;
 	background: var(--bg-surface);
 	padding: 2px;
 	border-radius: var(--radius-md);
 	border: 1px solid var(--border-subtle);
+	min-width: max-content;
 }
 
 .tool-switcher-tab {
 	display: inline-flex;
 	align-items: center;
-	gap: 6px;
-	padding: 4px 10px;
-	font-size: 12px;
+	gap: 4px;
+	padding: 3px 8px;
+	font-size: 11px;
 	font-weight: 500;
 	color: var(--text-secondary);
 	border-radius: calc(var(--radius-md) - 2px);
 	transition: background 0.15s, color 0.15s;
+	white-space: nowrap;
+	flex-shrink: 0;
 }
 
 .tool-switcher-tab:hover {
@@ -147,15 +155,15 @@
 }
 
 .tool-switcher-tab__icon {
-	width: 14px;
-	height: 14px;
+	width: 13px;
+	height: 13px;
 	flex-shrink: 0;
 }
 
 .tool-switcher-tab--more {
 	border-left: 1px solid var(--border-subtle);
 	margin-left: 2px;
-	padding-left: 8px;
+	padding-left: 6px;
 }
 
 .tool-switcher-tab__badge {

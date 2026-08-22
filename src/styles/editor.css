@@ -14,9 +14,15 @@
 	background: var(--bg-elevated);
 	border-bottom: 1px solid var(--border-subtle);
 	min-height: 40px;
-	padding-right: var(--space-xs);
+	padding: 0 var(--space-xs);
 	gap: var(--space-xs);
 	flex-shrink: 0;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.editor-view__header::-webkit-scrollbar {
+	display: none;
 }
 
 /* Tabs Bar */
@@ -42,18 +48,19 @@
 .editor-tab {
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	padding: 0 10px;
+	gap: 4px;
+	padding: 0 8px;
 	height: 38px;
 	background: transparent;
 	border-right: 1px solid var(--border-subtle);
 	color: var(--text-secondary);
-	font-size: 12px;
+	font-size: 11px;
 	font-family: var(--font-mono);
 	cursor: pointer;
 	white-space: nowrap;
 	transition: background 0.15s, color 0.15s;
 	user-select: none;
+	flex-shrink: 0;
 }
 
 .editor-tab:hover {
@@ -69,20 +76,20 @@
 }
 
 .editor-tab__icon {
-	width: 14px;
-	height: 14px;
+	width: 13px;
+	height: 13px;
 	color: var(--accent);
 	flex-shrink: 0;
 }
 
 .editor-tab__title {
-	max-width: 160px;
+	max-width: 100px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
 .editor-tab__dirty-dot {
-	font-size: 10px;
+	font-size: 9px;
 	color: var(--accent-gold);
 }
 
@@ -105,8 +112,8 @@
 }
 
 .editor-tab__close-icon {
-	width: 12px;
-	height: 12px;
+	width: 11px;
+	height: 11px;
 }
 
 .editor-tabs__add-btn {
@@ -116,11 +123,11 @@
 	background: transparent;
 	border: none;
 	color: var(--text-muted);
-	width: 32px;
-	height: 32px;
+	width: 28px;
+	height: 28px;
 	cursor: pointer;
 	border-radius: var(--radius-xs);
-	margin-left: 4px;
+	margin-left: 2px;
 	flex-shrink: 0;
 }
 
@@ -130,15 +137,15 @@
 }
 
 .editor-tabs__add-icon {
-	width: 16px;
-	height: 16px;
+	width: 14px;
+	height: 14px;
 }
 
 /* Actions Toolbar */
 .editor-view__actions {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: 3px;
 	flex-shrink: 0;
 }
 
@@ -146,8 +153,8 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	padding: 4px 8px;
-	font-size: 12px;
+	padding: 3px 6px;
+	font-size: 11px;
 	font-weight: 500;
 	border-radius: var(--radius-sm);
 	border: 1px solid var(--border-medium);
@@ -156,7 +163,7 @@
 	cursor: pointer;
 	transition: background 0.15s, border-color 0.15s, color 0.15s;
 	white-space: nowrap;
-	min-height: 28px;
+	min-height: 26px;
 }
 
 .editor-btn:hover {
@@ -165,12 +172,12 @@
 }
 
 .editor-btn--icon {
-	padding: 4px 6px;
+	padding: 3px 5px;
 }
 
 .editor-btn__icon {
-	width: 14px;
-	height: 14px;
+	width: 13px;
+	height: 13px;
 }
 
 .editor-btn__label-short {
@@ -178,6 +185,19 @@
 	font-family: var(--font-mono);
 	font-weight: 600;
 	color: var(--text-secondary);
+}
+
+.editor-btn__text--short {
+	display: none;
+}
+
+@media (max-width: 900px) {
+	.editor-btn__text--full {
+		display: none;
+	}
+	.editor-btn__text--short {
+		display: inline;
+	}
 }
 
 .editor-btn--ask {
