@@ -138,7 +138,7 @@ openssl rand -hex 32
 **One-time setup — survives crashes and reboots (recommended):**
 
 ```powershell
-cd C:\Users\you\Documents\dev-studio
+cd C:\Users\evans\Documents\dev-studio
 git pull origin main
 npm install
 npm run build:server
