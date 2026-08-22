@@ -8,7 +8,14 @@ import type { ProjectService } from '../services/projectService.js'
 import { SessionStore } from '../store.js'
 import { param } from '../utils/params.js'
 import { resolveGitHubToken } from '../utils/githubToken.js'
-import type { AgentMode, AttachmentInfo } from '../types/agent.js'
+import type { AgentMode, AttachmentInfo, ConversationItem } from '../types/agent.js'
+
+function filterEmptyTimelines(items: ConversationItem[]): ConversationItem[] {
+	return items.filter((item) => {
+		if (item.kind !== 'activity_timeline') return true
+		return item.activities.length > 0 || item.status === 'running'
+	})
+}
 
 export function createAgentRouter(
 	projects: ProjectService,
@@ -90,6 +97,7 @@ export function createAgentRouter(
 		'/session/:projectId',
 		asyncHandler(async (req, res) => {
 			const session = await sessions.getOrCreate(param(req, 'projectId'))
+			session.items = filterEmptyTimelines(session.items)
 			res.json(session)
 		}),
 	)

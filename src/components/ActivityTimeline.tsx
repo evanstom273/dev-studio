@@ -89,7 +89,7 @@ function SingleActivityRow({ activity }: { activity: AgentActivityItem }) {
 
 	return (
 		<div
-			className={`activity-timeline-row activity-timeline-row--${activity.status}${isRunning ? ' activity-timeline-row--active' : ''}${isCommand ? ' activity-timeline-row--command' : ''}`}
+			className={`activity-timeline-row activity-timeline-row--${activity.type} activity-timeline-row--${activity.status}${isRunning ? ' activity-timeline-row--active' : ''}${isCommand ? ' activity-timeline-row--command' : ''}`}
 		>
 			<div
 				className={`activity-timeline-row__header${hasDetail ? ' is-clickable' : ''}`}

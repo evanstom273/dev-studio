@@ -421,6 +421,7 @@
 	flex-direction: column;
 	width: 100%;
 	max-width: 100%;
+	min-height: 36px;
 	background: var(--bg-surface);
 	border: 1px solid var(--border-subtle);
 	border-radius: var(--radius-sm);
@@ -456,8 +457,8 @@
 	justify-content: space-between;
 	gap: var(--space-xs);
 	width: 100%;
-	min-height: 32px;
-	padding: 6px 10px;
+	min-height: 36px;
+	padding: 8px 10px;
 	background: transparent;
 	border: none;
 	cursor: pointer;
@@ -466,6 +467,8 @@
 	transition: background 0.15s;
 	color: var(--text-primary);
 	font-family: var(--font-sans);
+	line-height: 1.35;
+	flex-shrink: 0;
 }
 
 .activity-timeline__header:hover {
@@ -663,6 +666,11 @@
 .activity-timeline-row--active .activity-timeline-row__title {
 	color: var(--accent);
 	font-weight: 500;
+}
+
+.activity-timeline-row--status.activity-timeline-row--running .activity-timeline-row__title::before {
+	content: '◌ ';
+	color: var(--accent);
 }
 
 .activity-timeline-row--command .activity-timeline-row__title {
