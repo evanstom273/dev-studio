@@ -57,6 +57,50 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | undef
 	return win.SpeechRecognition || win.webkitSpeechRecognition
 }
 
+/** Join transcript parts without repeating overlapping words at the boundary. */
+export function mergeTranscriptParts(committed: string, extension: string): string {
+	const left = committed.trim()
+	const right = extension.trim()
+	if (!left) return right
+	if (!right) return left
+	if (left === right) return left
+	if (left.endsWith(right)) return left
+	if (right.startsWith(left)) return right
+
+	const leftWords = left.split(/\s+/).filter(Boolean)
+	const rightWords = right.split(/\s+/).filter(Boolean)
+	const maxOverlap = Math.min(leftWords.length, rightWords.length)
+
+	for (let overlap = maxOverlap; overlap > 0; overlap--) {
+		const suffix = leftWords.slice(-overlap).join(' ')
+		const prefix = rightWords.slice(0, overlap).join(' ')
+		if (suffix === prefix) {
+			return [...leftWords, ...rightWords.slice(overlap)].join(' ')
+		}
+	}
+
+	return `${left} ${right}`
+}
+
+export function composeSessionTranscript(
+	cumulative: string,
+	subsessionCommitted: string,
+	interim: string,
+): string {
+	let session = cumulative.trim()
+	const committed = subsessionCommitted.trim()
+	const pending = interim.trim()
+
+	if (committed) {
+		session = mergeTranscriptParts(session, committed)
+	}
+	if (pending) {
+		session = mergeTranscriptParts(session, pending)
+	}
+
+	return session.replace(/\s+/g, ' ').trim()
+}
+
 export type UseSpeechRecognitionOptions = {
 	onTranscript?: (fullTranscript: string) => void
 	onResult?: (finalText: string) => void
@@ -81,14 +125,12 @@ export function useSpeechRecognition({
 	const shouldBeListeningRef = useRef(false)
 	const restartTimeoutRef = useRef<number | null>(null)
 
-	// Session transcript accumulation across mobile auto-restarts
 	const cumulativeTranscriptRef = useRef('')
-	const currentSubsessionFinalRef = useRef('')
+	const subsessionCommittedRef = useRef('')
 	const currentInterimRef = useRef('')
 
 	const isSupported = typeof window !== 'undefined' && Boolean(getSpeechRecognitionConstructor())
 
-	// Store callbacks in refs to avoid re-binding
 	const onTranscriptRef = useRef(onTranscript)
 	onTranscriptRef.current = onTranscript
 	const onResultRef = useRef(onResult)
@@ -100,10 +142,38 @@ export function useSpeechRecognition({
 
 	const emitTranscript = useCallback((text: string) => {
 		const trimmed = text.trim()
-		if (trimmed) {
-			onTranscriptRef.current?.(trimmed)
-			onResultRef.current?.(trimmed)
+		if (!trimmed) return
+		onTranscriptRef.current?.(trimmed)
+		onResultRef.current?.(trimmed)
+	}, [])
+
+	const emitCurrentSession = useCallback(() => {
+		const fullTranscript = composeSessionTranscript(
+			cumulativeTranscriptRef.current,
+			subsessionCommittedRef.current,
+			currentInterimRef.current,
+		)
+		emitTranscript(fullTranscript)
+	}, [emitTranscript])
+
+	const commitSubsessionToCumulative = useCallback(() => {
+		const committed = subsessionCommittedRef.current.trim()
+		const pending = currentInterimRef.current.trim()
+		let toCommit = committed
+
+		if (pending) {
+			toCommit = mergeTranscriptParts(toCommit, pending)
 		}
+
+		if (toCommit) {
+			cumulativeTranscriptRef.current = mergeTranscriptParts(
+				cumulativeTranscriptRef.current,
+				toCommit,
+			)
+		}
+
+		subsessionCommittedRef.current = ''
+		currentInterimRef.current = ''
 	}, [])
 
 	const cleanup = useCallback(() => {
@@ -125,7 +195,7 @@ export function useSpeechRecognition({
 		}
 		setIsListening(false)
 		setInterimText('')
-		currentSubsessionFinalRef.current = ''
+		subsessionCommittedRef.current = ''
 		currentInterimRef.current = ''
 	}, [])
 
@@ -147,7 +217,7 @@ export function useSpeechRecognition({
 			recognition.lang =
 				lang || (typeof navigator !== 'undefined' ? navigator.language : 'en-US') || 'en-US'
 
-			currentSubsessionFinalRef.current = ''
+			subsessionCommittedRef.current = ''
 			currentInterimRef.current = ''
 
 			recognition.onstart = () => {
@@ -155,35 +225,34 @@ export function useSpeechRecognition({
 			}
 
 			recognition.onresult = (event: SpeechRecognitionEvent) => {
-				let subsessionFinal = ''
-				let subsessionInterim = ''
+				let incrementalFinal = ''
+				let latestInterim = ''
 
-				for (let i = 0; i < event.results.length; i++) {
+				for (let i = event.resultIndex; i < event.results.length; i++) {
 					const res = event.results[i]
 					const text = res[0]?.transcript?.trim() || ''
 					if (!text) continue
 
 					if (res.isFinal) {
-						subsessionFinal = subsessionFinal ? `${subsessionFinal} ${text}` : text
+						incrementalFinal = incrementalFinal
+							? mergeTranscriptParts(incrementalFinal, text)
+							: text
 					} else {
-						subsessionInterim = subsessionInterim ? `${subsessionInterim} ${text}` : text
+						latestInterim = text
 					}
 				}
 
-				currentSubsessionFinalRef.current = subsessionFinal
-				currentInterimRef.current = subsessionInterim
+				if (incrementalFinal) {
+					subsessionCommittedRef.current = mergeTranscriptParts(
+						subsessionCommittedRef.current,
+						incrementalFinal,
+					)
+				}
 
-				const cumulative = cumulativeTranscriptRef.current.trim()
-				const fullTranscript = cumulative
-					? subsessionFinal
-						? `${cumulative} ${subsessionFinal}`
-						: cumulative
-					: subsessionFinal
-
-				emitTranscript(fullTranscript)
-
-				setInterimText(subsessionInterim)
-				onInterimRef.current?.(subsessionInterim)
+				currentInterimRef.current = latestInterim
+				emitCurrentSession()
+				setInterimText(latestInterim)
+				onInterimRef.current?.(latestInterim)
 			}
 
 			recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -193,7 +262,6 @@ export function useSpeechRecognition({
 					shouldBeListeningRef.current = false
 					setIsListening(false)
 				} else if (event.error === 'no-speech') {
-					// No speech detected, keep listening if user intended
 					return
 				} else if (event.error === 'network') {
 					userMsg = 'Speech recognition network error. Please check your connection.'
@@ -212,25 +280,9 @@ export function useSpeechRecognition({
 			}
 
 			recognition.onend = () => {
-				// Commit the completed subsession's final text + any leftover interim to cumulativeTranscript
-				let subsessionText = currentSubsessionFinalRef.current.trim()
-				const pendingInterim = currentInterimRef.current.trim()
-
-				if (pendingInterim) {
-					subsessionText = subsessionText ? `${subsessionText} ${pendingInterim}` : pendingInterim
-				}
-
-				if (subsessionText) {
-					cumulativeTranscriptRef.current = cumulativeTranscriptRef.current
-						? `${cumulativeTranscriptRef.current} ${subsessionText}`
-						: subsessionText
-				}
-
-				currentSubsessionFinalRef.current = ''
-				currentInterimRef.current = ''
+				commitSubsessionToCumulative()
 				setInterimText('')
 
-				// If user still wants to listen (e.g. browser auto-stopped on mobile), auto-restart with a fresh instance
 				if (shouldBeListeningRef.current) {
 					restartTimeoutRef.current = window.setTimeout(() => {
 						if (shouldBeListeningRef.current) {
@@ -260,7 +312,7 @@ export function useSpeechRecognition({
 			shouldBeListeningRef.current = false
 			return null
 		}
-	}, [continuous, emitTranscript, lang])
+	}, [commitSubsessionToCumulative, continuous, emitCurrentSession, lang])
 
 	const stopListening = useCallback(() => {
 		shouldBeListeningRef.current = false
@@ -268,40 +320,28 @@ export function useSpeechRecognition({
 			window.clearTimeout(restartTimeoutRef.current)
 			restartTimeoutRef.current = null
 		}
+
+		emitCurrentSession()
+
 		if (recognitionRef.current) {
 			try {
 				recognitionRef.current.stop()
 			} catch {
 				// ignore stop error
 			}
+		} else {
+			commitSubsessionToCumulative()
+			setInterimText('')
+			setIsListening(false)
 		}
-
-		// Flush any pending interim text immediately into the final transcript
-		let subsessionText = currentSubsessionFinalRef.current.trim()
-		const pendingInterim = currentInterimRef.current.trim()
-		if (pendingInterim) {
-			subsessionText = subsessionText ? `${subsessionText} ${pendingInterim}` : pendingInterim
-		}
-		const fullTranscript = cumulativeTranscriptRef.current
-			? subsessionText
-				? `${cumulativeTranscriptRef.current} ${subsessionText}`
-				: cumulativeTranscriptRef.current
-			: subsessionText
-
-		emitTranscript(fullTranscript)
-
-		currentSubsessionFinalRef.current = ''
-		currentInterimRef.current = ''
-		setInterimText('')
-		setIsListening(false)
-	}, [emitTranscript])
+	}, [commitSubsessionToCumulative, emitCurrentSession])
 
 	const startListening = useCallback(() => {
 		cleanup()
 		setError(null)
 		setInterimText('')
 		cumulativeTranscriptRef.current = ''
-		currentSubsessionFinalRef.current = ''
+		subsessionCommittedRef.current = ''
 		currentInterimRef.current = ''
 		shouldBeListeningRef.current = true
 
@@ -330,6 +370,7 @@ export function useSpeechRecognition({
 
 	useEffect(() => {
 		return () => {
+			shouldBeListeningRef.current = false
 			cleanup()
 		}
 	}, [cleanup])
