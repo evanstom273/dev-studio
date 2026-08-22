@@ -1,5 +1,5 @@
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { simpleGit, type SimpleGit, type StatusResult } from 'simple-git'
 import type {
 	ChangedFile,
@@ -143,43 +143,58 @@ export class GitService {
 	}
 
 	async diff(projectPath: string, filePath?: string, staged = false): Promise<FileDiff | null> {
+		if (!(await this.isRepo(projectPath))) return filePath ? { path: filePath, hunks: [] } : null
 		const git = this.git(projectPath)
 		const args = ['diff', '--unified=3']
 		if (staged) args.push('--cached')
 		if (filePath) args.push('--', filePath)
 
-		const raw = await git.raw(args)
-		if (!raw.trim()) return filePath ? { path: filePath, hunks: [] } : null
+		try {
+			const raw = await git.raw(args)
+			if (!raw.trim()) return filePath ? { path: filePath, hunks: [] } : null
 
-		return {
-			path: filePath ?? '',
-			hunks: parseDiff(raw),
+			return {
+				path: filePath ?? '',
+				hunks: parseDiff(raw),
+			}
+		} catch {
+			return filePath ? { path: filePath, hunks: [] } : null
 		}
 	}
 
 	async log(projectPath: string, limit = 30): Promise<GitCommit[]> {
-		const git = this.git(projectPath)
-		const log = await git.log({ maxCount: limit })
-		return log.all.map((entry) => ({
-			hash: entry.hash,
-			shortHash: entry.hash.slice(0, 7),
-			message: entry.message,
-			author: entry.author_name,
-			date: entry.date,
-		}))
+		if (!(await this.isRepo(projectPath))) return []
+		try {
+			const git = this.git(projectPath)
+			const log = await git.log({ maxCount: limit })
+			return log.all.map((entry) => ({
+				hash: entry.hash,
+				shortHash: entry.hash.slice(0, 7),
+				message: entry.message,
+				author: entry.author_name,
+				date: entry.date,
+			}))
+		} catch {
+			return []
+		}
 	}
 
 	async branches(projectPath: string): Promise<GitBranch[]> {
-		const git = this.git(projectPath)
-		const summary = await git.branch(['-vv'])
-		return summary.all.map((name) => {
-			const info = summary.branches[name]
-			return {
-				name,
-				current: name === summary.current,
-				remote: info?.label?.split(' ')[0],
-			}
-		})
+		if (!(await this.isRepo(projectPath))) return []
+		try {
+			const git = this.git(projectPath)
+			const summary = await git.branch(['-vv'])
+			return summary.all.map((name) => {
+				const info = summary.branches[name]
+				return {
+					name,
+					current: name === summary.current,
+					remote: info?.label?.split(' ')[0],
+				}
+			})
+		} catch {
+			return []
+		}
 	}
 
 	async stage(projectPath: string, paths: string[]): Promise<void> {
@@ -304,7 +319,13 @@ export class FileService {
 	}
 
 	async read(projectPath: string, filePath: string): Promise<string | null> {
-		const full = join(projectPath, filePath)
+		const normalizedPath = filePath.replace(/^[/\\]+/, '')
+		const resolvedRoot = resolve(projectPath)
+		const full = resolve(projectPath, normalizedPath)
+		const rel = relative(resolvedRoot, full)
+		if (rel.startsWith('..') || isAbsolute(rel)) {
+			throw new Error('Invalid path: outside project workspace')
+		}
 		try {
 			const info = await stat(full)
 			if (!info.isFile()) return null
@@ -317,9 +338,10 @@ export class FileService {
 
 	async write(projectPath: string, filePath: string, content: string): Promise<void> {
 		const normalizedPath = filePath.replace(/^[/\\]+/, '')
+		const resolvedRoot = resolve(projectPath)
 		const full = resolve(projectPath, normalizedPath)
-		// Security check: ensure path is inside project
-		if (!full.startsWith(resolve(projectPath))) {
+		const rel = relative(resolvedRoot, full)
+		if (rel.startsWith('..') || isAbsolute(rel)) {
 			throw new Error('Invalid path: outside project workspace')
 		}
 		await mkdir(dirname(full), { recursive: true })

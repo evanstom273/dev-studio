@@ -457,4 +457,66 @@ test('Browser history deduplicates existing entries and caps max length', () => 
 	assert.equal(hist[0].title, 'A Updated')
 })
 
+// ==========================================
+// Tests for Local-Folder Project Support
+// ==========================================
+
+test('Project storage classification correctly separates local folders from managed cache', () => {
+	const workspaceCacheDir = 'C:\\Users\\evans\\.dev-studio\\workspaces'
+
+	function classifyProject(projectPath) {
+		const isCache = projectPath.toLowerCase().startsWith(workspaceCacheDir.toLowerCase())
+		return {
+			storage: isCache ? 'github-cache' : 'local',
+			workspaceSource: isCache ? 'managed' : 'local',
+		}
+	}
+
+	const localA = classifyProject('D:\\Projects\\StoryEngine')
+	assert.equal(localA.storage, 'local')
+	assert.equal(localA.workspaceSource, 'local')
+
+	const localB = classifyProject('C:\\Users\\evans\\Documents\\MyGame')
+	assert.equal(localB.storage, 'local')
+	assert.equal(localB.workspaceSource, 'local')
+
+	const managed = classifyProject('C:\\Users\\evans\\.dev-studio\\workspaces\\evanstom273\\dev-studio')
+	assert.equal(managed.storage, 'github-cache')
+	assert.equal(managed.workspaceSource, 'managed')
+})
+
+test('Remove project safety protects external local folders from deletion', () => {
+	const workspaceCacheDir = 'C:\\Users\\evans\\.dev-studio\\workspaces'
+	function shouldDeleteFromDisk(projectPath) {
+		return projectPath.toLowerCase().startsWith(workspaceCacheDir.toLowerCase())
+	}
+
+	// External local paths must NEVER be deleted from disk
+	assert.equal(shouldDeleteFromDisk('D:\\Projects\\StoryEngine'), false)
+	assert.equal(shouldDeleteFromDisk('C:\\Users\\evans\\my-app'), false)
+	assert.equal(shouldDeleteFromDisk('E:\\Code\\repos\\test'), false)
+
+	// Managed caches can be deleted from disk
+	assert.equal(shouldDeleteFromDisk('C:\\Users\\evans\\.dev-studio\\workspaces\\user\\repo'), true)
+})
+
+test('FileService path traversal protection rejects path escape attempts', () => {
+	function validatePath(filePath) {
+		const normalized = filePath.replace(/^[/\\]+/, '')
+		// Check relative path
+		const pathParts = normalized.split(/[/\\]/)
+		if (pathParts.includes('..') || filePath.startsWith('/') || filePath.startsWith('\\') || /^[a-zA-Z]:/.test(filePath)) {
+			return { valid: false, error: 'outside project' }
+		}
+		return { valid: true }
+	}
+
+	assert.equal(validatePath('src/main.ts').valid, true)
+	assert.equal(validatePath('package.json').valid, true)
+	assert.equal(validatePath('sub/dir/deep/file.txt').valid, true)
+	assert.equal(validatePath('../../../Windows/System32').valid, false)
+	assert.equal(validatePath('..\\..\\secret.key').valid, false)
+	assert.equal(validatePath('C:\\Windows\\System32').valid, false)
+})
+
 

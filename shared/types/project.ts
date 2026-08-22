@@ -1,4 +1,5 @@
 export type ProjectStorage = 'local' | 'github-cache'
+export type WorkspaceSource = 'local' | 'managed'
 
 export type Project = {
 	id: string
@@ -10,7 +11,9 @@ export type Project = {
 	hasRemote: boolean
 	defaultBranch?: string
 	storage?: ProjectStorage
+	workspaceSource?: WorkspaceSource
 	githubFullName?: string
+	exists?: boolean
 }
 
 export type AppRoute = 'projects' | 'workspace' | 'settings'

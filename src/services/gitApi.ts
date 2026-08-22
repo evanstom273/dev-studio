@@ -90,6 +90,10 @@ export const projectsApi = {
 		return apiFetch('/api/projects/register', { method: 'POST', body: JSON.stringify(body) })
 	},
 
+	openLocal(body: RegisterProjectRequest): Promise<Project> {
+		return apiFetch('/api/projects/open-local', { method: 'POST', body: JSON.stringify(body) })
+	},
+
 	init(body: InitRepoRequest): Promise<Project> {
 		return apiFetch('/api/projects/init', { method: 'POST', body: JSON.stringify(body) })
 	},

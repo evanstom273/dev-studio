@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { GitHubRepoSummary } from '@shared/types/github'
 import type { Project } from '@shared/types/project'
 import { ConnectionBanner } from '../components/ConnectionBanner'
+import { IconFolder } from '../components/Icons'
 import { ProjectList } from '../components/ProjectList'
 import { ConnectSheet, CreateRepoSheet } from '../components/projects/ProjectHubSheets'
 import { useConnection } from '../hooks/useConnection'
@@ -32,6 +33,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 
 	const connected = state.status === 'connected'
 	const hasGithub = Boolean(config.githubToken)
+	const isTauriApp = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 	const loadRecent = useCallback(async () => {
 		if (!connected) {
@@ -95,8 +97,43 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 		}
 	}
 
+	const handleOpenLocalFolder = async () => {
+		setError(null)
+		try {
+			const { open } = await import('@tauri-apps/plugin-dialog')
+			const selected = await open({
+				directory: true,
+				multiple: false,
+				title: 'Select Project Folder',
+			})
+			if (!selected) return // User cancelled
+			const folderPath = typeof selected === 'string' ? selected : Array.isArray(selected) ? selected[0] : null
+			if (!folderPath) return
+
+			setOpening(folderPath)
+			const project = await projectsApi.openLocal({ path: folderPath })
+			onSelectProject(project)
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Failed to open local folder')
+		} finally {
+			setOpening(null)
+		}
+	}
+
+	const handleSelectRecent = (project: Project) => {
+		if (project.exists === false) {
+			setError(`Folder "${project.path}" was moved or deleted. You can remove it from the list.`)
+			return
+		}
+		onSelectProject(project)
+	}
+
 	const handleRemoveLocal = async (project: Project) => {
-		if (!confirm(`Remove local workspace for ${project.githubFullName ?? project.name}? GitHub is unchanged.`)) {
+		const isLocal = project.workspaceSource === 'local' || project.storage === 'local'
+		const confirmMsg = isLocal
+			? `Remove "${project.name}" from Dev Studio? The folder on disk will NOT be deleted.`
+			: `Remove local workspace cache for ${project.githubFullName ?? project.name}? GitHub is unchanged.`
+		if (!confirm(confirmMsg)) {
 			return
 		}
 		try {
@@ -114,7 +151,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 					<div>
 						<h1 className="projects-page__title">Dev Studio</h1>
 						<p className="projects-page__subtitle">
-							{connected ? 'Pick a repository or start a chat' : 'Connect your laptop to begin'}
+							{connected ? 'Pick a repository or open a local folder' : 'Connect your laptop to begin'}
 						</p>
 					</div>
 					<div className="projects-page__header-actions">
@@ -136,6 +173,18 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 
 			{connected && (
 				<div className="hub-actions">
+					{isTauriApp && (
+						<button
+							type="button"
+							className="btn btn--secondary btn--sm"
+							onClick={() => void handleOpenLocalFolder()}
+							disabled={Boolean(opening)}
+							title="Open an existing folder on your computer as a project"
+						>
+							<IconFolder className="btn__icon" />
+							{opening ? 'Opening folder…' : 'Open Local Folder'}
+						</button>
+					)}
 					<button type="button" className="btn btn--primary btn--sm" onClick={() => setCreateOpen(true)}>
 						+ New repository
 					</button>
@@ -236,7 +285,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 					) : (
 						<ProjectList
 							projects={projects}
-							onSelect={onSelectProject}
+							onSelect={handleSelectRecent}
 							onRemoveLocal={handleRemoveLocal}
 						/>
 					)}

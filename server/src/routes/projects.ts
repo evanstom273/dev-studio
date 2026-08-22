@@ -55,6 +55,18 @@ export function createProjectsRouter(projects: ProjectService, config: ServerCon
 	)
 
 	router.post(
+		'/open-local',
+		asyncHandler(async (req, res) => {
+			const { path, name } = req.body as { path: string; name?: string }
+			if (!path) {
+				res.status(400).json({ error: 'path is required' })
+				return
+			}
+			res.json(await projects.openLocalFolder(path, name))
+		}),
+	)
+
+	router.post(
 		'/register',
 		asyncHandler(async (req, res) => {
 			const { path, name } = req.body as { path: string; name?: string }

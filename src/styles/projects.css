@@ -211,9 +211,31 @@
 	color: var(--accent-gold);
 }
 
-.hub-badge--cache {
-	background: var(--accent-subtle);
-	color: var(--accent);
+.hub-badge--cache,
+.hub-badge--managed {
+	background: rgba(96, 165, 250, 0.15);
+	color: #60a5fa;
+}
+
+.hub-badge--local {
+	background: rgba(168, 85, 247, 0.15);
+	color: #c084fc;
+}
+
+.hub-badge--missing {
+	background: rgba(239, 68, 68, 0.15);
+	color: #f87171;
+}
+
+.project-card-wrap--missing {
+	opacity: 0.75;
+	border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn__icon {
+	width: 14px;
+	height: 14px;
+	margin-right: 4px;
 }
 
 /* Recents Project List */

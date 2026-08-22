@@ -6,6 +6,7 @@ import {
 	IconBack,
 	IconBranch,
 	IconDots,
+	IconFolder,
 	IconTerminal,
 	IconTrash,
 } from './Icons'
@@ -81,10 +82,17 @@ export function ProjectHeader({
 						/>
 					</div>
 
-					<div className="project-header__branch-badge" title={`Branch: ${currentBranch}`}>
-						<IconBranch className="project-header__branch-icon" />
-						<span className="project-header__branch-name">{currentBranch}</span>
-					</div>
+					{project.isGitRepo ? (
+						<div className="project-header__branch-badge" title={`Branch: ${currentBranch}`}>
+							<IconBranch className="project-header__branch-icon" />
+							<span className="project-header__branch-name">{currentBranch}</span>
+						</div>
+					) : (
+						<div className="project-header__branch-badge" title={`Local folder: ${project.path}`}>
+							<IconFolder className="project-header__branch-icon" />
+							<span className="project-header__branch-name">Local</span>
+						</div>
+					)}
 				</div>
 			</div>
 

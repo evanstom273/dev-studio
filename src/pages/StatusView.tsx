@@ -4,6 +4,7 @@ import type { Project } from '@shared/types/project'
 import type { AgyQuotaUsage, QuotaBucket, QuotaGroup } from '@shared/types/system'
 import {
 	IconClock,
+	IconFolder,
 	IconGauge,
 	IconRefresh,
 	IconSparkles,
@@ -307,6 +308,45 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 			</header>
 
 			<div className="status-grid">
+				<section className="status-card" aria-labelledby="workspace-info-title">
+					<div className="status-card__header">
+						<h2 id="workspace-info-title" className="status-card__title">
+							<IconFolder className="status-card__icon" />
+							Workspace Information
+						</h2>
+						<span className="status-card__badge status-card__badge--ok">
+							{project.workspaceSource === 'local' || project.storage === 'local'
+								? 'Local Project'
+								: 'Managed Workspace'}
+						</span>
+					</div>
+
+					<div className="status-metric">
+						<div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
+							<div>
+								<span className="text-muted" style={{ display: 'block', fontSize: '10px', textTransform: 'uppercase' }}>Workspace Root</span>
+								<code style={{ fontSize: '11px', color: 'var(--text-primary)', wordBreak: 'break-all' }}>{project.path}</code>
+							</div>
+							<div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '4px' }}>
+								<div>
+									<span className="text-muted" style={{ fontSize: '10px', display: 'block' }}>Type</span>
+									<span>{project.workspaceSource === 'local' || project.storage === 'local' ? 'Local Directory' : 'GitHub Clone'}</span>
+								</div>
+								<div>
+									<span className="text-muted" style={{ fontSize: '10px', display: 'block' }}>Git</span>
+									<span>{project.isGitRepo ? (project.defaultBranch ? `Branch ${project.defaultBranch}` : 'Initialized') : 'Not a Git repository'}</span>
+								</div>
+								{project.repositoryLabel && (
+									<div>
+										<span className="text-muted" style={{ fontSize: '10px', display: 'block' }}>Remote</span>
+										<span className="text-truncate" style={{ maxWidth: '200px', display: 'inline-block' }}>{project.repositoryLabel}</span>
+									</div>
+								)}
+							</div>
+						</div>
+					</div>
+				</section>
+
 				<section className="status-card" aria-labelledby="rate-limit-title">
 					<div className="status-card__header">
 						<h2 id="rate-limit-title" className="status-card__title">

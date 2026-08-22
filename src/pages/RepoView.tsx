@@ -3,7 +3,7 @@ import type { GitBranch, GitCommit, GitStatus } from '@shared/types/git'
 import type { Project, RepoTab } from '@shared/types/project'
 import { Field, GhInput, GhToggle, Sheet, SheetActions } from '../components/github/GitHubUi'
 import { GitHubView } from '../components/github/GitHubView'
-import { gitApi } from '../services/gitApi'
+import { gitApi, projectsApi } from '../services/gitApi'
 import '../styles/repo.css'
 
 type RepoViewProps = {
@@ -205,8 +205,31 @@ export function RepoView({ project }: RepoViewProps) {
 			)}
 
 			{tab === 'git' && (
-				<div className="repo-panel">
-					<div className="repo-actions">
+				!project.isGitRepo ? (
+					<div className="repo-panel">
+						<div className="hub-empty" style={{ margin: 'var(--space-md) 0' }}>
+							<p className="hub-empty__title">Not a Git repository</p>
+							<p className="hub-empty__desc">
+								This workspace ({project.path}) is a local directory not tracked with Git. Initialize Git to enable version control and branch management.
+							</p>
+							<button
+								type="button"
+								className="btn btn--primary"
+								disabled={busy}
+								onClick={() =>
+									void run('Initialize Git repository', async () => {
+										await projectsApi.init({ path: project.path })
+										project.isGitRepo = true
+									})
+								}
+							>
+								{busy ? 'Initializing…' : 'Initialize Git repository'}
+							</button>
+						</div>
+					</div>
+				) : (
+					<div className="repo-panel">
+						<div className="repo-actions">
 						<button
 							type="button"
 							className="btn btn--ghost btn--sm"
@@ -313,6 +336,7 @@ export function RepoView({ project }: RepoViewProps) {
 						</ul>
 					</section>
 				</div>
+				)
 			)}
 
 			{tab === 'github' && <GitHubView project={project} />}

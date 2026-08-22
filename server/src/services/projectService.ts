@@ -1,5 +1,5 @@
-import { basename, dirname, join } from 'node:path'
-import { mkdir, rm } from 'node:fs/promises'
+import { basename, dirname, join, resolve } from 'node:path'
+import { mkdir, rm, stat } from 'node:fs/promises'
 import type { Project } from '../types/project.js'
 import { ProjectRegistry } from '../store.js'
 import type { ServerConfig } from '../config.js'
@@ -61,17 +61,41 @@ export class ProjectService {
 			}
 		}
 
-		const isRepo = await this.git.isRepo(project.path)
-		if (!isRepo) {
-			throw new Error(`Project workspace is not a git repository: ${project.path}`)
+		try {
+			const s = await stat(project.path)
+			if (!s.isDirectory()) {
+				throw new Error(`Project workspace path is not a directory: ${project.path}`)
+			}
+		} catch (err) {
+			if (err instanceof Error && err.message.includes('not a directory')) throw err
+			throw new Error(`Project workspace folder does not exist or is inaccessible: ${project.path}`)
 		}
 
 		return { path: project.path, project }
 	}
 
+	async openLocalFolder(folderPath: string, name?: string): Promise<Project> {
+		const normalized = resolve(folderPath)
+		try {
+			const s = await stat(normalized)
+			if (!s.isDirectory()) {
+				throw new Error(`Path is not a directory: ${normalized}`)
+			}
+		} catch (err) {
+			if (err instanceof Error && err.message.includes('not a directory')) throw err
+			throw new Error(`Folder does not exist or is inaccessible: ${normalized}`)
+		}
+
+		await this.registry.register(normalized)
+		const project = await this.toProject(normalized, name)
+		if (!project) throw new Error('Failed to open local project')
+		return project
+	}
+
 	async register(path: string, name?: string): Promise<Project> {
-		await this.registry.register(path)
-		const project = await this.toProject(path, name)
+		const normalized = resolve(path)
+		await this.registry.register(normalized)
+		const project = await this.toProject(normalized, name)
 		if (!project) throw new Error('Invalid project path')
 		return project
 	}
@@ -82,15 +106,17 @@ export class ProjectService {
 	}
 
 	async initRepo(path: string, name?: string): Promise<Project> {
-		await mkdir(path, { recursive: true })
-		await this.git.init(path)
-		return this.register(path, name)
+		const normalized = resolve(path)
+		await mkdir(normalized, { recursive: true })
+		await this.git.init(normalized)
+		return this.register(normalized, name)
 	}
 
 	async clone(url: string, targetPath: string, name?: string): Promise<Project> {
-		await mkdir(dirname(targetPath), { recursive: true })
-		await this.git.clone(url, targetPath)
-		return this.register(targetPath, name)
+		const normalized = resolve(targetPath)
+		await mkdir(dirname(normalized), { recursive: true })
+		await this.git.clone(url, normalized)
+		return this.register(normalized, name)
 	}
 
 	async openFromGitHub(owner: string, repo: string, token: string): Promise<Project> {
@@ -147,7 +173,12 @@ export class ProjectService {
 		if (!project) throw new Error('Project not found')
 
 		await this.registry.unregister(project.path)
-		await rm(project.path, { recursive: true, force: true })
+
+		// ONLY delete the workspace directory if it is a managed cache in ~/.dev-studio/workspaces!
+		// NEVER delete an external local folder!
+		if (this.isCachePath(project.path)) {
+			await rm(project.path, { recursive: true, force: true })
+		}
 	}
 
 	private workspacePath(owner: string, repo: string): string {
@@ -155,14 +186,15 @@ export class ProjectService {
 	}
 
 	private isCachePath(path: string): boolean {
-		const root = join(this.config.dataDir, 'workspaces')
-		return path.startsWith(root)
+		const root = resolve(join(this.config.dataDir, 'workspaces'))
+		return resolve(path).startsWith(root)
 	}
 
 	private withGitHubCache(project: Project, owner: string, repo: string): Project {
 		return {
 			...project,
 			storage: 'github-cache',
+			workspaceSource: 'managed',
 			githubFullName: `${owner}/${repo}`,
 			repositoryLabel: `github.com/${owner}/${repo}`,
 			hasRemote: true,
@@ -177,15 +209,44 @@ export class ProjectService {
 
 	private async toProject(path: string, overrideName?: string): Promise<Project | null> {
 		try {
-			const isGitRepo = await this.git.isRepo(path)
-			const hasRemote = isGitRepo ? await this.git.hasRemote(path) : false
-			const defaultBranch = isGitRepo ? await this.git.getDefaultBranch(path) : undefined
+			const normalized = resolve(path)
+			const id = Buffer.from(normalized).toString('base64url')
+			const cachePath = this.isCachePath(normalized)
+			const githubFullName = cachePath ? this.githubFullNameFromPath(normalized) : undefined
+			const workspaceSource: 'local' | 'managed' = cachePath ? 'managed' : 'local'
+
+			let exists = false
+			try {
+				const s = await stat(normalized)
+				exists = s.isDirectory()
+			} catch {
+				exists = false
+			}
+
+			if (!exists) {
+				return {
+					id,
+					name: overrideName ?? basename(normalized),
+					path: normalized,
+					lastActivity: '—',
+					isGitRepo: false,
+					hasRemote: false,
+					storage: cachePath ? 'github-cache' : 'local',
+					workspaceSource,
+					githubFullName,
+					exists: false,
+				}
+			}
+
+			const isGitRepo = await this.git.isRepo(normalized)
+			const hasRemote = isGitRepo ? await this.git.hasRemote(normalized) : false
+			const defaultBranch = isGitRepo ? await this.git.getDefaultBranch(normalized) : undefined
 
 			let repositoryLabel: string | undefined
 			if (hasRemote) {
 				try {
 					const { simpleGit } = await import('simple-git')
-					const remotes = await simpleGit({ baseDir: path }).getRemotes(true)
+					const remotes = await simpleGit({ baseDir: normalized }).getRemotes(true)
 					const origin = remotes.find((r) => r.name === 'origin')
 					repositoryLabel = origin?.refs.fetch ?? origin?.refs.push
 				} catch {
@@ -193,21 +254,19 @@ export class ProjectService {
 				}
 			}
 
-			const id = Buffer.from(path).toString('base64url')
-			const cachePath = this.isCachePath(path)
-			const githubFullName = cachePath ? this.githubFullNameFromPath(path) : undefined
-
 			return {
 				id,
-				name: overrideName ?? basename(path),
-				path,
+				name: overrideName ?? basename(normalized),
+				path: normalized,
 				repositoryLabel,
 				lastActivity: '—',
 				isGitRepo,
 				hasRemote,
 				defaultBranch,
 				storage: cachePath ? 'github-cache' : 'local',
+				workspaceSource,
 				githubFullName,
+				exists: true,
 			}
 		} catch {
 			return null
@@ -215,10 +274,11 @@ export class ProjectService {
 	}
 
 	private githubFullNameFromPath(path: string): string | undefined {
-		const root = join(this.config.dataDir, 'workspaces')
-		if (!path.startsWith(root)) return undefined
-		const relative = path.slice(root.length + 1)
-		const parts = relative.split(/[/\\]/).filter(Boolean)
+		const root = resolve(join(this.config.dataDir, 'workspaces'))
+		const normalized = resolve(path)
+		if (!normalized.startsWith(root)) return undefined
+		const relativePath = normalized.slice(root.length + 1)
+		const parts = relativePath.split(/[/\\]/).filter(Boolean)
 		if (parts.length < 2) return undefined
 		return `${parts[0]}/${parts[1]}`
 	}
