@@ -59,22 +59,28 @@ function MessageCard({ item }: { item: Extract<ConversationItem, { kind: 'messag
 export function Conversation({ items, liveTimeline, streamingContent }: ConversationProps) {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const isNearBottomRef = useRef<boolean>(true)
+	const userScrolledUpRef = useRef(false)
 
 	const handleScroll = () => {
 		if (!containerRef.current) return
 		const { scrollTop, scrollHeight, clientHeight } = containerRef.current
 		const distanceToBottom = scrollHeight - scrollTop - clientHeight
-		isNearBottomRef.current = distanceToBottom < 60
+		isNearBottomRef.current = distanceToBottom < 80
+		userScrolledUpRef.current = distanceToBottom >= 80
 	}
 
+	const liveActivityCount = liveTimeline?.activities.length ?? 0
+	const liveTimelineRunning = liveTimeline?.status === 'running'
+
 	useEffect(() => {
-		if (isNearBottomRef.current && containerRef.current) {
-			containerRef.current.scrollTo({
-				top: containerRef.current.scrollHeight,
-				behavior: 'smooth',
-			})
-		}
-	}, [items, liveTimeline, streamingContent])
+		if (!containerRef.current) return
+		if (!isNearBottomRef.current && userScrolledUpRef.current) return
+
+		containerRef.current.scrollTo({
+			top: containerRef.current.scrollHeight,
+			behavior: liveTimelineRunning ? 'auto' : 'smooth',
+		})
+	}, [items, liveTimeline, streamingContent, liveActivityCount, liveTimelineRunning])
 
 	return (
 		<div
