@@ -59,6 +59,9 @@ export class ServerUpdateService {
 		}
 
 		const branch = this.config.gitBranch
+		// Discard any local modifications to lockfile before pulling
+		await runPlatformShell(installPath, 'git checkout -- package-lock.json').catch(() => null)
+
 		if (!(await runStep(`git pull origin ${branch}`, `git pull origin ${branch}`))) {
 			return {
 				ok: false,
