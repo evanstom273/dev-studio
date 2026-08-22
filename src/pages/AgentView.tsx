@@ -272,9 +272,27 @@ export function AgentView({
 					}
 					if (event.type === 'error') {
 						setError(event.message)
-						setLiveTimeline((prev) =>
-							prev ? { ...prev, status: 'error', completedAt: Date.now() } : null,
-						)
+						setLiveTimeline((prev) => {
+							if (!prev) return null
+							const errorActivity: AgentActivityItem = {
+								id: `act-error-${Date.now()}`,
+								type: 'error',
+								status: 'failed',
+								title: 'Agent error',
+								detail: { error: event.message },
+								startedAt: Date.now(),
+								completedAt: Date.now(),
+								durationMs: 0,
+							}
+							const hasError = prev.activities.some((a) => a.type === 'error')
+							return {
+								...prev,
+								status: 'error',
+								completedAt: Date.now(),
+								durationMs: Date.now() - prev.startedAt,
+								activities: hasError ? prev.activities : [...prev.activities, errorActivity],
+							}
+						})
 					}
 					if (event.type === 'done') {
 						setLiveTimeline((prev) =>
@@ -298,8 +316,18 @@ export function AgentView({
 			)
 		} finally {
 			setLoading(false)
+			setLiveTimeline((prev) => {
+				if (prev && prev.activities.length > 0) {
+					setItems((current) => {
+						if (current.some((item) => item.kind === 'activity_timeline' && item.id === prev.id)) {
+							return current
+						}
+						return [...current, prev]
+					})
+				}
+				return null
+			})
 			await loadSession()
-			setLiveTimeline(null)
 			setStreamingContent(null)
 		}
 	}

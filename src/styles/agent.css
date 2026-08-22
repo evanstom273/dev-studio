@@ -427,12 +427,23 @@
 	overflow: hidden;
 	margin: 2px 0 6px;
 	transition: border-color 0.15s, background 0.15s;
-	align-self: flex-start;
+	align-self: stretch;
 }
 
 .activity-timeline--running {
 	border-color: var(--accent-dim);
+}
+
+.activity-timeline--running.activity-timeline--expanded {
 	background: rgba(139, 122, 200, 0.04);
+}
+
+.activity-timeline--collapsed {
+	background: var(--bg-surface);
+}
+
+.activity-timeline--collapsed.activity-timeline--running {
+	border-color: var(--accent-dim);
 }
 
 .activity-timeline--error {
@@ -445,14 +456,16 @@
 	justify-content: space-between;
 	gap: var(--space-xs);
 	width: 100%;
-	min-height: 28px;
-	padding: 4px 8px;
+	min-height: 32px;
+	padding: 6px 10px;
 	background: transparent;
 	border: none;
 	cursor: pointer;
 	user-select: none;
 	text-align: left;
 	transition: background 0.15s;
+	color: var(--text-primary);
+	font-family: var(--font-sans);
 }
 
 .activity-timeline__header:hover {
@@ -500,7 +513,7 @@
 }
 
 .activity-timeline__header-label {
-	font-size: 11.5px;
+	font-size: 12px;
 	font-weight: 500;
 	color: var(--text-primary);
 	white-space: nowrap;
@@ -508,9 +521,15 @@
 	text-overflow: ellipsis;
 	font-family: var(--font-sans);
 	letter-spacing: -0.01em;
+	flex: 1;
+	min-width: 0;
 }
 
-.activity-timeline--running .activity-timeline__header-label {
+.activity-timeline--collapsed .activity-timeline__header-label {
+	color: var(--text-secondary);
+}
+
+.activity-timeline--running.activity-timeline--collapsed .activity-timeline__header-label {
 	color: var(--text-primary);
 }
 

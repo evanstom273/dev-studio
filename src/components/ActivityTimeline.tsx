@@ -327,7 +327,7 @@ export function ActivityTimeline({
 
 	return (
 		<div
-			className={`activity-timeline${isRunning ? ' activity-timeline--running' : ' activity-timeline--complete'}${isError ? ' activity-timeline--error' : ''}`}
+			className={`activity-timeline${isRunning ? ' activity-timeline--running' : ' activity-timeline--complete'}${isError ? ' activity-timeline--error' : ''}${expanded ? ' activity-timeline--expanded' : ' activity-timeline--collapsed'}`}
 			role="region"
 			aria-label="Agent Activity Timeline"
 		>
@@ -366,7 +366,14 @@ export function ActivityTimeline({
 					{grouped.length === 0 && isRunning && (
 						<div className="activity-timeline__empty-live">
 							<span className="activity-timeline-row__pulse-dot" />
-							<span className="activity-timeline__empty-text">Starting agent turn...</span>
+							<span className="activity-timeline__empty-text">Waiting for agent activity…</span>
+						</div>
+					)}
+
+					{grouped.length === 0 && !isRunning && isError && (
+						<div className="activity-timeline__empty-live">
+							<IconClose className="activity-timeline-row__status-icon activity-timeline-row__status-icon--error" />
+							<span className="activity-timeline__empty-text">Turn failed before any tool activity was recorded.</span>
 						</div>
 					)}
 

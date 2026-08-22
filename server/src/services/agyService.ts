@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { appendFile, mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type {
 	ActivityTimelineItem,
@@ -23,7 +23,9 @@ import { AgyPermissionService } from './agyPermissionService.js'
 type PermissionResolver = (approved: boolean) => void
 
 const MODE_PREFIX: Record<AgentMode, string> = {
-	agent: '',
+	agent:
+		'[AGENT MODE] Edit workspace files with replace_file_content, edit_file, or apply_patch. ' +
+		'Do not use write_to_file for project source files — that tool is for ephemeral artifacts only.\n\n',
 	ask: '[ASK MODE] Answer questions and analyze code only. Do NOT edit files, run commands, or make changes.\n\n',
 	plan: '[PLAN MODE] Create a detailed plan for the task. Do NOT execute changes — only outline steps.\n\n',
 }
@@ -257,7 +259,7 @@ export class AgyService {
 			timeline.status = turnFailed ? 'error' : 'complete'
 			timeline.completedAt = Date.now()
 			timeline.durationMs = timeline.completedAt - timeline.startedAt
-			if (timeline.activities.length > 0 || timeline.durationMs > 0) {
+			if (timeline.activities.length > 0) {
 				session.items.push(timeline)
 			}
 		}
@@ -310,8 +312,9 @@ export class AgyService {
 		onEvent: (event: StreamEvent) => void,
 	): Promise<{ agentContent: string; conversationId: string; failed: boolean; timeline: ActivityTimelineItem }> {
 		const useStdin = Buffer.byteLength(prompt, 'utf8') > STDIN_PROMPT_BYTES
+		const resolvedProjectPath = resolve(projectPath)
 		// Repo access via --add-dir; cwd must stay outside the repo or agy sandboxes writes to brain/ only.
-		const args = ['--add-dir', projectPath, '--output-format', 'stream-json', '--print-timeout', AGY_PRINT_TIMEOUT]
+		const args = ['--add-dir', resolvedProjectPath, '--output-format', 'stream-json', '--print-timeout', AGY_PRINT_TIMEOUT]
 		if (this.config.autoApproveTools) {
 			args.push('--dangerously-skip-permissions')
 		}
@@ -326,7 +329,7 @@ export class AgyService {
 		}
 
 		await this.logAgy(
-			`turn start project=${projectId} path=${projectPath} stdin=${useStdin} bytes=${Buffer.byteLength(prompt, 'utf8')}`,
+			`turn start project=${projectId} path=${resolvedProjectPath} cwd=${this.scratchDir} stdin=${useStdin} bytes=${Buffer.byteLength(prompt, 'utf8')}`,
 		)
 
 		const child = spawn(this.config.agyPath, args, {
@@ -430,6 +433,18 @@ export class AgyService {
 				failed = true
 				const formatted = formatAgyError(message, stderrBuffer)
 				void this.logAgy(`turn fail: ${formatted}`)
+				const errorActivity: AgentActivityItem = {
+					id: `act-${randomUUID()}`,
+					type: 'error',
+					status: 'failed',
+					title: 'Agent failed',
+					detail: { error: formatted },
+					startedAt: Date.now(),
+					completedAt: Date.now(),
+					durationMs: 0,
+				}
+				timeline.activities.push(errorActivity)
+				onEvent({ type: 'activity_complete', activity: errorActivity })
 				onEvent({ type: 'error', message: formatted })
 				finish({ agentContent, conversationId, failed: true, timeline })
 			}
@@ -504,15 +519,18 @@ export class AgyService {
 							const isDone = update.state === 'DONE' || update.state === 'ERROR'
 							const stepDurationMs = toDurationMs(update.duration_seconds)
 							const stepUsage = parseUsage(update.usage)
+							const failedStep = update.state === 'ERROR' || Boolean(parsed.detail.error)
 
 							let activityItem = activeActivities.get(stepKey)
 
 							if (!activityItem) {
 								activityItem = {
 									id: `act-${randomUUID()}`,
-									type: parsed.type,
-									status: update.state === 'ERROR' ? 'failed' : isDone ? 'completed' : 'running',
-									title: parsed.title,
+									type: failedStep ? 'error' : parsed.type,
+									status: failedStep ? 'failed' : isDone ? 'completed' : 'running',
+									title: failedStep && parsed.detail.error
+										? parsed.title
+										: parsed.title,
 									detail: parsed.detail,
 									startedAt: Date.now() - (stepDurationMs ?? 0),
 									completedAt: isDone ? Date.now() : undefined,
@@ -522,19 +540,22 @@ export class AgyService {
 								timeline.activities.push(activityItem)
 								if (!isDone) {
 									activeActivities.set(stepKey, activityItem)
-									onEvent({ type: 'activity_start', activity: activityItem })
+									onEvent({ type: 'activity_start', activity: { ...activityItem } })
 								} else {
-									onEvent({ type: 'activity_complete', activity: activityItem })
+									onEvent({ type: 'activity_complete', activity: { ...activityItem } })
 								}
 							} else {
-								activityItem.status = update.state === 'ERROR' ? 'failed' : isDone ? 'completed' : 'running'
+								activityItem.status = failedStep ? 'failed' : isDone ? 'completed' : 'running'
+								activityItem.type = failedStep ? 'error' : activityItem.type
 								activityItem.title = parsed.title || activityItem.title
 								activityItem.detail = { ...activityItem.detail, ...parsed.detail }
 								if (isDone) {
 									activityItem.completedAt = Date.now()
 									activityItem.durationMs = stepDurationMs ?? (activityItem.completedAt - activityItem.startedAt)
 									activeActivities.delete(stepKey)
-									onEvent({ type: 'activity_complete', activity: activityItem })
+									onEvent({ type: 'activity_complete', activity: { ...activityItem } })
+								} else {
+									onEvent({ type: 'activity_start', activity: { ...activityItem } })
 								}
 							}
 
@@ -877,10 +898,12 @@ function parseToolActivity(
 	const fallbackTitle = toolSummary || toolAction || shortToolName(toolName)
 	return {
 		type: errorStr ? 'error' : 'tool',
-		title: fallbackTitle,
+		title: errorStr ? (toolSummary || shortToolName(toolName)) : fallbackTitle,
 		detail: {
 			summary: toolSummary,
 			action: toolAction,
+			error: errorStr,
+			output: outputStr,
 		},
 	}
 }

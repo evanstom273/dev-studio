@@ -85,7 +85,14 @@ export function Conversation({ items, liveTimeline, streamingContent }: Conversa
 		>
 			{items.map((item) => {
 				if (item.kind === 'activity_timeline') {
-					return <ActivityTimeline key={item.id} timeline={item} defaultExpanded={false} />
+					const hasActivities = item.activities.length > 0
+					return (
+						<ActivityTimeline
+							key={item.id}
+							timeline={item}
+							defaultExpanded={hasActivities && item.status === 'error'}
+						/>
+					)
 				}
 
 				if (item.kind === 'activity') {
