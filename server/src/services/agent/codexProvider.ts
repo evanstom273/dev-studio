@@ -53,7 +53,7 @@ export function buildCodexExecArgs(options: {
 	}
 
 	if (options.autoApprove) {
-		args.push('--ask-for-approval', 'never')
+		args.push('-c', 'approval_policy="never"')
 	}
 
 	if (options.model) {
@@ -625,6 +625,15 @@ export class CodexProvider implements AgentProvider {
 				onEvent({ type: 'commentary_delta', content: trimmed })
 			}
 
+			const emitAgentMessage = (text: string) => {
+				const trimmed = text.trim()
+				if (!trimmed) return
+				agentMessages.push(trimmed)
+				emitCommentary(trimmed)
+				agentContent += (agentContent ? '\n' : '') + trimmed
+				onEvent({ type: 'message_delta', content: trimmed })
+			}
+
 			const finalizeAgentContent = () => {
 				if (agentContent.trim()) return
 				const last = agentMessages.at(-1)?.trim()
@@ -632,6 +641,12 @@ export class CodexProvider implements AgentProvider {
 				agentContent = last
 				onEvent({ type: 'message_delta', content: last })
 			}
+
+			const hasTurnOutput = () =>
+				Boolean(agentContent.trim()) ||
+				agentMessages.length > 0 ||
+				activities.length > 0 ||
+				Boolean(timeline.entries?.length)
 
 			const processLine = (line: string) => {
 				const trimmed = line.trim()
@@ -701,8 +716,7 @@ export class CodexProvider implements AgentProvider {
 						} else if (isCodexCommentaryItemType(itemType) && item.text) {
 							emitCommentary(item.text)
 						} else if (itemType === 'agent_message' && item.text) {
-							agentMessages.push(item.text)
-							emitCommentary(item.text)
+							emitAgentMessage(item.text)
 						} else if (itemType === 'plan_update' && item.text) {
 							emitCommentary(item.text)
 						}
@@ -747,12 +761,8 @@ export class CodexProvider implements AgentProvider {
 				}
 			})
 
-			child.stderr.on('data', (chunk: Buffer) => {
-				const text = chunk.toString()
-				if (text.includes('not logged in') || text.includes('authentication')) {
-					failed = true
-					onEvent({ type: 'error', message: 'Codex authentication required. Run `codex login` on your laptop.' })
-				}
+			child.stderr.on('data', (_chunk: Buffer) => {
+				// Codex logs progress to stderr; avoid treating benign auth mentions as fatal errors.
 			})
 
 			child.on('close', (code) => {
@@ -765,7 +775,7 @@ export class CodexProvider implements AgentProvider {
 					finalizeAgentContent()
 				}
 
-				if (code !== 0 && !agentContent && !activeProcess.stopped) {
+				if (code !== 0 && !hasTurnOutput() && !activeProcess.stopped) {
 					failed = true
 				}
 

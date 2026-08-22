@@ -12,7 +12,7 @@ function buildCodexExecArgs(options) {
 	}
 
 	if (options.autoApprove) {
-		args.push('--ask-for-approval', 'never')
+		args.push('-c', 'approval_policy="never"')
 	}
 
 	if (options.model) {
@@ -400,15 +400,16 @@ test('parseCodexRateLimits: preserves quota availability when usage percentage i
 	assert.equal(primary.available, true)
 })
 
-test('buildCodexExecArgs: auto-approve adds --ask-for-approval never', () => {
+test('buildCodexExecArgs: auto-approve adds approval_policy never via -c', () => {
 	const args = buildCodexExecArgs({
 		threadId: null,
 		mode: 'agent',
 		autoApprove: true,
 	})
 
-	assert.ok(args.includes('--ask-for-approval'))
-	assert.equal(args[args.indexOf('--ask-for-approval') + 1], 'never')
+	assert.ok(args.includes('-c'))
+	assert.ok(args.includes('approval_policy="never"'))
+	assert.ok(!args.includes('--ask-for-approval'))
 })
 
 test('buildCodexExecArgs: auto-approve omitted when false', () => {
@@ -448,10 +449,24 @@ test('Codex item parser: ask mode blocks command activity', () => {
 	assert.equal(act, null)
 })
 
-test('Codex agent messages: commentary during turn, final on completion', () => {
-	const agentMessages = ['Inspecting repo…', 'Implemented the fix.']
-	const commentary = [...agentMessages]
-	const finalAnswer = agentMessages.at(-1)
-	assert.equal(commentary.length, 2)
-	assert.equal(finalAnswer, 'Implemented the fix.')
+test('Codex agent messages: stream final answer live and keep commentary timeline', () => {
+	const agentMessages = []
+	let agentContent = ''
+	const events = []
+
+	const emitAgentMessage = (text) => {
+		const trimmed = text.trim()
+		if (!trimmed) return
+		agentMessages.push(trimmed)
+		agentContent += (agentContent ? '\n' : '') + trimmed
+		events.push({ type: 'message_delta', content: trimmed })
+		events.push({ type: 'commentary_delta', content: trimmed })
+	}
+
+	emitAgentMessage('Inspecting repo…')
+	emitAgentMessage('Implemented the fix.')
+
+	assert.equal(agentContent, 'Inspecting repo…\nImplemented the fix.')
+	assert.equal(events.filter((e) => e.type === 'message_delta').length, 2)
+	assert.equal(events.filter((e) => e.type === 'commentary_delta').length, 2)
 })
