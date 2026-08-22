@@ -139,6 +139,22 @@ export class BrowserService {
 		}
 	}
 
+	async restartEngine(): Promise<void> {
+		this.isRecovering = true
+		this.broadcastStatus()
+		if (this.context) {
+			try {
+				await this.context.close()
+			} catch {
+				// ignore
+			}
+			this.context = null
+			this.isRunning = false
+			this.tabs.clear()
+		}
+		await this.ensureRunning()
+	}
+
 	async ensureRunning(): Promise<void> {
 		if (this.context && this.isRunning) return
 
@@ -149,8 +165,9 @@ export class BrowserService {
 			const userAgent =
 				'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36'
 
-			this.context = await chromium.launchPersistentContext(this.profileDir, {
+			const launchOptions = {
 				headless: true,
+				ignoreDefaultArgs: ['--enable-automation'],
 				userAgent,
 				locale: 'en-US',
 				permissions: ['clipboard-read', 'clipboard-write', 'notifications'],
@@ -168,52 +185,102 @@ export class BrowserService {
 				viewport: { width: 1280, height: 800 },
 				deviceScaleFactor: 1,
 				acceptDownloads: true,
-			})
+			}
+
+			// Prefer installed Google Chrome channel if available, fallback to bundled chromium
+			let context: BrowserContext | null = null
+			try {
+				context = await chromium.launchPersistentContext(this.profileDir, {
+					...launchOptions,
+					channel: 'chrome',
+				})
+			} catch {
+				context = await chromium.launchPersistentContext(this.profileDir, launchOptions)
+			}
+			this.context = context
 
 			// Add stealth init script so websites don't detect automation or block logins
 			await this.context.addInitScript(() => {
-				// Mask navigator.webdriver
+				// 1. Delete navigator.webdriver entirely from prototype
+				try {
+					const newProto = Object.getPrototypeOf(navigator)
+					delete (newProto as Record<string, unknown>).webdriver
+				} catch {
+					// ignore
+				}
+
 				try {
 					Object.defineProperty(navigator, 'webdriver', {
 						get: () => undefined,
+						configurable: true,
 					})
 				} catch {
 					// ignore
 				}
 
-				// Ensure window.chrome runtime object exists
+				// 2. Ensure window.chrome runtime object exists with complete structure
 				try {
 					const win = window as unknown as { chrome?: Record<string, unknown> }
 					if (!win.chrome) {
 						win.chrome = {
-							runtime: {},
+							app: {
+								isInstalled: false,
+								InstallState: { DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' },
+								RunningState: { CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' },
+							},
+							runtime: {
+								OnInstalledReason: { CHROME_UPDATE: 'chrome_update', INSTALL: 'install', SHARED_MODULE_UPDATE: 'shared_module_update', UPDATE: 'update' },
+								OnRestartRequiredReason: { APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic', PROFILE_ERROR: 'profile_error' },
+								PlatformArch: { ARM: 'arm', ARM64: 'arm64', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' },
+								PlatformNaclArch: { ARM: 'arm', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' },
+								PlatformOs: { ANDROID: 'android', CROS: 'cros', LINUX: 'linux', MAC: 'mac', OPENBSD: 'openbsd', WIN: 'win' },
+								RequestUpdateCheckStatus: { NO_UPDATE: 'no_update', THROTTLED: 'throttled', UPDATE_AVAILABLE: 'update_available' },
+								connect: () => {},
+								sendMessage: () => {},
+							},
 							loadTimes: () => {},
 							csi: () => {},
-							app: {},
 						}
 					}
 				} catch {
 					// ignore
 				}
 
-				// Ensure navigator.plugins is populated
+				// 3. Ensure navigator.plugins is populated
 				try {
 					if (!navigator.plugins || navigator.plugins.length === 0) {
 						Object.defineProperty(navigator, 'plugins', {
-							get: () => [1, 2, 3, 4, 5],
+							get: () => [
+								{ name: 'PDF Viewer', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+								{ name: 'Chrome PDF Viewer', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+								{ name: 'Chromium PDF Viewer', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+							],
+							configurable: true,
 						})
 					}
 				} catch {
 					// ignore
 				}
 
-				// Ensure navigator.languages is populated
+				// 4. Ensure navigator.languages is populated
 				try {
 					if (!navigator.languages || navigator.languages.length === 0) {
 						Object.defineProperty(navigator, 'languages', {
 							get: () => ['en-US', 'en'],
+							configurable: true,
 						})
 					}
+				} catch {
+					// ignore
+				}
+
+				// 5. Mock permissions.query for notifications
+				try {
+					const origQuery = window.navigator.permissions.query.bind(window.navigator.permissions)
+					window.navigator.permissions.query = (parameters: PermissionDescriptor) =>
+						parameters.name === 'notifications'
+							? Promise.resolve({ state: Notification.permission } as PermissionStatus)
+							: origQuery(parameters)
 				} catch {
 					// ignore
 				}

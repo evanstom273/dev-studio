@@ -27,6 +27,14 @@ export function createBrowserRouter(browser: BrowserService): Router {
 	)
 
 	router.post(
+		'/restart',
+		asyncHandler(async (_req, res) => {
+			await browser.restartEngine()
+			res.json({ ok: true })
+		}),
+	)
+
+	router.post(
 		'/tabs',
 		asyncHandler(async (req, res) => {
 			const body = req.body as CreateTabRequest

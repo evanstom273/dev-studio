@@ -20,6 +20,12 @@ export const browserApi = {
 		return apiFetch<BrowserSessionState>('/api/browser/state')
 	},
 
+	async restartEngine(): Promise<void> {
+		await apiFetch<{ ok: boolean }>('/api/browser/restart', {
+			method: 'POST',
+		})
+	},
+
 	async createTab(req?: CreateTabRequest): Promise<BrowserTab> {
 		return apiFetch<BrowserTab>('/api/browser/tabs', {
 			method: 'POST',

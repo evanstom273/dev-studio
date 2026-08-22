@@ -602,6 +602,18 @@ export function BrowserView({
 		}
 	}
 
+	const handleRestartEngine = async () => {
+		try {
+			setIsRecovering(true)
+			await browserApi.restartEngine()
+			showNotice('Browser engine restarted with Chrome profile')
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Failed to restart browser engine')
+		} finally {
+			setIsRecovering(false)
+		}
+	}
+
 	// ==========================================
 	// Input Dispatching (Pointer / Touch / Keys)
 	// ==========================================
@@ -1191,6 +1203,18 @@ export function BrowserView({
 										<button type="button" onClick={() => void handleAction('zoom_reset')}>100%</button>
 										<button type="button" onClick={() => void handleAction('zoom_in')}>+</button>
 									</div>
+									<div className="browser-dropdown-divider" />
+									<button
+										type="button"
+										className="browser-dropdown-item"
+										onClick={() => {
+											void handleRestartEngine()
+											setMenuOpen(false)
+										}}
+									>
+										<IconRefresh />
+										<span>Restart Browser Engine</span>
+									</button>
 								</div>
 							)}
 						</div>
