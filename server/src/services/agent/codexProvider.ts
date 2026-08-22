@@ -617,6 +617,19 @@ export class CodexProvider implements AgentProvider {
 				onEvent({ type: 'commentary_delta', content: trimmed })
 			}
 
+			const emitAgentMessage = (text: string) => {
+				const trimmed = text.trim()
+				if (!trimmed) return
+				agentContent += (agentContent ? '\n\n' : '') + trimmed
+				onEvent({ type: 'message_delta', content: trimmed })
+				emitCommentary(trimmed)
+			}
+
+			const hasTurnOutput = () =>
+				Boolean(agentContent.trim()) ||
+				activities.length > 0 ||
+				Boolean(timeline.entries?.length)
+
 			const processLine = (line: string) => {
 				const trimmed = line.trim()
 				if (!trimmed) return
@@ -683,8 +696,9 @@ export class CodexProvider implements AgentProvider {
 							}
 							onEvent({ type: 'turn_status', status: 'running', label: 'Thinking…' })
 						} else if (itemType === 'agent_message' && item.text) {
-							agentContent += (agentContent ? '\n\n' : '') + item.text
-							onEvent({ type: 'message_delta', content: item.text })
+							emitAgentMessage(item.text)
+						} else if (itemType === 'plan_update' && item.text) {
+							emitCommentary(item.text)
 						} else if (isCodexCommentaryItemType(itemType) && item.text) {
 							emitCommentary(item.text)
 						}
@@ -727,12 +741,8 @@ export class CodexProvider implements AgentProvider {
 				}
 			})
 
-			child.stderr.on('data', (chunk: Buffer) => {
-				const text = chunk.toString()
-				if (text.includes('not logged in') || text.includes('authentication')) {
-					failed = true
-					onEvent({ type: 'error', message: 'Codex authentication required. Run `codex login` on your laptop.' })
-				}
+			child.stderr.on('data', (_chunk: Buffer) => {
+				// Codex logs progress to stderr; avoid treating benign auth mentions as fatal errors.
 			})
 
 			child.on('close', (code) => {
@@ -741,7 +751,7 @@ export class CodexProvider implements AgentProvider {
 					processLine(buffer)
 				}
 
-				if (code !== 0 && !agentContent && !activeProcess.stopped) {
+				if (code !== 0 && !hasTurnOutput() && !activeProcess.stopped) {
 					failed = true
 				}
 

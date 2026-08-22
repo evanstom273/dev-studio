@@ -448,20 +448,22 @@ test('Codex item parser: ask mode blocks command activity', () => {
 	assert.equal(act, null)
 })
 
-test('Codex agent messages: agent_message streams directly to response', () => {
-	const items = [
-		{ type: 'agent_message', text: 'Hello there!' },
-		{ type: 'commentary', text: 'Thinking about solution...' },
-	]
+test('Codex agent messages: agent_message streams to response and commentary timeline', () => {
 	let agentContent = ''
-	const commentary = []
-	for (const it of items) {
-		if (it.type === 'agent_message') {
-			agentContent += (agentContent ? '\n\n' : '') + it.text
-		} else if (it.type === 'commentary') {
-			commentary.push(it.text)
-		}
+	const events = []
+
+	const emitAgentMessage = (text) => {
+		const trimmed = text.trim()
+		if (!trimmed) return
+		agentContent += (agentContent ? '\n\n' : '') + trimmed
+		events.push({ type: 'message_delta', content: trimmed })
+		events.push({ type: 'commentary_delta', content: trimmed })
 	}
-	assert.equal(agentContent, 'Hello there!')
-	assert.deepEqual(commentary, ['Thinking about solution...'])
+
+	emitAgentMessage('Inspecting repo…')
+	emitAgentMessage('Implemented the fix.')
+
+	assert.equal(agentContent, 'Inspecting repo…\n\nImplemented the fix.')
+	assert.equal(events.filter((e) => e.type === 'message_delta').length, 2)
+	assert.equal(events.filter((e) => e.type === 'commentary_delta').length, 2)
 })

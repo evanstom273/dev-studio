@@ -46,6 +46,14 @@ export function createProjectsRouter(projects: ProjectService, config: ServerCon
 		}),
 	)
 
+	router.get(
+		'/browse',
+		asyncHandler(async (req, res) => {
+			const path = typeof req.query.path === 'string' ? req.query.path : undefined
+			res.json(await projects.browseDirectory(path))
+		}),
+	)
+
 	router.post(
 		'/open-local',
 		asyncHandler(async (req, res) => {

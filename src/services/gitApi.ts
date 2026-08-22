@@ -12,7 +12,7 @@ import type {
 	RevertRequest,
 	StageRequest,
 } from '@shared/types/git'
-import type { CloneRepoRequest, CreateAndOpenRepoRequest, InitRepoRequest, OpenGitHubRepoRequest, Project, RegisterProjectRequest } from '@shared/types/project'
+import type { BrowseDirectoryResult, CloneRepoRequest, CreateAndOpenRepoRequest, InitRepoRequest, OpenGitHubRepoRequest, Project, RegisterProjectRequest } from '@shared/types/project'
 import { apiFetch } from './apiClient'
 
 export const gitApi = {
@@ -92,6 +92,11 @@ export const projectsApi = {
 
 	openLocal(body: RegisterProjectRequest): Promise<Project> {
 		return apiFetch('/api/projects/open-local', { method: 'POST', body: JSON.stringify(body) })
+	},
+
+	browse(path?: string): Promise<BrowseDirectoryResult> {
+		const query = path ? `?path=${encodeURIComponent(path)}` : ''
+		return apiFetch(`/api/projects/browse${query}`)
 	},
 
 	init(body: InitRepoRequest): Promise<Project> {
