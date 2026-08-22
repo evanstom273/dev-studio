@@ -44,7 +44,7 @@ const browser = new BrowserService(config)
 const agy = new AgyService(config, sessions, permissions)
 
 const antigravityProvider = new AntigravityProvider(config, agy)
-const codexProvider = new CodexProvider()
+const codexProvider = new CodexProvider(config)
 const agentService = new AgentRouterService(sessions, antigravityProvider, codexProvider)
 
 app.use(
@@ -59,7 +59,7 @@ app.use(express.json({ limit: '50mb' }))
 
 app.use('/api', authMiddleware(config))
 
-app.use('/api', createHealthRouter(config))
+app.use('/api', createHealthRouter(config, agentService))
 app.use('/api/projects', createProjectsRouter(projects, config))
 app.use('/api/agent', createAgentRouter(projects, agentService, sessions, permissions, config))
 app.use('/api/run', createRunRouter(projects))

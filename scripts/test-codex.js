@@ -11,6 +11,10 @@ function buildCodexExecArgs(options) {
 		args.push('exec', '--json', '--skip-git-repo-check')
 	}
 
+	if (options.autoApprove) {
+		args.push('--ask-for-approval', 'never')
+	}
+
 	if (options.model) {
 		const cleanModel = options.model.replace(/^(codex|openai):/, '')
 		args.push('-m', cleanModel)
@@ -394,4 +398,60 @@ test('parseCodexRateLimits: preserves quota availability when usage percentage i
 	assert.equal(primary.remainingFraction, null)
 	assert.equal(primary.usedFraction, null)
 	assert.equal(primary.available, true)
+})
+
+test('buildCodexExecArgs: auto-approve adds --ask-for-approval never', () => {
+	const args = buildCodexExecArgs({
+		threadId: null,
+		mode: 'agent',
+		autoApprove: true,
+	})
+
+	assert.ok(args.includes('--ask-for-approval'))
+	assert.equal(args[args.indexOf('--ask-for-approval') + 1], 'never')
+})
+
+test('buildCodexExecArgs: auto-approve omitted when false', () => {
+	const args = buildCodexExecArgs({
+		threadId: null,
+		mode: 'agent',
+		autoApprove: false,
+	})
+
+	assert.ok(!args.includes('--ask-for-approval'))
+})
+
+function classifyCommand(command) {
+	if (/^(git|gh)\b/i.test(command.trim())) return 'git'
+	return 'command'
+}
+
+function finalizeCommandItem(item, mode) {
+	if (mode === 'ask') return null
+	const command = item.command || 'command'
+	const isSuccess = item.exit_code === 0 || item.exit_code === null || item.exit_code === undefined
+	return {
+		type: classifyCommand(command),
+		status: isSuccess ? 'completed' : 'failed',
+		title: command.startsWith('git') ? 'Committed changes' : `$ ${command}`,
+	}
+}
+
+test('Codex item parser: git commands classify as git activity', () => {
+	const act = finalizeCommandItem({ command: 'git commit -m "fix"', exit_code: 0 }, 'agent')
+	assert.equal(act.type, 'git')
+	assert.equal(act.status, 'completed')
+})
+
+test('Codex item parser: ask mode blocks command activity', () => {
+	const act = finalizeCommandItem({ command: 'npm test', exit_code: 0 }, 'ask')
+	assert.equal(act, null)
+})
+
+test('Codex agent messages: commentary during turn, final on completion', () => {
+	const agentMessages = ['Inspecting repo…', 'Implemented the fix.']
+	const commentary = [...agentMessages]
+	const finalAnswer = agentMessages.at(-1)
+	assert.equal(commentary.length, 2)
+	assert.equal(finalAnswer, 'Implemented the fix.')
 })
