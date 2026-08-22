@@ -581,15 +581,6 @@ export class AgyService {
 						if (stepType === 'status' || (update.status_message && typeof update.status_message === 'string')) {
 							const msg = String(update.status_message || update.label || '')
 							if (msg.trim()) {
-								const statusActivity: AgentActivityItem = {
-									id: `act-${randomUUID()}`,
-									type: 'status',
-									status: 'completed',
-									title: msg,
-									startedAt: Date.now(),
-									completedAt: Date.now(),
-									durationMs: 0,
-								}
 								appendTimelineCommentary(timeline, msg)
 								onEvent({ type: 'commentary_delta', content: msg })
 							}
