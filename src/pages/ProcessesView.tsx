@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Project } from '@shared/types/project'
 import type { DevProcess } from '@shared/types/process'
 import {
+	IconBrowser,
 	IconCopy,
 	IconKill,
 	IconPlay,
@@ -20,6 +21,7 @@ type ProcessesViewProps = {
 	project: Project
 	onOpenInTerminal?: (sessionId: string) => void
 	onNavigateToTerminal?: () => void
+	onOpenInBrowser?: (url: string) => void
 }
 
 function formatBytes(bytes?: number): string {
@@ -50,6 +52,7 @@ const QUICK_COMMANDS = [
 export function ProcessesView({
 	project,
 	onOpenInTerminal,
+	onOpenInBrowser,
 }: ProcessesViewProps) {
 	const [processes, setProcesses] = useState<DevProcess[]>([])
 	const [loading, setLoading] = useState(true)
@@ -339,6 +342,17 @@ export function ProcessesView({
 														>
 															<IconCopy className="processes-btn-icon" />
 															<span>{isCopied ? 'Copied!' : 'Copy URL'}</span>
+														</button>
+													)}
+
+													{primaryUrl && onOpenInBrowser && (
+														<button
+															type="button"
+															className="processes-btn processes-btn--sm"
+															onClick={() => onOpenInBrowser(primaryUrl)}
+														>
+															<IconBrowser className="processes-btn-icon" />
+															<span>Open in Browser</span>
 														</button>
 													)}
 

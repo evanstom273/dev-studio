@@ -521,5 +521,127 @@ export function IconInfo({ className, style }: IconProps) {
 	)
 }
 
+export function IconBrowser({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<circle cx="12" cy="12" r="10" />
+			<line x1="2" y1="12" x2="22" y2="12" />
+			<path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+		</svg>
+	)
+}
+
+export function IconForward({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+export function IconHome({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" strokeLinecap="round" strokeLinejoin="round" />
+			<polyline points="9 22 9 12 15 12 15 22" strokeLinecap="round" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+export function IconStar({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+export function IconStarFilled({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.5">
+			<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+export function IconHistory({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<polyline points="1 4 1 10 7 10" strokeLinecap="round" strokeLinejoin="round" />
+			<path d="M3.51 15a9 9 0 102.13-9.36L1 10" strokeLinecap="round" strokeLinejoin="round" />
+			<polyline points="12 6 12 12 16 14" strokeLinecap="round" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+export function IconDownload({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+			<polyline points="7 10 12 15 17 10" strokeLinecap="round" strokeLinejoin="round" />
+			<line x1="12" y1="15" x2="12" y2="3" strokeLinecap="round" />
+		</svg>
+	)
+}
+
+export function IconMaximize({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<polyline points="15 3 21 3 21 9" strokeLinecap="round" strokeLinejoin="round" />
+			<polyline points="9 21 3 21 3 15" strokeLinecap="round" strokeLinejoin="round" />
+			<line x1="21" y1="3" x2="14" y2="10" strokeLinecap="round" />
+			<line x1="3" y1="21" x2="10" y2="14" strokeLinecap="round" />
+		</svg>
+	)
+}
+
+export function IconMinimize({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<polyline points="4 14 10 14 10 20" strokeLinecap="round" strokeLinejoin="round" />
+			<polyline points="20 10 14 10 14 4" strokeLinecap="round" strokeLinejoin="round" />
+			<line x1="14" y1="10" x2="21" y2="3" strokeLinecap="round" />
+			<line x1="3" y1="21" x2="10" y2="14" strokeLinecap="round" />
+		</svg>
+	)
+}
+
+export function IconCamera({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" strokeLinecap="round" strokeLinejoin="round" />
+			<circle cx="12" cy="13" r="4" />
+		</svg>
+	)
+}
+
+export function IconDevices({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<rect x="2" y="3" width="14" height="14" rx="2" strokeLinecap="round" />
+			<rect x="12" y="10" width="10" height="11" rx="2" strokeLinecap="round" />
+		</svg>
+	)
+}
+
+export function IconLock({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+			<path d="M7 11V7a5 5 0 0110 0v4" strokeLinecap="round" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+export function IconUnlock({ className, style }: IconProps) {
+	return (
+		<svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+			<path d="M7 11V7a5 5 0 019.9-1" strokeLinecap="round" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+
 
 

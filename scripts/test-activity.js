@@ -386,3 +386,75 @@ test('Plan Markdown artifact exporter formats valid markdown structure', () => {
 	assert.ok(md.includes('3. [ ] **Verify frontend session refresh**'))
 })
 
+test('Browser omnibox resolver handles standard URLs, localhost, domains and web search', () => {
+	function resolveOmniboxInput(input) {
+		const trimmed = input.trim()
+		if (!trimmed) return 'about:blank'
+		if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith('about:')) {
+			return trimmed
+		}
+		if (/^(localhost|127\.0\.0\.1)(:\d+)?(\/.*)?$/i.test(trimmed)) {
+			return `http://${trimmed}`
+		}
+		if (/^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+(:[0-9]+)?(\/.*)?$/i.test(trimmed)) {
+			return `https://${trimmed}`
+		}
+		return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`
+	}
+
+	assert.equal(resolveOmniboxInput('https://github.com/evanstom273'), 'https://github.com/evanstom273')
+	assert.equal(resolveOmniboxInput('http://example.com/test'), 'http://example.com/test')
+	assert.equal(resolveOmniboxInput('localhost:5173'), 'http://localhost:5173')
+	assert.equal(resolveOmniboxInput('localhost:3000/api/health'), 'http://localhost:3000/api/health')
+	assert.equal(resolveOmniboxInput('127.0.0.1:8080'), 'http://127.0.0.1:8080')
+	assert.equal(resolveOmniboxInput('github.com'), 'https://github.com')
+	assert.equal(resolveOmniboxInput('vitejs.dev/guide/'), 'https://vitejs.dev/guide/')
+	assert.equal(resolveOmniboxInput('react useEffect hook tutorial'), 'https://duckduckgo.com/?q=react%20useEffect%20hook%20tutorial')
+	assert.equal(resolveOmniboxInput(''), 'about:blank')
+})
+
+test('Browser canvas coordinate mapper scales CSS client coords to remote page resolution', () => {
+	function mapCoordinates(clientX, clientY, rect, canvasWidth, canvasHeight) {
+		const scaleX = canvasWidth / rect.width
+		const scaleY = canvasHeight / rect.height
+		return {
+			x: Math.round((clientX - rect.left) * scaleX),
+			y: Math.round((clientY - rect.top) * scaleY),
+		}
+	}
+
+	const rect = { left: 100, top: 50, width: 400, height: 300 }
+	// Remote canvas is 1200 x 900 (3x CSS scale)
+	const coords = mapCoordinates(200, 150, rect, 1200, 900)
+	assert.equal(coords.x, 300)
+	assert.equal(coords.y, 300)
+})
+
+test('Browser history deduplicates existing entries and caps max length', () => {
+	function recordHistory(historyList, entry, maxEntries = 5) {
+		const existingIdx = historyList.findIndex((h) => h.url === entry.url)
+		if (existingIdx !== -1) {
+			historyList.splice(existingIdx, 1)
+		}
+		historyList.unshift(entry)
+		if (historyList.length > maxEntries) {
+			historyList.pop()
+		}
+		return historyList
+	}
+
+	let hist = []
+	hist = recordHistory(hist, { url: 'https://a.com', title: 'A' })
+	hist = recordHistory(hist, { url: 'https://b.com', title: 'B' })
+	hist = recordHistory(hist, { url: 'https://c.com', title: 'C' })
+	assert.equal(hist.length, 3)
+	assert.equal(hist[0].url, 'https://c.com')
+
+	// Revisit A
+	hist = recordHistory(hist, { url: 'https://a.com', title: 'A Updated' })
+	assert.equal(hist.length, 3)
+	assert.equal(hist[0].url, 'https://a.com')
+	assert.equal(hist[0].title, 'A Updated')
+})
+
+

@@ -8,6 +8,7 @@ export type { CreateTerminalSessionRequest, TerminalClientMessage, TerminalServe
 export type { DevProcess, NetworkPortInfo, ProcessActionResponse, ProcessCategory, ProcessListResponse, StartProcessRequest } from '@shared/types/process'
 export type { Problem, ProblemFilter, ProblemSeverity, ProblemSource, ProblemSummary } from '@shared/types/problem'
 export type { CreatePlanRequest, Plan, PlanStatus, PlanStep, StepStatus, UpdatePlanRequest } from '@shared/types/plan'
+export type { BookmarkEntry, BrowserClientMessage, BrowserFrameMessage, BrowserFrameMetadata, BrowserInsertTextMessage, BrowserKeyMessage, BrowserPointerMessage, BrowserResizeMessage, BrowserScrollMessage, BrowserServerMessage, BrowserSessionState, BrowserStatusMessage, BrowserSubscribeMessage, BrowserTab, BrowserTabClosedMessage, BrowserTabUpdatedMessage, BrowserTouchMessage, BrowserTouchPoint, BrowserUnsubscribeMessage, BrowserViewport, ConsoleEntry, ConsoleLevel, CreateTabRequest, DevicePreset, DevicePresetId, DownloadItem, DownloadState, FindOnPageRequest, FindOnPageResult, HistoryEntry, NavigateRequest, NetworkErrorEntry, PageContextInfo, TabActionRequest } from '@shared/types/browser'
 export type { ToolId } from '@shared/types/project'
 
 export type NavItem = {

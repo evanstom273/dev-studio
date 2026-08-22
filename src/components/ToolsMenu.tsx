@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { ToolId } from '@shared/types/project'
 import {
 	IconArtifact,
+	IconBrowser,
 	IconCode,
 	IconPlan,
 	IconProblem,
@@ -53,6 +54,12 @@ export const AVAILABLE_TOOLS: ToolItem[] = [
 		label: 'Tasks / Plans',
 		description: 'Structured agent execution plans and steps',
 		Icon: IconPlan,
+	},
+	{
+		id: 'browser',
+		label: 'Browser',
+		description: 'Dedicated Chromium browser on laptop with screencast',
+		Icon: IconBrowser,
 	},
 ]
 

@@ -27,6 +27,7 @@ export type WorkspaceView =
 	| 'processes'
 	| 'problems'
 	| 'plans'
+	| 'browser'
 
 export type ToolId =
 	| 'editor'
@@ -35,6 +36,7 @@ export type ToolId =
 	| 'processes'
 	| 'problems'
 	| 'plans'
+	| 'browser'
 
 export type RepoTab = 'git' | 'github'
 

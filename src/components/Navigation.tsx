@@ -3,6 +3,7 @@ import { NAV_ITEMS } from '../types/index'
 import {
 	IconAgent,
 	IconArtifact,
+	IconBrowser,
 	IconChanges,
 	IconCode,
 	IconFiles,
@@ -32,6 +33,7 @@ const ICONS = {
 	processes: IconProcess,
 	problems: IconProblem,
 	plans: IconPlan,
+	browser: IconBrowser,
 } as const
 
 export function BottomNav({ activeView, onNavigate }: BottomNavProps) {

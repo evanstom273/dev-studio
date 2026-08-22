@@ -15,6 +15,7 @@ import { createTerminalRouter, setupTerminalWebSocket } from './routes/terminal.
 import { createProcessesRouter } from './routes/processes.js'
 import { createProblemsRouter } from './routes/problems.js'
 import { createPlansRouter } from './routes/plans.js'
+import { createBrowserRouter, setupBrowserWebSocket } from './routes/browser.js'
 import { ProjectService } from './services/projectService.js'
 import { AgyService, PermissionQueue } from './services/agyService.js'
 import { ArtifactService } from './services/artifactService.js'
@@ -22,6 +23,7 @@ import { TerminalSessionManager } from './services/terminalService.js'
 import { ProcessService } from './services/processService.js'
 import { ProblemService } from './services/problemService.js'
 import { PlanService } from './services/planService.js'
+import { BrowserService } from './services/browserService.js'
 import { SessionStore } from './store.js'
 
 const config = loadConfig()
@@ -35,6 +37,7 @@ const terminal = new TerminalSessionManager()
 const processes = new ProcessService(config, terminal)
 const problems = new ProblemService(config)
 const plans = new PlanService(config)
+const browser = new BrowserService(config)
 const agy = new AgyService(config, sessions, permissions)
 
 app.use(
@@ -61,6 +64,7 @@ app.use('/api/terminal', createTerminalRouter(projects, terminal))
 app.use('/api/processes', createProcessesRouter(projects, processes, config))
 app.use('/api/problems', createProblemsRouter(projects, problems, config))
 app.use('/api/plans', createPlansRouter(plans, artifacts))
+app.use('/api/browser', createBrowserRouter(browser))
 app.use('/api/system', createSystemRouter(config, agy, sessions))
 
 app.use(errorHandler)
@@ -71,11 +75,15 @@ async function main(): Promise<void> {
 	await artifacts.init()
 	await problems.init()
 	await plans.init()
+	await browser.init()
 	await agy.init()
 
 	const server = createServer(app)
 	const wss = new WebSocketServer({ server, path: '/api/terminal/ws' })
 	setupTerminalWebSocket(wss, terminal, config)
+
+	const browserWss = new WebSocketServer({ server, path: '/api/browser/ws' })
+	setupBrowserWebSocket(browserWss, browser, config)
 
 	server.listen(config.port, config.host, () => {
 		console.log(`Dev Studio backend listening on http://${config.host}:${config.port}`)

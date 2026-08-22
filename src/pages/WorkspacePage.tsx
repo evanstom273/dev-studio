@@ -3,6 +3,7 @@ import type { Project, ToolId, WorkspaceView } from '@shared/types/project'
 import type { ProblemSummary } from '@shared/types/problem'
 import {
 	IconArtifact,
+	IconBrowser,
 	IconChanges,
 	IconChat,
 	IconCode,
@@ -21,6 +22,7 @@ import { KeyboardViewportProvider, useKeyboardViewport } from '../hooks/Keyboard
 import { useWideLayout } from '../hooks/useMediaQuery'
 import { gitApi } from '../services/gitApi'
 import { problemApi } from '../services/problemApi'
+import { browserApi } from '../services/browserApi'
 import { AgentView, type AgentActions } from './AgentView'
 import { ArtifactsView } from './ArtifactsView'
 import { ChangesView } from './ChangesView'
@@ -32,6 +34,7 @@ import { TerminalView } from './TerminalView'
 import { ProcessesView } from './ProcessesView'
 import { ProblemsView } from './ProblemsView'
 import { PlansView } from './PlansView'
+import { BrowserView } from './BrowserView'
 import '../styles/layout.css'
 
 type WorkspacePageProps = {
@@ -52,6 +55,7 @@ type RightTool =
 	| 'processes'
 	| 'problems'
 	| 'plans'
+	| 'browser'
 
 const PRIMARY_RIGHT_TOOLS: { id: 'changes' | 'files' | 'repo' | 'status'; label: string; Icon: typeof IconChanges }[] = [
 	{ id: 'changes', label: 'Changes', Icon: IconChanges },
@@ -170,6 +174,15 @@ function WorkspacePageContent({
 		}
 	}
 
+	const handleOpenInBrowser = (url: string) => {
+		void browserApi.createTab({ url }).catch(() => {})
+		if (isWide) {
+			setRightTool('browser')
+		} else {
+			onNavigate('browser')
+		}
+	}
+
 	const handleSendToChat = (contextSnippet: string) => {
 		setPendingChatPrompt(contextSnippet)
 	}
@@ -183,7 +196,7 @@ function WorkspacePageContent({
 	}
 
 	const isExtendedTool = (tool: string): tool is ToolId =>
-		['editor', 'terminal', 'artifacts', 'processes', 'problems', 'plans'].includes(tool)
+		['editor', 'terminal', 'artifacts', 'processes', 'problems', 'plans', 'browser'].includes(tool)
 
 	const isToolActiveMobile = isExtendedTool(activeView)
 	const hideChrome = keyboardOpen && activeView === 'agent' && !isWide
@@ -244,7 +257,7 @@ function WorkspacePageContent({
 							type="button"
 							className={`workspace-mobile-nav__tab${activeView === 'repo' ? ' is-active' : ''}`}
 							onClick={() => onNavigate('repo')}
-							title="Git / Repo"
+							title="Git & GitHub"
 						>
 							<IconRepo className="workspace-mobile-nav__icon" />
 							<span>Git</span>
@@ -260,12 +273,12 @@ function WorkspacePageContent({
 							<span>Status</span>
 						</button>
 
+						{/* Dynamic Tools Tab */}
 						<button
 							type="button"
-							className={`workspace-mobile-nav__tab${isToolActiveMobile ? ' is-active' : ''}`}
+							className={`workspace-mobile-nav__tab workspace-mobile-nav__tab--tools${isToolActiveMobile ? ' is-active' : ''}`}
 							onClick={() => setToolsMenuOpen(true)}
-							title="More Tools"
-							aria-label="Tools"
+							title="Tools"
 						>
 							{activeView === 'editor' ? (
 								<IconCode className="workspace-mobile-nav__icon" />
@@ -279,6 +292,8 @@ function WorkspacePageContent({
 								<IconProblem className="workspace-mobile-nav__icon" />
 							) : activeView === 'plans' ? (
 								<IconPlan className="workspace-mobile-nav__icon" />
+							) : activeView === 'browser' ? (
+								<IconBrowser className="workspace-mobile-nav__icon" />
 							) : (
 								<IconDots className="workspace-mobile-nav__icon" />
 							)}
@@ -295,6 +310,8 @@ function WorkspacePageContent({
 									? 'Problems'
 									: activeView === 'plans'
 									? 'Plans'
+									: activeView === 'browser'
+									? 'Browser'
 									: 'Tools'}
 							</span>
 							{!isToolActiveMobile && problemsSummary && problemsSummary.active > 0 && (
@@ -447,6 +464,18 @@ function WorkspacePageContent({
 												<span>Plans</span>
 											</button>
 										)}
+										{rightTool === 'browser' && (
+											<button
+												type="button"
+												role="tab"
+												aria-selected={true}
+												className="tool-switcher-tab is-active"
+												onClick={() => setRightTool('browser')}
+											>
+												<IconBrowser className="tool-switcher-tab__icon" />
+												<span>Browser</span>
+											</button>
+										)}
 
 										{/* Tools '…' Popup Trigger */}
 										<button
@@ -494,6 +523,7 @@ function WorkspacePageContent({
 											project={project}
 											onOpenInTerminal={handleOpenInTerminal}
 											onNavigateToTerminal={() => setRightTool('terminal')}
+											onOpenInBrowser={handleOpenInBrowser}
 										/>
 									)}
 									{rightTool === 'problems' && (
@@ -515,6 +545,16 @@ function WorkspacePageContent({
 											onOpenInTerminal={() => setRightTool('terminal')}
 											onOpenArtifact={handleOpenArtifact}
 											onOpenProblem={handleOpenProblem}
+										/>
+									)}
+									{rightTool === 'browser' && (
+										<BrowserView
+											project={project}
+											isWide={true}
+											isMaximized={splitPercent <= 26}
+											onToggleMaximize={() => setSplitPercent(splitPercent <= 26 ? 50 : 25)}
+											onSendToChat={handleSendToChat}
+											onOpenInEditor={handleOpenInEditor}
 										/>
 									)}
 								</div>
@@ -562,6 +602,7 @@ function WorkspacePageContent({
 									project={project}
 									onOpenInTerminal={handleOpenInTerminal}
 									onNavigateToTerminal={() => onNavigate('terminal')}
+									onOpenInBrowser={handleOpenInBrowser}
 								/>
 							)}
 							{activeView === 'problems' && (
@@ -583,6 +624,17 @@ function WorkspacePageContent({
 									onOpenInTerminal={() => onNavigate('terminal')}
 									onOpenArtifact={handleOpenArtifact}
 									onOpenProblem={handleOpenProblem}
+								/>
+							)}
+							{activeView === 'browser' && (
+								<BrowserView
+									project={project}
+									isWide={false}
+									onSendToChat={(text) => {
+										handleSendToChat(text)
+										onNavigate('agent')
+									}}
+									onOpenInEditor={handleOpenInEditor}
 								/>
 							)}
 						</div>
