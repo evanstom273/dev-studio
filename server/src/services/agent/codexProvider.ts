@@ -13,6 +13,7 @@ import type {
 	TokenUsage,
 } from '../../types/agent.js'
 import type { AgentProvider, SessionTurnContext, TurnExecutionResult } from './agentProvider.js'
+import { setLatestCodexRateLimits, type CodexRateLimitsPayload } from '../codexQuotaService.js'
 
 type ActiveProcess = {
 	child: ChildProcessWithoutNullStreams
@@ -24,6 +25,46 @@ const CODEX_MODE_PROMPT_PREFIX: Record<AgentMode, string> = {
 		'[AGENT MODE] You are a coding agent working directly in Dev Studio. Inspect, edit, and test files in the project workspace as needed.\n\n',
 	ask: '[ASK MODE] Answer questions and analyze code only. Do NOT edit files, run commands, or make changes.\n\n',
 	plan: '[PLAN MODE] Create a detailed implementation plan for the task. Do NOT execute changes — only outline steps.\n\n',
+}
+
+export function buildCodexExecArgs(options: {
+	threadId?: string | null
+	model?: string
+	reasoningEffort?: string
+	speed?: string
+	mode: AgentMode
+}): string[] {
+	const args: string[] = []
+	const isResume = Boolean(options.threadId)
+
+	if (isResume) {
+		args.push('exec', 'resume', options.threadId!, '--json', '--skip-git-repo-check')
+	} else {
+		args.push('exec', '--json', '--skip-git-repo-check')
+	}
+
+	if (options.model) {
+		const cleanModel = options.model.replace(/^(codex|openai):/, '')
+		args.push('-m', cleanModel)
+	}
+
+	if (options.reasoningEffort) {
+		args.push('-c', `model_reasoning_effort="${options.reasoningEffort}"`)
+	}
+
+	if (options.speed) {
+		args.push('-c', `service_tier="${options.speed}"`)
+	}
+
+	const sandboxMode = options.mode === 'agent' ? 'workspace-write' : 'read-only'
+	if (isResume) {
+		args.push('-c', `sandbox_mode="${sandboxMode}"`)
+	} else {
+		args.push('-s', sandboxMode)
+	}
+
+	args.push('-')
+	return args
 }
 
 export class CodexProvider implements AgentProvider {
@@ -504,32 +545,13 @@ export class CodexProvider implements AgentProvider {
 		const resolvedProjectPath = resolve(projectPath)
 		const threadId = !context.isProviderSwitch ? (context.codexThreadId ?? null) : null
 
-		const args: string[] = []
-		if (threadId) {
-			args.push('exec', 'resume', threadId, '--json', '--skip-git-repo-check')
-		} else {
-			args.push('exec', '--json', '--skip-git-repo-check')
-		}
-
-		if (model) {
-			// Strip prefix if any (e.g. codex:gpt-5.6-sol)
-			const cleanModel = model.replace(/^(codex|openai):/, '')
-			args.push('-m', cleanModel)
-		}
-
-		if (context.reasoningEffort) {
-			args.push('-c', `model_reasoning_effort="${context.reasoningEffort}"`)
-		}
-
-		if (context.speed) {
-			args.push('-c', `service_tier="${context.speed}"`)
-		}
-
-		if (mode === 'ask' || mode === 'plan') {
-			args.push('-s', 'read-only')
-		}
-
-		args.push('-') // read prompt from stdin
+		const args = buildCodexExecArgs({
+			threadId,
+			model,
+			reasoningEffort: context.reasoningEffort,
+			speed: context.speed,
+			mode,
+		})
 
 		// Build prompt with mode instructions and handoff context if switching
 		let fullPrompt = `${CODEX_MODE_PROMPT_PREFIX[mode]}`
@@ -604,6 +626,12 @@ export class CodexProvider implements AgentProvider {
 							message?: string
 						}
 						message?: string
+					}
+
+					const rawRateLimits = (event as { rate_limits?: CodexRateLimitsPayload; payload?: { rate_limits?: CodexRateLimitsPayload } }).rate_limits ||
+						(event as { rate_limits?: CodexRateLimitsPayload; payload?: { rate_limits?: CodexRateLimitsPayload } }).payload?.rate_limits
+					if (rawRateLimits) {
+						setLatestCodexRateLimits(rawRateLimits)
 					}
 
 					if (event.type === 'thread.started' && event.thread_id) {

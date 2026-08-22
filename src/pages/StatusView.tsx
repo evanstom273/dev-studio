@@ -255,6 +255,11 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 		return fetchedAt ? new Date(fetchedAt).getTime() : Date.now()
 	}, [agyQuota?.quota?.fetchedAt])
 
+	const codexQuotaFetchedAtMs = useMemo(() => {
+		const fetchedAt = agyQuota?.codexQuota?.fetchedAt
+		return fetchedAt ? new Date(fetchedAt).getTime() : Date.now()
+	}, [agyQuota?.codexQuota?.fetchedAt])
+
 	const agyBadge = useMemo(() => {
 		if (!agyQuota?.available) {
 			return { className: 'status-card__badge--warn', label: 'Disconnected' }
@@ -278,6 +283,32 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 			return { className: 'status-card__badge--ok', label: '✓ Ready' }
 		}
 		return { className: 'status-card__badge--warn', label: 'Not signed in' }
+	}, [agyQuota])
+
+	const codexBadge = useMemo(() => {
+		const codexProvider = agyQuota?.providers?.find((p) => p.id === 'codex')
+		if (codexProvider && !codexProvider.available) {
+			return { className: 'status-card__badge--warn', label: 'Not installed' }
+		}
+		if (codexProvider && !codexProvider.authenticated) {
+			return { className: 'status-card__badge--warn', label: 'Sign in required' }
+		}
+		if (agyQuota?.codexQuotaError) {
+			return { className: 'status-card__badge--warn', label: 'Quota unavailable' }
+		}
+		if (agyQuota?.codexQuotaHealth?.exhausted) {
+			return { className: 'status-card__badge--error', label: 'Quota exhausted' }
+		}
+		if (agyQuota?.codexQuotaHealth?.low) {
+			return {
+				className: 'status-card__badge--warn',
+				label: `${agyQuota.codexQuotaHealth.worstRemainingPercent}% left`,
+			}
+		}
+		if (agyQuota?.codexQuota?.groups.length) {
+			return { className: 'status-card__badge--ok', label: '✓ Ready' }
+		}
+		return { className: 'status-card__badge--ok', label: '✓ Ready' }
 	}, [agyQuota])
 
 	return (
@@ -575,6 +606,63 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 						!agyError && <p className="text-muted" style={{ fontSize: '11px' }}>Connecting to laptop backend…</p>
 					)}
 				</section>
+
+				{(agyQuota?.codexQuota || agyQuota?.providers?.some((p) => p.id === 'codex' && p.available)) && (
+					<section className="status-card" aria-labelledby="codex-quota-title">
+						<div className="status-card__header">
+							<h2 id="codex-quota-title" className="status-card__title">
+								<IconSparkles className="status-card__icon" />
+								OpenAI Codex Quotas & Limits
+							</h2>
+							{agyQuota && (
+								<span className={`status-card__badge ${codexBadge.className}`}>
+									{codexBadge.label}
+								</span>
+							)}
+						</div>
+
+						{agyQuota?.codexQuotaError && (
+							<p className="text-error" style={{ fontSize: '11px' }}>{agyQuota.codexQuotaError}</p>
+						)}
+
+						{agyQuota?.codexQuota ? (
+							<div className="status-quota-section">
+								{(agyQuota.codexQuota.account || agyQuota.codexQuota.tier) && (
+									<div className="status-quota-pills">
+										{agyQuota.codexQuota.account && (
+											<span className="status-quota-pill">
+												Account: <span className="status-quota-pill__highlight">{agyQuota.codexQuota.account}</span>
+											</span>
+										)}
+										{agyQuota.codexQuota.tier && (
+											<span className="status-quota-pill">
+												Plan: <span className="status-quota-pill__highlight">{agyQuota.codexQuota.tier}</span>
+											</span>
+										)}
+										{agyQuota.codexQuota.note && (
+											<span className="status-quota-pill">
+												Status: <span className="status-quota-pill__highlight">{agyQuota.codexQuota.note}</span>
+											</span>
+										)}
+									</div>
+								)}
+
+								{agyQuota.codexQuota.groups.map((group) => (
+									<QuotaGroupCard
+										key={group.name}
+										group={group}
+										fetchedAtMs={codexQuotaFetchedAtMs}
+										nowMs={now}
+									/>
+								))}
+							</div>
+						) : (
+							<p className="text-muted" style={{ fontSize: '11px' }}>
+								Run Codex turns or `codex login` to populate rate limit stats.
+							</p>
+						)}
+					</section>
+				)}
 			</div>
 		</main>
 	)

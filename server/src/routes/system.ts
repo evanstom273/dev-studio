@@ -6,6 +6,7 @@ import type { AgentRouterService } from '../services/agent/agentRouterService.js
 import type { SessionStore } from '../store.js'
 import { ServerUpdateService } from '../services/serverUpdateService.js'
 import { fetchAgyQuota, summarizeQuotaHealth } from '../services/agyQuotaService.js'
+import { fetchCodexQuota } from '../services/codexQuotaService.js'
 import { checkAgyAuth } from '../utils/exec.js'
 import { queryParam } from '../utils/params.js'
 import type { AgyQuotaUsage } from '../types/system.js'
@@ -45,6 +46,17 @@ export function createSystemRouter(
 				quotaError = authStatus.message ?? 'Antigravity CLI is not available on this laptop'
 			}
 
+			let codexQuota: AgyQuotaUsage['codexQuota']
+			let codexQuotaError: string | undefined
+			try {
+				const codexSnapshot = await fetchCodexQuota({ refresh })
+				if (codexSnapshot) {
+					codexQuota = codexSnapshot
+				}
+			} catch (error) {
+				codexQuotaError = error instanceof Error ? error.message : 'Failed to fetch Codex quota'
+			}
+
 			let activeModel: string | undefined
 			if (projectId) {
 				const session = allSessions.find((entry) => entry.projectId === projectId)
@@ -67,6 +79,9 @@ export function createSystemRouter(
 				quota,
 				quotaError,
 				quotaHealth: quota ? summarizeQuotaHealth(quota) : undefined,
+				codexQuota,
+				codexQuotaError,
+				codexQuotaHealth: codexQuota ? summarizeQuotaHealth(codexQuota) : undefined,
 				activeModel,
 				availableModels,
 				providers,

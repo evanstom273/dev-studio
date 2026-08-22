@@ -57,6 +57,13 @@ export type AgyQuotaUsage = {
 		low: boolean
 		worstRemainingPercent: number | null
 	}
+	codexQuota?: AgyQuotaSnapshot
+	codexQuotaError?: string
+	codexQuotaHealth?: {
+		exhausted: boolean
+		low: boolean
+		worstRemainingPercent: number | null
+	}
 	activeModel?: string
 	availableModels: string[]
 	providers?: ProviderStatusInfo[]
