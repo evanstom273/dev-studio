@@ -190,7 +190,7 @@ test('Single read is not grouped into "Read 1 files"', () => {
 
 function shouldRenderActivityTimeline(timeline, isLive = false) {
 	if (isLive) return true
-	if (timeline.activities.length > 0) return true
+	if (timeline.activities.length > 0 || timeline.entries?.length > 0) return true
 	return timeline.status === 'running'
 }
 
@@ -237,6 +237,74 @@ test('filterConversationItems keeps running timelines even when empty', () => {
 	]
 	const filtered = filterConversationItems(items)
 	assert.equal(filtered.length, 1)
+})
+
+function buildTimelineRenderEntries(timeline) {
+	const result = []
+	let activityRun = []
+	const flush = () => {
+		if (activityRun.length) {
+			result.push({ kind: 'activities', items: groupActivities(activityRun) })
+			activityRun = []
+		}
+	}
+	for (const entry of timeline.entries ?? []) {
+		if (entry.kind === 'commentary') {
+			flush()
+			result.push(entry)
+		} else {
+			const activity = timeline.activities.find((item) => item.id === entry.activityId)
+			if (activity) activityRun.push(activity)
+		}
+	}
+	flush()
+	return result
+}
+
+test('ordered timeline keeps commentary before, between, and after activity stages', () => {
+	const timeline = {
+		activities: [
+			{ id: 'read-1', type: 'read', status: 'completed', title: 'Read a.ts' },
+			{ id: 'edit-1', type: 'edit', status: 'completed', title: 'Edited a.ts' },
+		],
+		entries: [
+			{ id: 'c1', kind: 'commentary', content: 'Inspecting first.', createdAt: 1 },
+			{ id: 'a1', kind: 'activity', activityId: 'read-1', createdAt: 2 },
+			{ id: 'c2', kind: 'commentary', content: 'Now applying the change.', createdAt: 3 },
+			{ id: 'a2', kind: 'activity', activityId: 'edit-1', createdAt: 4 },
+		],
+	}
+	const rendered = buildTimelineRenderEntries(timeline)
+	assert.deepEqual(rendered.map((entry) => entry.kind), ['commentary', 'activities', 'commentary', 'activities'])
+	assert.equal(rendered[1].items[0].activity.title, 'Read a.ts')
+	assert.equal(rendered[3].items[0].activity.title, 'Edited a.ts')
+})
+
+test('activity grouping does not cross commentary boundaries', () => {
+	const timeline = {
+		activities: [
+			{ id: 'r1', type: 'read', status: 'completed', title: 'Read a.ts' },
+			{ id: 'r2', type: 'read', status: 'completed', title: 'Read b.ts' },
+		],
+		entries: [
+			{ id: 'a1', kind: 'activity', activityId: 'r1', createdAt: 1 },
+			{ id: 'c1', kind: 'commentary', content: 'Next stage.', createdAt: 2 },
+			{ id: 'a2', kind: 'activity', activityId: 'r2', createdAt: 3 },
+		],
+	}
+	const rendered = buildTimelineRenderEntries(timeline)
+	assert.equal(rendered.filter((entry) => entry.kind === 'activities').length, 2)
+	assert.equal(rendered[0].items[0].kind, 'single')
+	assert.equal(rendered[2].items[0].kind, 'single')
+})
+
+test('commentary-free timelines retain only genuine activity entries', () => {
+	const timeline = {
+		activities: [{ id: 'r1', type: 'read', status: 'completed', title: 'Read a.ts' }],
+		entries: [{ id: 'a1', kind: 'activity', activityId: 'r1', createdAt: 1 }],
+	}
+	const rendered = buildTimelineRenderEntries(timeline)
+	assert.equal(rendered.some((entry) => entry.kind === 'commentary'), false)
 })
 
 // ==========================================

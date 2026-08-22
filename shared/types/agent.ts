@@ -59,6 +59,10 @@ export type AgentActivityItem = {
 	toolName?: string
 }
 
+export type AgentTimelineEntry =
+	| { id: string; kind: 'commentary'; content: string; createdAt: number }
+	| { id: string; kind: 'activity'; activityId: string; createdAt: number }
+
 export type ActivityTimelineItem = {
 	id: string
 	kind: 'activity_timeline'
@@ -68,6 +72,7 @@ export type ActivityTimelineItem = {
 	completedAt?: number
 	durationMs?: number
 	activities: AgentActivityItem[]
+	entries?: AgentTimelineEntry[]
 	usage?: TokenUsage
 	tokensPerSecond?: number
 	timestamp?: string
@@ -204,6 +209,7 @@ export type PermissionRequest = {
 
 export type StreamEvent =
 	| { type: 'message_delta'; content: string }
+	| { type: 'commentary_delta'; content: string }
 	| {
 			type: 'turn_status'
 			status: 'running' | 'complete'

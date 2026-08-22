@@ -211,7 +211,7 @@ export class AgentRouterService {
 			turnResult.timeline.status = turnResult.failed ? 'error' : 'complete'
 			turnResult.timeline.completedAt = Date.now()
 			turnResult.timeline.durationMs = turnResult.timeline.completedAt - turnResult.timeline.startedAt
-			if (turnResult.timeline.activities.length > 0) {
+			if (turnResult.timeline.activities.length > 0 || Boolean(turnResult.timeline.entries?.length)) {
 				session.items.push(turnResult.timeline)
 			}
 		}
