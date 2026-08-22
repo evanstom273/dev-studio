@@ -247,14 +247,6 @@ export function useSpeechRecognition({
 			window.clearTimeout(restartTimeoutRef.current)
 			restartTimeoutRef.current = null
 		}
-		if (interimTextRef.current.trim()) {
-			const pending = interimTextRef.current.trim()
-			interimTextRef.current = ''
-			setInterimText('')
-			onResultRef.current?.(pending)
-		} else {
-			setInterimText('')
-		}
 		if (recognitionRef.current) {
 			try {
 				recognitionRef.current.stop()

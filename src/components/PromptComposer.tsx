@@ -88,13 +88,15 @@ export function PromptComposer({
 
 	const handleSpeechResult = useCallback(
 		(spokenChunk: string) => {
+			const chunk = spokenChunk.trim()
+			if (!chunk) return
 			const current = valueRef.current
 			let updated: string
 			if (!current) {
-				updated = spokenChunk
+				updated = chunk
 			} else {
 				const needsSpace = !current.endsWith(' ') && !current.endsWith('\n')
-				updated = `${current}${needsSpace ? ' ' : ''}${spokenChunk}`
+				updated = `${current}${needsSpace ? ' ' : ''}${chunk}`
 			}
 			valueRef.current = updated
 			onChange(updated)
