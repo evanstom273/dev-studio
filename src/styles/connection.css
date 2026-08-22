@@ -24,7 +24,7 @@
 
 .connection-banner--disconnected {
 	border-color: var(--status-modified);
-	background: rgba(234, 179, 8, 0.08);
+	background: var(--accent-gold-subtle);
 }
 
 .connection-banner__retry {

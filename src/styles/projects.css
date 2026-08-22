@@ -207,13 +207,13 @@
 }
 
 .hub-badge--private {
-	background: rgba(234, 179, 8, 0.15);
-	color: var(--status-modified);
+	background: var(--accent-gold-subtle);
+	color: var(--accent-gold);
 }
 
 .hub-badge--cache {
-	background: rgba(168, 85, 247, 0.15);
-	color: #c084fc;
+	background: var(--accent-subtle);
+	color: var(--accent);
 }
 
 /* Recents Project List */

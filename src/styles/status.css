@@ -186,7 +186,7 @@
 }
 
 .status-card__badge--live {
-	background: rgba(56, 189, 248, 0.12);
+	background: var(--accent-subtle);
 	color: var(--accent);
 	border: 1px solid var(--accent-dim);
 }
@@ -198,9 +198,9 @@
 }
 
 .status-card__badge--warn {
-	background: rgba(234, 179, 8, 0.12);
-	color: #eab308;
-	border: 1px solid rgba(234, 179, 8, 0.3);
+	background: var(--accent-gold-subtle);
+	color: var(--accent-gold);
+	border: 1px solid rgba(198, 166, 91, 0.3);
 }
 
 .status-card__badge--error {
@@ -277,11 +277,11 @@
 }
 
 .status-progress-bar__fill--cyan {
-	background: linear-gradient(90deg, #0284c7, #38bdf8);
+	background: linear-gradient(90deg, #7362b0, #8b7ac8);
 }
 
 .status-progress-bar__fill--amber {
-	background: linear-gradient(90deg, #d97706, #f59e0b);
+	background: linear-gradient(90deg, #ad8f45, #c6a65b);
 }
 
 .status-progress-bar__fill--red {
@@ -460,6 +460,6 @@
 .status-model-chip--active {
 	border-color: var(--accent);
 	color: var(--accent);
-	background: rgba(56, 189, 248, 0.08);
+	background: var(--accent-subtle);
 	font-weight: 600;
 }

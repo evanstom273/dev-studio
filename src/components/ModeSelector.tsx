@@ -17,7 +17,7 @@ export function ModeSelector({ mode, onChange, disabled }: ModeSelectorProps) {
 					type="button"
 					role="radio"
 					aria-checked={mode === m.id}
-					className={`mode-selector__btn${mode === m.id ? ' is-active' : ''}`}
+					className={`mode-selector__btn mode-selector__btn--${m.id}${mode === m.id ? ' is-active' : ''}`}
 					onClick={() => onChange(m.id)}
 					disabled={disabled}
 					title={m.description}
