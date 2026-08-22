@@ -137,10 +137,33 @@
 	min-width: 0;
 }
 
+.tools-menu__item-label-row {
+	display: flex;
+	align-items: center;
+	gap: var(--space-xs);
+}
+
 .tools-menu__item-label {
 	font-size: 14px;
 	font-weight: 500;
 	color: var(--text-primary);
+}
+
+.tools-menu__badge {
+	font-size: 10px;
+	font-weight: 700;
+	padding: 1px 6px;
+	border-radius: var(--radius-full);
+	background: var(--accent-subtle);
+	color: var(--accent);
+	border: 1px solid var(--accent);
+	line-height: 1.2;
+}
+
+.tools-menu__badge--error {
+	background: rgba(239, 68, 68, 0.15);
+	color: #ef4444;
+	border-color: rgba(239, 68, 68, 0.4);
 }
 
 .tools-menu__item-desc {

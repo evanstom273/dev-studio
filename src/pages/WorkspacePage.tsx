@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Project, ToolId, WorkspaceView } from '@shared/types/project'
+import type { ProblemSummary } from '@shared/types/problem'
 import {
 	IconArtifact,
 	IconChanges,
@@ -7,6 +8,9 @@ import {
 	IconCode,
 	IconDots,
 	IconFiles,
+	IconPlan,
+	IconProblem,
+	IconProcess,
 	IconRepo,
 	IconStatus,
 	IconTerminal,
@@ -16,6 +20,7 @@ import { ToolsMenu } from '../components/ToolsMenu'
 import { KeyboardViewportProvider, useKeyboardViewport } from '../hooks/KeyboardViewportContext'
 import { useWideLayout } from '../hooks/useMediaQuery'
 import { gitApi } from '../services/gitApi'
+import { problemApi } from '../services/problemApi'
 import { AgentView, type AgentActions } from './AgentView'
 import { ArtifactsView } from './ArtifactsView'
 import { ChangesView } from './ChangesView'
@@ -24,6 +29,9 @@ import { FilesView } from './FilesView'
 import { RepoView } from './RepoView'
 import { StatusView } from './StatusView'
 import { TerminalView } from './TerminalView'
+import { ProcessesView } from './ProcessesView'
+import { ProblemsView } from './ProblemsView'
+import { PlansView } from './PlansView'
 import '../styles/layout.css'
 
 type WorkspacePageProps = {
@@ -33,7 +41,17 @@ type WorkspacePageProps = {
 	onBack: () => void
 }
 
-type RightTool = 'changes' | 'files' | 'repo' | 'status' | 'editor' | 'terminal' | 'artifacts'
+type RightTool =
+	| 'changes'
+	| 'files'
+	| 'repo'
+	| 'status'
+	| 'editor'
+	| 'terminal'
+	| 'artifacts'
+	| 'processes'
+	| 'problems'
+	| 'plans'
 
 const PRIMARY_RIGHT_TOOLS: { id: 'changes' | 'files' | 'repo' | 'status'; label: string; Icon: typeof IconChanges }[] = [
 	{ id: 'changes', label: 'Changes', Icon: IconChanges },
@@ -53,6 +71,7 @@ function WorkspacePageContent({
 	const [rightTool, setRightTool] = useState<RightTool>('changes')
 	const [changedCount, setChangedCount] = useState<number>(0)
 	const [currentBranch, setCurrentBranch] = useState<string>('main')
+	const [problemsSummary, setProblemsSummary] = useState<ProblemSummary | null>(null)
 	const [splitPercent, setSplitPercent] = useState<number>(50)
 	const [agentActions, setAgentActions] = useState<AgentActions | null>(null)
 	const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
@@ -62,19 +81,31 @@ function WorkspacePageContent({
 	const isDraggingRef = useRef(false)
 	const containerRef = useRef<HTMLDivElement>(null)
 
-	// Fetch git status periodically or on mount to keep badge updated
+	// Fetch git status and problems summary periodically or on mount to keep badge updated
 	const refreshStatus = useCallback(async () => {
 		try {
-			const status = await gitApi.status(project.id)
-			setChangedCount(status.changed.length)
-			if (status.branch) setCurrentBranch(status.branch)
+			const [status, summary] = await Promise.all([
+				gitApi.status(project.id).catch(() => null),
+				problemApi.getSummary(project.id).catch(() => null),
+			])
+			if (status) {
+				setChangedCount(status.changed.length)
+				if (status.branch) setCurrentBranch(status.branch)
+			}
+			if (summary) {
+				setProblemsSummary(summary)
+			}
 		} catch {
-			// ignore git status error
+			// ignore status error
 		}
 	}, [project.id])
 
 	useEffect(() => {
 		void refreshStatus()
+		const interval = setInterval(() => {
+			void refreshStatus()
+		}, 15000)
+		return () => clearInterval(interval)
 	}, [refreshStatus])
 
 	// Dragging logic for two-pane resizer
@@ -106,12 +137,36 @@ function WorkspacePageContent({
 		setSplitPercent(50)
 	}
 
-	const handleOpenInEditor = (filePath: string) => {
+	const handleOpenInEditor = (filePath: string, _line?: number) => {
 		setEditorFilePath(filePath)
 		if (isWide) {
 			setRightTool('editor')
 		} else {
 			onNavigate('editor')
+		}
+	}
+
+	const handleOpenInTerminal = (_sessionId?: string) => {
+		if (isWide) {
+			setRightTool('terminal')
+		} else {
+			onNavigate('terminal')
+		}
+	}
+
+	const handleOpenArtifact = (_artifactId?: string) => {
+		if (isWide) {
+			setRightTool('artifacts')
+		} else {
+			onNavigate('artifacts')
+		}
+	}
+
+	const handleOpenProblem = (_problemId?: string) => {
+		if (isWide) {
+			setRightTool('problems')
+		} else {
+			onNavigate('problems')
 		}
 	}
 
@@ -127,7 +182,10 @@ function WorkspacePageContent({
 		}
 	}
 
-	const isToolActiveMobile = ['editor', 'terminal', 'artifacts'].includes(activeView)
+	const isExtendedTool = (tool: string): tool is ToolId =>
+		['editor', 'terminal', 'artifacts', 'processes', 'problems', 'plans'].includes(tool)
+
+	const isToolActiveMobile = isExtendedTool(activeView)
 	const hideChrome = keyboardOpen && activeView === 'agent' && !isWide
 
 	return (
@@ -215,6 +273,12 @@ function WorkspacePageContent({
 								<IconTerminal className="workspace-mobile-nav__icon" />
 							) : activeView === 'artifacts' ? (
 								<IconArtifact className="workspace-mobile-nav__icon" />
+							) : activeView === 'processes' ? (
+								<IconProcess className="workspace-mobile-nav__icon" />
+							) : activeView === 'problems' ? (
+								<IconProblem className="workspace-mobile-nav__icon" />
+							) : activeView === 'plans' ? (
+								<IconPlan className="workspace-mobile-nav__icon" />
 							) : (
 								<IconDots className="workspace-mobile-nav__icon" />
 							)}
@@ -225,8 +289,21 @@ function WorkspacePageContent({
 									? 'Term'
 									: activeView === 'artifacts'
 									? 'Artifacts'
+									: activeView === 'processes'
+									? 'Servers'
+									: activeView === 'problems'
+									? 'Problems'
+									: activeView === 'plans'
+									? 'Plans'
 									: 'Tools'}
 							</span>
+							{!isToolActiveMobile && problemsSummary && problemsSummary.active > 0 && (
+								<span
+									className={`workspace-mobile-nav__badge${problemsSummary.errors > 0 ? ' workspace-mobile-nav__badge--error' : ''}`}
+								>
+									{problemsSummary.active}
+								</span>
+							)}
 						</button>
 					</nav>
 				)}
@@ -329,13 +406,54 @@ function WorkspacePageContent({
 												<span>Artifacts</span>
 											</button>
 										)}
+										{rightTool === 'processes' && (
+											<button
+												type="button"
+												role="tab"
+												aria-selected={true}
+												className="tool-switcher-tab is-active"
+												onClick={() => setRightTool('processes')}
+											>
+												<IconProcess className="tool-switcher-tab__icon" />
+												<span>Servers</span>
+											</button>
+										)}
+										{rightTool === 'problems' && (
+											<button
+												type="button"
+												role="tab"
+												aria-selected={true}
+												className="tool-switcher-tab is-active"
+												onClick={() => setRightTool('problems')}
+											>
+												<IconProblem className="tool-switcher-tab__icon" />
+												<span>Problems</span>
+												{problemsSummary && problemsSummary.active > 0 && (
+													<span className="tool-switcher-tab__badge">
+														{problemsSummary.active}
+													</span>
+												)}
+											</button>
+										)}
+										{rightTool === 'plans' && (
+											<button
+												type="button"
+												role="tab"
+												aria-selected={true}
+												className="tool-switcher-tab is-active"
+												onClick={() => setRightTool('plans')}
+											>
+												<IconPlan className="tool-switcher-tab__icon" />
+												<span>Plans</span>
+											</button>
+										)}
 
 										{/* Tools '…' Popup Trigger */}
 										<button
 											type="button"
 											className="tool-switcher-tab tool-switcher-tab--more"
 											onClick={() => setToolsMenuOpen(true)}
-											title="More tools (Editor, Terminal, Artifacts)"
+											title="More tools"
 											aria-label="More tools"
 										>
 											<IconDots className="tool-switcher-tab__icon" />
@@ -369,6 +487,34 @@ function WorkspacePageContent({
 											onSendToChat={handleSendToChat}
 											onNavigateToChat={() => onNavigate('agent')}
 											onOpenInEditor={handleOpenInEditor}
+										/>
+									)}
+									{rightTool === 'processes' && (
+										<ProcessesView
+											project={project}
+											onOpenInTerminal={handleOpenInTerminal}
+											onNavigateToTerminal={() => setRightTool('terminal')}
+										/>
+									)}
+									{rightTool === 'problems' && (
+										<ProblemsView
+											project={project}
+											onOpenInEditor={handleOpenInEditor}
+											onSendToChat={handleSendToChat}
+											onNavigateToChat={() => onNavigate('agent')}
+											onNavigateToChanges={() => setRightTool('changes')}
+											onNavigateToRepo={() => setRightTool('repo')}
+										/>
+									)}
+									{rightTool === 'plans' && (
+										<PlansView
+											project={project}
+											onSendToChat={handleSendToChat}
+											onNavigateToChat={() => onNavigate('agent')}
+											onOpenInEditor={handleOpenInEditor}
+											onOpenInTerminal={() => setRightTool('terminal')}
+											onOpenArtifact={handleOpenArtifact}
+											onOpenProblem={handleOpenProblem}
 										/>
 									)}
 								</div>
@@ -411,6 +557,34 @@ function WorkspacePageContent({
 									onOpenInEditor={handleOpenInEditor}
 								/>
 							)}
+							{activeView === 'processes' && (
+								<ProcessesView
+									project={project}
+									onOpenInTerminal={handleOpenInTerminal}
+									onNavigateToTerminal={() => onNavigate('terminal')}
+								/>
+							)}
+							{activeView === 'problems' && (
+								<ProblemsView
+									project={project}
+									onOpenInEditor={handleOpenInEditor}
+									onSendToChat={handleSendToChat}
+									onNavigateToChat={() => onNavigate('agent')}
+									onNavigateToChanges={() => onNavigate('changes')}
+									onNavigateToRepo={() => onNavigate('repo')}
+								/>
+							)}
+							{activeView === 'plans' && (
+								<PlansView
+									project={project}
+									onSendToChat={handleSendToChat}
+									onNavigateToChat={() => onNavigate('agent')}
+									onOpenInEditor={handleOpenInEditor}
+									onOpenInTerminal={() => onNavigate('terminal')}
+									onOpenArtifact={handleOpenArtifact}
+									onOpenProblem={handleOpenProblem}
+								/>
+							)}
 						</div>
 					)}
 				</div>
@@ -422,13 +596,15 @@ function WorkspacePageContent({
 					onSelectTool={handleSelectTool}
 					activeTool={
 						isWide
-							? ['editor', 'terminal', 'artifacts'].includes(rightTool)
-								? (rightTool as ToolId)
+							? isExtendedTool(rightTool)
+								? rightTool
 								: null
-							: ['editor', 'terminal', 'artifacts'].includes(activeView)
-							? (activeView as ToolId)
+							: isExtendedTool(activeView)
+							? activeView
 							: null
 					}
+					problemsCount={problemsSummary?.active}
+					problemsErrors={problemsSummary?.errors}
 				/>
 			</div>
 		</div>

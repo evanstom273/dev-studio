@@ -12,10 +12,16 @@ import { createGitHubRouter } from './routes/github.js'
 import { createSystemRouter } from './routes/system.js'
 import { createArtifactsRouter } from './routes/artifacts.js'
 import { createTerminalRouter, setupTerminalWebSocket } from './routes/terminal.js'
+import { createProcessesRouter } from './routes/processes.js'
+import { createProblemsRouter } from './routes/problems.js'
+import { createPlansRouter } from './routes/plans.js'
 import { ProjectService } from './services/projectService.js'
 import { AgyService, PermissionQueue } from './services/agyService.js'
 import { ArtifactService } from './services/artifactService.js'
 import { TerminalSessionManager } from './services/terminalService.js'
+import { ProcessService } from './services/processService.js'
+import { ProblemService } from './services/problemService.js'
+import { PlanService } from './services/planService.js'
 import { SessionStore } from './store.js'
 
 const config = loadConfig()
@@ -26,6 +32,9 @@ const sessions = new SessionStore(config)
 const permissions = new PermissionQueue()
 const artifacts = new ArtifactService(config)
 const terminal = new TerminalSessionManager()
+const processes = new ProcessService(config, terminal)
+const problems = new ProblemService(config)
+const plans = new PlanService(config)
 const agy = new AgyService(config, sessions, permissions)
 
 app.use(
@@ -49,6 +58,9 @@ app.use('/api/files', createFilesRouter(projects))
 app.use('/api/github', createGitHubRouter(projects, config))
 app.use('/api/artifacts', createArtifactsRouter(projects, artifacts))
 app.use('/api/terminal', createTerminalRouter(projects, terminal))
+app.use('/api/processes', createProcessesRouter(projects, processes, config))
+app.use('/api/problems', createProblemsRouter(projects, problems, config))
+app.use('/api/plans', createPlansRouter(plans, artifacts))
 app.use('/api/system', createSystemRouter(config, agy, sessions))
 
 app.use(errorHandler)
@@ -57,6 +69,8 @@ async function main(): Promise<void> {
 	await projects.init()
 	await sessions.init()
 	await artifacts.init()
+	await problems.init()
+	await plans.init()
 	await agy.init()
 
 	const server = createServer(app)
