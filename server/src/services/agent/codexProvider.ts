@@ -50,9 +50,10 @@ export function buildCodexExecArgs(options: {
 		args.push('exec', 'resume', options.threadId!, '--json', '--skip-git-repo-check')
 	} else {
 		args.push('exec', '--json', '--skip-git-repo-check')
-		if (options.autoApprove) {
-			args.push('--approve-for-me')
-		}
+	}
+
+	if (options.autoApprove) {
+		args.push('--approve-for-me')
 	}
 
 	if (options.model) {
@@ -64,7 +65,7 @@ export function buildCodexExecArgs(options: {
 		args.push('-c', `model_reasoning_effort="${options.reasoningEffort}"`)
 	}
 
-	if (options.speed) {
+	if (options.speed && options.speed !== 'default') {
 		args.push('-c', `service_tier="${options.speed}"`)
 	}
 
@@ -609,6 +610,16 @@ export class CodexProvider implements AgentProvider {
 			}
 
 			let buffer = ''
+			let stderrLog = ''
+			let errorEmitted = false
+
+			const emitError = (message: string) => {
+				const trimmed = message.trim()
+				if (!trimmed || errorEmitted) return
+				errorEmitted = true
+				failed = true
+				onEvent({ type: 'error', message: trimmed.slice(0, 500) })
+			}
 
 			const emitCommentary = (text: string) => {
 				const trimmed = text.trim()
@@ -741,8 +752,18 @@ export class CodexProvider implements AgentProvider {
 				}
 			})
 
-			child.stderr.on('data', (_chunk: Buffer) => {
-				// Codex logs progress to stderr; avoid treating benign auth mentions as fatal errors.
+			child.stderr.on('data', (chunk: Buffer) => {
+				const text = chunk.toString()
+				stderrLog += text
+				const line = text.trim()
+				if (!line) return
+				if (
+					/unknown option|unrecognized option|invalid value|not logged in|authentication required|panic:|fatal error/i.test(
+						line,
+					)
+				) {
+					emitError(line)
+				}
 			})
 
 			child.on('close', (code) => {
@@ -753,6 +774,15 @@ export class CodexProvider implements AgentProvider {
 
 				if (code !== 0 && !hasTurnOutput() && !activeProcess.stopped) {
 					failed = true
+					if (!errorEmitted && stderrLog.trim()) {
+						const errLine =
+							stderrLog
+								.split('\n')
+								.map((l) => l.trim())
+								.find((l) => l && /error|failed|invalid|unknown|not logged in/i.test(l)) ||
+							stderrLog.trim()
+						emitError(errLine)
+					}
 				}
 
 				timeline.status = failed ? 'error' : 'complete'

@@ -381,6 +381,10 @@
 	gap: var(--space-xs);
 }
 
+.folder-browse__toolbar--top {
+	margin-bottom: var(--space-sm);
+}
+
 .folder-browse__list {
 	display: flex;
 	flex-direction: column;

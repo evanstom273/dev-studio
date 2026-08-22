@@ -9,9 +9,10 @@ function buildCodexExecArgs(options) {
 		args.push('exec', 'resume', options.threadId, '--json', '--skip-git-repo-check')
 	} else {
 		args.push('exec', '--json', '--skip-git-repo-check')
-		if (options.autoApprove) {
-			args.push('--approve-for-me')
-		}
+	}
+
+	if (options.autoApprove) {
+		args.push('--approve-for-me')
 	}
 
 	if (options.model) {
@@ -23,7 +24,7 @@ function buildCodexExecArgs(options) {
 		args.push('-c', `model_reasoning_effort="${options.reasoningEffort}"`)
 	}
 
-	if (options.speed) {
+	if (options.speed && options.speed !== 'default') {
 		args.push('-c', `service_tier="${options.speed}"`)
 	}
 
@@ -419,6 +420,36 @@ test('buildCodexExecArgs: auto-approve omitted when false', () => {
 
 	assert.ok(!args.includes('--approve-for-me'))
 	assert.ok(!args.includes('--ask-for-approval'))
+})
+
+test('buildCodexExecArgs: auto-approve adds --approve-for-me on resumed session too', () => {
+	const args = buildCodexExecArgs({
+		threadId: 'thread-123',
+		mode: 'agent',
+		autoApprove: true,
+	})
+
+	assert.ok(args.includes('--approve-for-me'))
+})
+
+test('buildCodexExecArgs: default speed tier is omitted from CLI args', () => {
+	const args = buildCodexExecArgs({
+		threadId: null,
+		mode: 'agent',
+		speed: 'default',
+	})
+
+	assert.ok(!args.some((arg) => arg.includes('service_tier')))
+})
+
+test('buildCodexExecArgs: fast speed tier is passed to CLI', () => {
+	const args = buildCodexExecArgs({
+		threadId: null,
+		mode: 'agent',
+		speed: 'fast',
+	})
+
+	assert.ok(args.includes('service_tier="fast"'))
 })
 
 function classifyCommand(command) {

@@ -157,15 +157,26 @@ export class AgentRouterService {
 
 		this.activeTurnProvider.set(projectId, targetProvider.id)
 
+		const effectiveModel = model || session.model
+		const effectiveReasoning = options?.reasoningEffort || session.reasoningEffort
+		const effectiveSpeed = options?.speed || session.speed || 'default'
+
+		const canResumeCodexThread =
+			!isProviderSwitch &&
+			Boolean(session.codexThreadId) &&
+			session.codexThreadModel === effectiveModel &&
+			(session.codexThreadReasoning ?? '') === (effectiveReasoning ?? '') &&
+			(session.codexThreadSpeed ?? 'default') === effectiveSpeed
+
 		const context: SessionTurnContext = {
 			sessionItems: session.items,
 			recentMessagesSummary: isProviderSwitch ? this.extractConversationSummary(session.items) : undefined,
 			isProviderSwitch,
 			previousProvider,
 			conversationId: session.conversationId,
-			codexThreadId: session.codexThreadId,
-			reasoningEffort: options?.reasoningEffort || session.reasoningEffort,
-			speed: options?.speed || session.speed,
+			codexThreadId: canResumeCodexThread ? session.codexThreadId : null,
+			reasoningEffort: effectiveReasoning,
+			speed: effectiveSpeed,
 		}
 
 		onEvent({ type: 'turn_status', status: 'running', label: 'Thinking…' })
@@ -198,12 +209,21 @@ export class AgentRouterService {
 			if (targetProvider.id === 'antigravity') {
 				session.conversationId = null
 			}
+			if (targetProvider.id === 'codex') {
+				session.codexThreadId = null
+				session.codexThreadModel = null
+				session.codexThreadReasoning = null
+				session.codexThreadSpeed = null
+			}
 		} else {
 			if (turnResult.conversationId) {
 				session.conversationId = turnResult.conversationId
 			}
 			if (turnResult.codexThreadId) {
 				session.codexThreadId = turnResult.codexThreadId
+				session.codexThreadModel = effectiveModel ?? null
+				session.codexThreadReasoning = effectiveReasoning ?? null
+				session.codexThreadSpeed = effectiveSpeed
 			}
 		}
 

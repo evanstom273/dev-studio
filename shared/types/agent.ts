@@ -156,6 +156,9 @@ export type AgentSession = {
 	projectId: string
 	conversationId: string | null
 	codexThreadId?: string | null
+	codexThreadModel?: string | null
+	codexThreadReasoning?: string | null
+	codexThreadSpeed?: string | null
 	activeProvider?: AgentProviderId
 	mode: AgentMode
 	model?: string

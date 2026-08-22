@@ -231,6 +231,9 @@ export function createAgentRouter(
 			const session = await sessions.getOrCreate(projectId)
 			session.conversationId = null
 			session.codexThreadId = null
+			session.codexThreadModel = null
+			session.codexThreadReasoning = null
+			session.codexThreadSpeed = null
 			session.items = []
 			session.updatedAt = new Date().toISOString()
 			await sessions.save(session)

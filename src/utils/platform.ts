@@ -13,7 +13,17 @@ export function isLocalBackendUrl(url: string): boolean {
 	}
 }
 
-/** True when the web UI can open folders on the connected laptop filesystem. */
-export function canAccessLocalFilesystem(backendUrl: string): boolean {
-	return isTauriApp() || isLocalBackendUrl(backendUrl)
+export function isLocalWebClient(): boolean {
+	if (typeof window === 'undefined') return false
+	const host = window.location.hostname.toLowerCase()
+	return host === 'localhost' || host === '127.0.0.1' || host === '[::1]'
+}
+
+export function supportsNativeFolderPicker(): boolean {
+	return typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function'
+}
+
+/** Open Local Folder uses server-side browse — available whenever the laptop backend is connected. */
+export function canOpenLocalFolder(connected: boolean, backendUrl: string): boolean {
+	return connected && Boolean(backendUrl.trim())
 }
