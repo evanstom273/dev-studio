@@ -85,16 +85,20 @@ export function PromptComposer({
 
 	const valueRef = useRef(value)
 	valueRef.current = value
+	const dictationBaseRef = useRef('')
 
 	const handleSpeechResult = useCallback(
 		(spokenChunk: string) => {
-			const current = valueRef.current
-			if (!current) {
-				onChange(spokenChunk)
-			} else {
-				const needsSpace = !current.endsWith(' ') && !current.endsWith('\n')
-				onChange(`${current}${needsSpace ? ' ' : ''}${spokenChunk}`)
-			}
+			const trimmed = spokenChunk.trim()
+			if (!trimmed) return
+
+			const base = dictationBaseRef.current
+			if (base.endsWith(trimmed)) return
+
+			const needsSpace = base.length > 0 && !/\s$/.test(base)
+			const next = `${base}${needsSpace ? ' ' : ''}${trimmed}`
+			dictationBaseRef.current = next
+			onChange(next)
 		},
 		[onChange],
 	)
@@ -106,6 +110,9 @@ export function PromptComposer({
 		toggleListening,
 		stopListening,
 	} = useSpeechRecognition({
+		onStart: () => {
+			dictationBaseRef.current = valueRef.current
+		},
 		onResult: handleSpeechResult,
 		onError: (err) => {
 			setSpeechError(err)

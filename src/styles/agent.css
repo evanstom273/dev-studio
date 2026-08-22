@@ -314,15 +314,17 @@
 
 .conversation {
 	flex: 1;
+	min-height: 0;
 	overflow-y: auto;
 	overflow-x: hidden;
-	padding: 8px 10px;
+	padding: 8px 10px 20px;
 	padding-left: calc(10px + var(--safe-left));
 	padding-right: calc(10px + var(--safe-right));
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 	-webkit-overflow-scrolling: touch;
+	overscroll-behavior-y: contain;
 }
 
 /* Messages */
@@ -425,10 +427,20 @@
 	background: var(--bg-surface);
 	border: 1px solid var(--border-subtle);
 	border-radius: var(--radius-sm);
-	overflow: hidden;
 	margin: 2px 0 6px;
 	transition: border-color 0.15s, background 0.15s;
 	align-self: stretch;
+	flex-shrink: 0;
+}
+
+.activity-timeline--collapsed {
+	background: var(--bg-surface);
+	overflow: hidden;
+}
+
+.activity-timeline--expanded {
+	overflow: visible;
+	min-height: 0;
 }
 
 .activity-timeline--running {
@@ -437,10 +449,6 @@
 
 .activity-timeline--running.activity-timeline--expanded {
 	background: rgba(139, 122, 200, 0.04);
-}
-
-.activity-timeline--collapsed {
-	background: var(--bg-surface);
 }
 
 .activity-timeline--collapsed.activity-timeline--running {
@@ -568,6 +576,12 @@
 	padding: 4px 6px 6px;
 	border-top: 1px solid var(--border-subtle);
 	background: var(--bg-elevated);
+	max-height: min(320px, 42vh);
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-gutter: stable;
 }
 
 .activity-timeline__empty-live {
@@ -809,6 +823,11 @@
 	border-left: 2px solid var(--border-subtle);
 	margin: 2px 4px 4px;
 	border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+	max-height: 160px;
+	overflow-y: auto;
+	overflow-x: hidden;
+	overscroll-behavior: contain;
+	-webkit-overflow-scrolling: touch;
 }
 
 .activity-timeline-row__nested-item {

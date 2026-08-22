@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import type {
 	ActivityTimelineItem,
 	AgentActivityDetail,
@@ -314,6 +314,25 @@ export function ActivityTimeline({
 		[timeline.activities],
 	)
 
+	const bodyRef = useRef<HTMLDivElement>(null)
+	const bodyNearBottomRef = useRef(true)
+
+	const handleBodyScroll = () => {
+		if (!bodyRef.current) return
+		const { scrollTop, scrollHeight, clientHeight } = bodyRef.current
+		bodyNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 24
+	}
+
+	useEffect(() => {
+		if (!expanded || !bodyRef.current) return
+		if (isLive) {
+			bodyNearBottomRef.current = true
+		}
+		if (bodyNearBottomRef.current) {
+			bodyRef.current.scrollTop = bodyRef.current.scrollHeight
+		}
+	}, [grouped, expanded, isLive, timeline.activities.length])
+
 	const headerLabel = formatThoughtHeader(
 		timeline.status,
 		elapsedMs > 0 ? elapsedMs : undefined,
@@ -362,7 +381,11 @@ export function ActivityTimeline({
 
 			{/* Level 1: Expanded Body */}
 			{expanded && (
-				<div className="activity-timeline__body">
+				<div
+					ref={bodyRef}
+					className="activity-timeline__body"
+					onScroll={handleBodyScroll}
+				>
 					{grouped.length === 0 && isRunning && (
 						<div className="activity-timeline__empty-live">
 							<span className="activity-timeline-row__pulse-dot" />

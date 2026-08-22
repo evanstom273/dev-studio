@@ -61,6 +61,7 @@ export type UseSpeechRecognitionOptions = {
 	onResult?: (finalText: string) => void
 	onInterim?: (interimText: string) => void
 	onError?: (errorMessage: string) => void
+	onStart?: () => void
 	lang?: string
 	continuous?: boolean
 }
@@ -69,6 +70,7 @@ export function useSpeechRecognition({
 	onResult,
 	onInterim,
 	onError,
+	onStart,
 	lang,
 	continuous = true,
 }: UseSpeechRecognitionOptions = {}) {
@@ -78,44 +80,51 @@ export function useSpeechRecognition({
 	const recognitionRef = useRef<ISpeechRecognition | null>(null)
 	const shouldBeListeningRef = useRef(false)
 	const restartTimeoutRef = useRef<number | null>(null)
+	const processedResultsRef = useRef(0)
 
 	const isSupported = typeof window !== 'undefined' && Boolean(getSpeechRecognitionConstructor())
 
-	// Store callbacks in refs to avoid re-binding
 	const onResultRef = useRef(onResult)
 	onResultRef.current = onResult
 	const onInterimRef = useRef(onInterim)
 	onInterimRef.current = onInterim
 	const onErrorRef = useRef(onError)
 	onErrorRef.current = onError
+	const onStartRef = useRef(onStart)
+	onStartRef.current = onStart
 
-	const cleanup = useCallback(() => {
+	const clearRestartTimeout = useCallback(() => {
 		if (restartTimeoutRef.current) {
 			window.clearTimeout(restartTimeoutRef.current)
 			restartTimeoutRef.current = null
 		}
-		if (recognitionRef.current) {
-			try {
-				recognitionRef.current.onresult = null
-				recognitionRef.current.onerror = null
-				recognitionRef.current.onend = null
-				recognitionRef.current.onstart = null
-				recognitionRef.current.abort()
-			} catch {
-				// ignore abort error
-			}
-			recognitionRef.current = null
+	}, [])
+
+	const disposeRecognition = useCallback(() => {
+		if (!recognitionRef.current) return
+		try {
+			recognitionRef.current.onresult = null
+			recognitionRef.current.onerror = null
+			recognitionRef.current.onend = null
+			recognitionRef.current.onstart = null
+			recognitionRef.current.abort()
+		} catch {
+			// ignore abort error
 		}
+		recognitionRef.current = null
+	}, [])
+
+	const cleanup = useCallback(() => {
+		clearRestartTimeout()
+		disposeRecognition()
+		processedResultsRef.current = 0
 		setIsListening(false)
 		setInterimText('')
-	}, [])
+	}, [clearRestartTimeout, disposeRecognition])
 
 	const stopListening = useCallback(() => {
 		shouldBeListeningRef.current = false
-		if (restartTimeoutRef.current) {
-			window.clearTimeout(restartTimeoutRef.current)
-			restartTimeoutRef.current = null
-		}
+		clearRestartTimeout()
 		if (recognitionRef.current) {
 			try {
 				recognitionRef.current.stop()
@@ -123,11 +132,13 @@ export function useSpeechRecognition({
 				// ignore stop error
 			}
 		}
+		disposeRecognition()
+		processedResultsRef.current = 0
 		setIsListening(false)
 		setInterimText('')
-	}, [])
+	}, [clearRestartTimeout, disposeRecognition])
 
-	const startListening = useCallback(() => {
+	const launchRecognition = useCallback(() => {
 		const Constructor = getSpeechRecognitionConstructor()
 		if (!Constructor) {
 			const msg = 'Speech recognition is not supported in this browser.'
@@ -136,10 +147,8 @@ export function useSpeechRecognition({
 			return
 		}
 
-		cleanup()
-		setError(null)
-		setInterimText('')
-		shouldBeListeningRef.current = true
+		disposeRecognition()
+		processedResultsRef.current = 0
 
 		try {
 			const recognition = new Constructor()
@@ -150,24 +159,28 @@ export function useSpeechRecognition({
 
 			recognition.onstart = () => {
 				setIsListening(true)
+				onStartRef.current?.()
 			}
 
 			recognition.onresult = (event: SpeechRecognitionEvent) => {
 				let finalChunk = ''
 				let currentInterim = ''
+				const startAt = Math.max(event.resultIndex, processedResultsRef.current)
 
-				for (let i = event.resultIndex; i < event.results.length; i++) {
+				for (let i = startAt; i < event.results.length; i++) {
 					const res = event.results[i]
 					const text = res[0]?.transcript || ''
 					if (res.isFinal) {
 						finalChunk += text
+						processedResultsRef.current = i + 1
 					} else {
 						currentInterim += text
 					}
 				}
 
-				if (finalChunk.trim()) {
-					onResultRef.current?.(finalChunk.trim())
+				const trimmedFinal = finalChunk.trim()
+				if (trimmedFinal) {
+					onResultRef.current?.(trimmedFinal)
 				}
 
 				setInterimText(currentInterim)
@@ -181,7 +194,6 @@ export function useSpeechRecognition({
 					shouldBeListeningRef.current = false
 					setIsListening(false)
 				} else if (event.error === 'no-speech') {
-					// No speech detected, keep listening if user intended
 					return
 				} else if (event.error === 'network') {
 					userMsg = 'Speech recognition network error. Please check your connection.'
@@ -201,21 +213,18 @@ export function useSpeechRecognition({
 
 			recognition.onend = () => {
 				setInterimText('')
-				// If user still wants to listen (e.g. browser auto-stopped on mobile), auto-restart
+				disposeRecognition()
+
 				if (shouldBeListeningRef.current) {
 					restartTimeoutRef.current = window.setTimeout(() => {
 						if (shouldBeListeningRef.current) {
-							try {
-								recognition.start()
-							} catch {
-								setIsListening(false)
-								shouldBeListeningRef.current = false
-							}
+							launchRecognition()
 						}
-					}, 200)
-				} else {
-					setIsListening(false)
+					}, 250)
+					return
 				}
+
+				setIsListening(false)
 			}
 
 			recognitionRef.current = recognition
@@ -227,10 +236,27 @@ export function useSpeechRecognition({
 			setIsListening(false)
 			shouldBeListeningRef.current = false
 		}
-	}, [cleanup, continuous, lang])
+	}, [continuous, disposeRecognition, lang])
+
+	const startListening = useCallback(() => {
+		if (!getSpeechRecognitionConstructor()) {
+			const msg = 'Speech recognition is not supported in this browser.'
+			setError(msg)
+			onErrorRef.current?.(msg)
+			return
+		}
+
+		clearRestartTimeout()
+		disposeRecognition()
+		setError(null)
+		setInterimText('')
+		processedResultsRef.current = 0
+		shouldBeListeningRef.current = true
+		launchRecognition()
+	}, [clearRestartTimeout, disposeRecognition, launchRecognition])
 
 	const toggleListening = useCallback(() => {
-		if (isListening) {
+		if (isListening || shouldBeListeningRef.current) {
 			stopListening()
 		} else {
 			startListening()
@@ -239,6 +265,7 @@ export function useSpeechRecognition({
 
 	useEffect(() => {
 		return () => {
+			shouldBeListeningRef.current = false
 			cleanup()
 		}
 	}, [cleanup])
