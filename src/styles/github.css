@@ -122,11 +122,11 @@
 }
 
 .gh-badge--open { background: var(--accent-subtle); color: var(--accent); }
-.gh-badge--merged { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
-.gh-badge--closed { background: rgba(98, 101, 115, 0.2); color: var(--text-muted); }
-.gh-badge--draft { background: rgba(234, 179, 8, 0.15); color: var(--status-modified); }
+.gh-badge--merged { background: var(--accent-subtle); color: var(--accent); }
+.gh-badge--closed { background: rgba(99, 97, 109, 0.2); color: var(--text-muted); }
+.gh-badge--draft { background: var(--accent-gold-subtle); color: var(--accent-gold); }
 .gh-badge--public { background: var(--accent-subtle); color: var(--accent); }
-.gh-badge--private { background: rgba(234, 179, 8, 0.15); color: var(--status-modified); }
+.gh-badge--private { background: var(--accent-gold-subtle); color: var(--accent-gold); }
 
 .gh-filter-tabs {
 	display: flex;
@@ -286,7 +286,7 @@
 
 .gh-checks--success { color: var(--status-added); }
 .gh-checks--failure { color: var(--status-deleted); }
-.gh-checks--pending { color: var(--status-modified); }
+.gh-checks--pending { color: var(--accent-gold); }
 
 .gh-reviews {
 	margin-bottom: var(--space-md);

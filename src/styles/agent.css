@@ -115,7 +115,7 @@
 .project-header__branch-icon {
 	width: 12px;
 	height: 12px;
-	color: var(--text-muted);
+	color: var(--accent-gold);
 	flex-shrink: 0;
 }
 
@@ -552,7 +552,7 @@
 
 .agent-status--running {
 	border-color: var(--accent-dim);
-	background: rgba(56, 189, 248, 0.04);
+	background: var(--accent-subtle);
 }
 
 .agent-status__main {
@@ -823,6 +823,37 @@
 	font-weight: 600;
 }
 
+.composer__mode-btn--plan.is-active {
+	background: var(--accent-gold-subtle);
+	color: var(--accent-gold);
+	border: 1px solid rgba(198, 166, 91, 0.35);
+}
+
+.mode-selector__btn {
+	padding: 4px 10px;
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--text-secondary);
+	border-radius: var(--radius-xs);
+	transition: background 0.15s, color 0.15s;
+}
+
+.mode-selector__btn:hover:not(:disabled) {
+	color: var(--text-primary);
+}
+
+.mode-selector__btn.is-active {
+	background: var(--bg-active);
+	color: var(--text-primary);
+	font-weight: 600;
+}
+
+.mode-selector__btn--plan.is-active {
+	background: var(--accent-gold-subtle);
+	color: var(--accent-gold);
+	border: 1px solid rgba(198, 166, 91, 0.35);
+}
+
 .composer__model-wrapper {
 	position: relative;
 }
@@ -953,7 +984,7 @@
 }
 
 .composer__send--stop:hover {
-	background: #d86666 !important;
+	background: #ef4444 !important;
 }
 
 .composer__action-icon {

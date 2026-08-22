@@ -251,7 +251,7 @@ export function PromptComposer({
 									type="button"
 									role="radio"
 									aria-checked={mode === m.id}
-									className={`composer__mode-btn${mode === m.id ? ' is-active' : ''}`}
+									className={`composer__mode-btn composer__mode-btn--${m.id}${mode === m.id ? ' is-active' : ''}`}
 									onClick={() => onModeChange(m.id)}
 									disabled={loading}
 									title={m.description}
