@@ -50,10 +50,9 @@ export function buildCodexExecArgs(options: {
 		args.push('exec', 'resume', options.threadId!, '--json', '--skip-git-repo-check')
 	} else {
 		args.push('exec', '--json', '--skip-git-repo-check')
-	}
-
-	if (options.autoApprove) {
-		args.push('-c', 'approval_policy="never"')
+		if (options.autoApprove) {
+			args.push('--approve-for-me')
+		}
 	}
 
 	if (options.model) {
@@ -86,6 +85,8 @@ export class CodexProvider implements AgentProvider {
 
 	private activeProcesses = new Map<string, ActiveProcess>()
 	private resolvedExec: { execPath: string; isNodeJs: boolean } | null = null
+	private cachedStatus: ProviderStatusInfo | null = null
+	private lastStatusCheck = 0
 
 	constructor(private config?: ServerConfig) {}
 
@@ -98,39 +99,24 @@ export class CodexProvider implements AgentProvider {
 			return this.resolvedExec
 		}
 
-		// 1. Check npm global package codex.js (cross-platform, reliable node invocation)
-		const appData = process.env.APPDATA || ''
-		const winNpmJs = join(appData, 'npm', 'node_modules', '@openai', 'codex', 'bin', 'codex.js')
-		if (existsSync(winNpmJs)) {
-			this.resolvedExec = { execPath: winNpmJs, isNodeJs: true }
-			return this.resolvedExec
-		}
+		const appData = process.env.APPDATA || (process.platform === 'win32' ? join(homedir(), 'AppData', 'Roaming') : '')
+		const candidates: Array<{ execPath: string; isNodeJs: boolean }> = [
+			{ execPath: join(appData, 'npm', 'node_modules', '@openai', 'codex', 'bin', 'codex.js'), isNodeJs: true },
+			{ execPath: join(homedir(), '.npm-global', 'lib', 'node_modules', '@openai', 'codex', 'bin', 'codex.js'), isNodeJs: true },
+			{ execPath: '/usr/local/lib/node_modules/@openai/codex/bin/codex.js', isNodeJs: true },
+			{ execPath: join(appData, 'npm', 'codex.cmd'), isNodeJs: false },
+			{ execPath: join(homedir(), '.npm-global', 'bin', 'codex'), isNodeJs: false },
+			{ execPath: '/usr/local/bin/codex', isNodeJs: false },
+			{ execPath: join(homedir(), '.local', 'bin', 'codex'), isNodeJs: false },
+		]
 
-		// Standard unix npm global locations
-		const unixGlobalJs = join(homedir(), '.npm-global', 'lib', 'node_modules', '@openai', 'codex', 'bin', 'codex.js')
-		if (existsSync(unixGlobalJs)) {
-			this.resolvedExec = { execPath: unixGlobalJs, isNodeJs: true }
-			return this.resolvedExec
-		}
-
-		const usrLocalJs = '/usr/local/lib/node_modules/@openai/codex/bin/codex.js'
-		if (existsSync(usrLocalJs)) {
-			this.resolvedExec = { execPath: usrLocalJs, isNodeJs: true }
-			return this.resolvedExec
-		}
-
-		// 2. Check ~/.codex/config.toml for CODEX_CLI_PATH if configured
-		try {
-			const configPath = join(homedir(), '.codex', 'config.toml')
-			if (existsSync(configPath)) {
-				// We can check if CODEX_CLI_PATH is present
-				// Will be resolved in getStatus if needed
+		for (const candidate of candidates) {
+			if (candidate.execPath && existsSync(candidate.execPath)) {
+				this.resolvedExec = candidate
+				return this.resolvedExec
 			}
-		} catch {
-			// ignore
 		}
 
-		// 3. Fallback to 'codex' in PATH
 		this.resolvedExec = { execPath: 'codex', isNodeJs: false }
 		return this.resolvedExec
 	}
@@ -155,15 +141,20 @@ export class CodexProvider implements AgentProvider {
 		})
 	}
 
-	async getStatus(_refresh = false): Promise<ProviderStatusInfo> {
-		const models = await this.getModels()
+	async getStatus(refresh = false): Promise<ProviderStatusInfo> {
+		const now = Date.now()
+		if (!refresh && this.cachedStatus && now - this.lastStatusCheck < 15000) {
+			return this.cachedStatus
+		}
+
+		const models = await this.getModels(refresh)
 
 		return new Promise((resolveStatus) => {
 			let isResolved = false
 			const finish = (result: Partial<ProviderStatusInfo>) => {
 				if (isResolved) return
 				isResolved = true
-				resolveStatus({
+				const info: ProviderStatusInfo = {
 					id: this.id,
 					name: this.displayName,
 					status: result.status ?? 'not_installed',
@@ -172,7 +163,10 @@ export class CodexProvider implements AgentProvider {
 					version: result.version,
 					message: result.message,
 					models,
-				})
+				}
+				this.cachedStatus = info
+				this.lastStatusCheck = Date.now()
+				resolveStatus(info)
 			}
 
 			const timeout = setTimeout(() => {
@@ -602,9 +596,7 @@ export class CodexProvider implements AgentProvider {
 			let failed = false
 			const startedAt = Date.now()
 			const activities: AgentActivityItem[] = []
-			const agentMessages: string[] = []
 			let tokenUsage: TokenUsage | undefined
-			let turnCompleted = false
 
 			const timeline: ActivityTimelineItem = {
 				id: `timeline-${Date.now()}`,
@@ -628,23 +620,13 @@ export class CodexProvider implements AgentProvider {
 			const emitAgentMessage = (text: string) => {
 				const trimmed = text.trim()
 				if (!trimmed) return
-				agentMessages.push(trimmed)
-				emitCommentary(trimmed)
-				agentContent += (agentContent ? '\n' : '') + trimmed
+				agentContent += (agentContent ? '\n\n' : '') + trimmed
 				onEvent({ type: 'message_delta', content: trimmed })
-			}
-
-			const finalizeAgentContent = () => {
-				if (agentContent.trim()) return
-				const last = agentMessages.at(-1)?.trim()
-				if (!last) return
-				agentContent = last
-				onEvent({ type: 'message_delta', content: last })
+				emitCommentary(trimmed)
 			}
 
 			const hasTurnOutput = () =>
 				Boolean(agentContent.trim()) ||
-				agentMessages.length > 0 ||
 				activities.length > 0 ||
 				Boolean(timeline.entries?.length)
 
@@ -713,17 +695,16 @@ export class CodexProvider implements AgentProvider {
 								onEvent({ type: 'activity_complete', activity: act })
 							}
 							onEvent({ type: 'turn_status', status: 'running', label: 'Thinking…' })
-						} else if (isCodexCommentaryItemType(itemType) && item.text) {
-							emitCommentary(item.text)
 						} else if (itemType === 'agent_message' && item.text) {
 							emitAgentMessage(item.text)
 						} else if (itemType === 'plan_update' && item.text) {
+							emitCommentary(item.text)
+						} else if (isCodexCommentaryItemType(itemType) && item.text) {
 							emitCommentary(item.text)
 						}
 					}
 
 					if (event.type === 'turn.completed') {
-						turnCompleted = true
 						if (event.usage) {
 							tokenUsage = {
 								inputTokens: event.usage.input_tokens,
@@ -733,7 +714,6 @@ export class CodexProvider implements AgentProvider {
 							}
 							timeline.usage = tokenUsage
 						}
-						finalizeAgentContent()
 						onEvent({
 							type: 'turn_status',
 							status: 'complete',
@@ -769,10 +749,6 @@ export class CodexProvider implements AgentProvider {
 				this.activeProcesses.delete(projectId)
 				if (buffer.trim()) {
 					processLine(buffer)
-				}
-
-				if (!turnCompleted) {
-					finalizeAgentContent()
 				}
 
 				if (code !== 0 && !hasTurnOutput() && !activeProcess.stopped) {

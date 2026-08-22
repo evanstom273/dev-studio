@@ -203,6 +203,9 @@ export function finalizeActivityFromCodexItem(
 
 	if (type === 'error') {
 		const message = item.message || item.text || 'Tool error'
+		if (message.includes('context budget') || message.includes('descriptions were shortened')) {
+			return null
+		}
 		return {
 			id: item.id || existing?.id || `act-${Date.now()}`,
 			type: 'error',

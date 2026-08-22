@@ -9,10 +9,9 @@ function buildCodexExecArgs(options) {
 		args.push('exec', 'resume', options.threadId, '--json', '--skip-git-repo-check')
 	} else {
 		args.push('exec', '--json', '--skip-git-repo-check')
-	}
-
-	if (options.autoApprove) {
-		args.push('-c', 'approval_policy="never"')
+		if (options.autoApprove) {
+			args.push('--approve-for-me')
+		}
 	}
 
 	if (options.model) {
@@ -400,15 +399,14 @@ test('parseCodexRateLimits: preserves quota availability when usage percentage i
 	assert.equal(primary.available, true)
 })
 
-test('buildCodexExecArgs: auto-approve adds approval_policy never via -c', () => {
+test('buildCodexExecArgs: auto-approve adds --approve-for-me on new session', () => {
 	const args = buildCodexExecArgs({
 		threadId: null,
 		mode: 'agent',
 		autoApprove: true,
 	})
 
-	assert.ok(args.includes('-c'))
-	assert.ok(args.includes('approval_policy="never"'))
+	assert.ok(args.includes('--approve-for-me'))
 	assert.ok(!args.includes('--ask-for-approval'))
 })
 
@@ -419,6 +417,7 @@ test('buildCodexExecArgs: auto-approve omitted when false', () => {
 		autoApprove: false,
 	})
 
+	assert.ok(!args.includes('--approve-for-me'))
 	assert.ok(!args.includes('--ask-for-approval'))
 })
 
@@ -449,16 +448,14 @@ test('Codex item parser: ask mode blocks command activity', () => {
 	assert.equal(act, null)
 })
 
-test('Codex agent messages: stream final answer live and keep commentary timeline', () => {
-	const agentMessages = []
+test('Codex agent messages: agent_message streams to response and commentary timeline', () => {
 	let agentContent = ''
 	const events = []
 
 	const emitAgentMessage = (text) => {
 		const trimmed = text.trim()
 		if (!trimmed) return
-		agentMessages.push(trimmed)
-		agentContent += (agentContent ? '\n' : '') + trimmed
+		agentContent += (agentContent ? '\n\n' : '') + trimmed
 		events.push({ type: 'message_delta', content: trimmed })
 		events.push({ type: 'commentary_delta', content: trimmed })
 	}
@@ -466,7 +463,7 @@ test('Codex agent messages: stream final answer live and keep commentary timelin
 	emitAgentMessage('Inspecting repo…')
 	emitAgentMessage('Implemented the fix.')
 
-	assert.equal(agentContent, 'Inspecting repo…\nImplemented the fix.')
+	assert.equal(agentContent, 'Inspecting repo…\n\nImplemented the fix.')
 	assert.equal(events.filter((e) => e.type === 'message_delta').length, 2)
 	assert.equal(events.filter((e) => e.type === 'commentary_delta').length, 2)
 })
