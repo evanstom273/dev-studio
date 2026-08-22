@@ -169,5 +169,20 @@ export function createFilesRouter(projects: ProjectService): Router {
 		res.json({ path: filePath, content })
 	}))
 
+	router.post('/:projectId/content', asyncHandler(async (req, res) => {
+		const { path: filePath, content } = req.body as { path: string; content: string }
+		if (!filePath || content === undefined) {
+			res.status(400).json({ error: 'path and content are required' })
+			return
+		}
+		const projectPath = await projects.getPath(param(req, 'projectId'))
+		if (!projectPath) {
+			res.status(404).json({ error: 'Project not found' })
+			return
+		}
+		await files.write(projectPath, filePath, content)
+		res.json({ ok: true, path: filePath })
+	}))
+
 	return router
 }

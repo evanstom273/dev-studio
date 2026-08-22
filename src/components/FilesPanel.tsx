@@ -85,9 +85,10 @@ function FileTreeNodeItem({ node, selectedPath, onSelect, depth }: FileTreeNodeI
 type FileContentProps = {
 	content: string | null
 	path: string | null
+	onOpenInEditor?: (path: string) => void
 }
 
-export function FileContent({ content, path }: FileContentProps) {
+export function FileContent({ content, path, onOpenInEditor }: FileContentProps) {
 	if (!path || content === null) {
 		return (
 			<div className="empty-state">
@@ -100,6 +101,15 @@ export function FileContent({ content, path }: FileContentProps) {
 		<div className="file-content">
 			<div className="diff-view__header">
 				<span className="diff-view__path">{path}</span>
+				{onOpenInEditor && (
+					<button
+						type="button"
+						className="editor-btn editor-btn--primary editor-btn--small"
+						onClick={() => onOpenInEditor(path)}
+					>
+						Open in Editor
+					</button>
+				)}
 			</div>
 			<pre className="file-content__code">{content}</pre>
 		</div>

@@ -1,5 +1,5 @@
-import { readdir, readFile, stat } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { dirname, join, relative, resolve } from 'node:path'
 import { simpleGit, type SimpleGit, type StatusResult } from 'simple-git'
 import type {
 	ChangedFile,
@@ -313,6 +313,17 @@ export class FileService {
 		} catch {
 			return null
 		}
+	}
+
+	async write(projectPath: string, filePath: string, content: string): Promise<void> {
+		const normalizedPath = filePath.replace(/^[/\\]+/, '')
+		const full = resolve(projectPath, normalizedPath)
+		// Security check: ensure path is inside project
+		if (!full.startsWith(resolve(projectPath))) {
+			throw new Error('Invalid path: outside project workspace')
+		}
+		await mkdir(dirname(full), { recursive: true })
+		await writeFile(full, content, 'utf8')
 	}
 }
 

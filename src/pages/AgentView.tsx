@@ -17,9 +17,17 @@ type AgentViewProps = {
 	project: Project
 	onRegisterActions?: (actions: AgentActions) => void
 	keyboardOpen?: boolean
+	initialPrompt?: string | null
+	onClearInitialPrompt?: () => void
 }
 
-export function AgentView({ project, onRegisterActions, keyboardOpen = false }: AgentViewProps) {
+export function AgentView({
+	project,
+	onRegisterActions,
+	keyboardOpen = false,
+	initialPrompt,
+	onClearInitialPrompt,
+}: AgentViewProps) {
 	const [items, setItems] = useState<ConversationItem[]>([])
 	const [prompt, setPrompt] = useState('')
 	const [mode, setMode] = useState<AgentMode>('agent')
@@ -30,6 +38,13 @@ export function AgentView({ project, onRegisterActions, keyboardOpen = false }: 
 	const [error, setError] = useState<string | null>(null)
 	const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([])
 	const [turnStatus, setTurnStatus] = useState<LiveTurnStatus | null>(null)
+
+	useEffect(() => {
+		if (initialPrompt) {
+			setPrompt((prev) => (prev ? `${prev}\n\n${initialPrompt}` : initialPrompt))
+			onClearInitialPrompt?.()
+		}
+	}, [initialPrompt, onClearInitialPrompt])
 
 	const loadSession = useCallback(async () => {
 		try {

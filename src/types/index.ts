@@ -3,6 +3,9 @@ export type { ConnectionConfig, ConnectionState, ApiError } from '@shared/types/
 export type { AppRoute, CloneRepoRequest, InitRepoRequest, Project, RegisterProjectRequest, RepoTab, WorkspaceView } from '@shared/types/project'
 export type { BranchRequest, ChangedFile, ChangeStatus, CommitRequest, DiffHunk, DiffLine, DiscardRequest, FileDiff, FileTreeNode, GitBranch, GitCommit, GitStatus, MergeConflict, MergeRequest, PullRequest, PushRequest, RemoteRequest, RevertRequest, StageRequest } from '@shared/types/git'
 export type { CreateGitHubRepoRequest, CreatePullRequestRequest, ClosePullRequestRequest, DeleteRepoRequest, GitHubAuthStatus, GitHubPullRequest, GitHubPullRequestDetail, GitHubPullRequestState, GitHubRepo, GitHubRepoDetails, GitHubRepoInfo, LinkRemoteRequest, MergePullRequestRequest, UpdatePullRequestRequest, UpdateRepoRequest } from '@shared/types/github'
+export type { Artifact, ArtifactType, CreateArtifactRequest, ImportArtifactFromRepoRequest, SaveArtifactToRepoRequest, UpdateArtifactRequest } from '@shared/types/artifact'
+export type { CreateTerminalSessionRequest, TerminalClientMessage, TerminalServerMessage, TerminalSessionInfo } from '@shared/types/terminal'
+export type { ToolId } from '@shared/types/project'
 
 export type NavItem = {
 	id: WorkspaceView

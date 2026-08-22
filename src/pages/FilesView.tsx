@@ -9,9 +9,10 @@ import '../styles/panels.css'
 
 type FilesViewProps = {
 	project: Project
+	onOpenInEditor?: (filePath: string) => void
 }
 
-export function FilesView({ project }: FilesViewProps) {
+export function FilesView({ project, onOpenInEditor }: FilesViewProps) {
 	const [tree, setTree] = useState<FileTreeNode[]>([])
 	const [selectedPath, setSelectedPath] = useState<string | null>(null)
 	const [content, setContent] = useState<string | null>(null)
@@ -63,7 +64,13 @@ export function FilesView({ project }: FilesViewProps) {
 						<FileTree nodes={tree} selectedPath={selectedPath} onSelect={setSelectedPath} />
 					</div>
 				)}
-				{showDetail && <FileContent content={content} path={selectedPath} />}
+				{showDetail && (
+					<FileContent
+						content={content}
+						path={selectedPath}
+						onOpenInEditor={onOpenInEditor}
+					/>
+				)}
 			</div>
 		</div>
 	)

@@ -1,9 +1,14 @@
 import { useMemo, useState } from 'react'
 import { marked, type Token, type Tokens } from 'marked'
 import { IconCheck, IconCopy } from './Icons'
+import { MermaidRenderer } from './artifacts/MermaidRenderer'
 
 export function CodeBlock({ language, code }: { language: string; code: string }) {
 	const [copied, setCopied] = useState(false)
+
+	if (language === 'mermaid') {
+		return <MermaidRenderer chart={code} />
+	}
 
 	const handleCopy = async () => {
 		try {

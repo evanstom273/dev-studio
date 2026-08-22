@@ -12,13 +12,16 @@
 		"agy-cli-usage": "^0.4.5",
 		"cors": "^2.8.5",
 		"express": "^4.21.2",
+		"node-pty": "^1.1.0",
 		"simple-git": "^3.27.0",
-		"uuid": "^11.1.0"
+		"uuid": "^11.1.0",
+		"ws": "^8.21.3"
 	},
 	"devDependencies": {
 		"@types/cors": "^2.8.17",
 		"@types/express": "^5.0.0",
 		"@types/node": "^24.13.3",
+		"@types/ws": "^8.18.1",
 		"tsx": "^4.19.3",
 		"typescript": "~6.0.2"
 	}

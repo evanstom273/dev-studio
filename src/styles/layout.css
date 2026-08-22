@@ -152,6 +152,12 @@
 	flex-shrink: 0;
 }
 
+.tool-switcher-tab--more {
+	border-left: 1px solid var(--border-subtle);
+	margin-left: 2px;
+	padding-left: 8px;
+}
+
 .tool-switcher-tab__badge {
 	display: inline-flex;
 	align-items: center;

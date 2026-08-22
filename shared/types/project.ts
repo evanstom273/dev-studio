@@ -15,7 +15,17 @@ export type Project = {
 
 export type AppRoute = 'projects' | 'workspace' | 'settings'
 
-export type WorkspaceView = 'agent' | 'changes' | 'files' | 'repo' | 'status'
+export type WorkspaceView =
+	| 'agent'
+	| 'changes'
+	| 'files'
+	| 'repo'
+	| 'status'
+	| 'editor'
+	| 'terminal'
+	| 'artifacts'
+
+export type ToolId = 'editor' | 'terminal' | 'artifacts'
 
 export type RepoTab = 'git' | 'github'
 

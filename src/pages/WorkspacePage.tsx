@@ -1,21 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Project, WorkspaceView } from '@shared/types/project'
+import type { Project, ToolId, WorkspaceView } from '@shared/types/project'
 import {
+	IconArtifact,
 	IconChanges,
 	IconChat,
+	IconCode,
+	IconDots,
 	IconFiles,
 	IconRepo,
 	IconStatus,
+	IconTerminal,
 } from '../components/Icons'
 import { ProjectHeader } from '../components/ProjectHeader'
+import { ToolsMenu } from '../components/ToolsMenu'
 import { KeyboardViewportProvider, useKeyboardViewport } from '../hooks/KeyboardViewportContext'
 import { useWideLayout } from '../hooks/useMediaQuery'
 import { gitApi } from '../services/gitApi'
 import { AgentView, type AgentActions } from './AgentView'
+import { ArtifactsView } from './ArtifactsView'
 import { ChangesView } from './ChangesView'
+import { EditorView } from './EditorView'
 import { FilesView } from './FilesView'
 import { RepoView } from './RepoView'
 import { StatusView } from './StatusView'
+import { TerminalView } from './TerminalView'
 import '../styles/layout.css'
 
 type WorkspacePageProps = {
@@ -25,9 +33,9 @@ type WorkspacePageProps = {
 	onBack: () => void
 }
 
-type RightTool = 'changes' | 'files' | 'repo' | 'status'
+type RightTool = 'changes' | 'files' | 'repo' | 'status' | 'editor' | 'terminal' | 'artifacts'
 
-const RIGHT_TOOLS: { id: RightTool; label: string; Icon: typeof IconChanges }[] = [
+const PRIMARY_RIGHT_TOOLS: { id: 'changes' | 'files' | 'repo' | 'status'; label: string; Icon: typeof IconChanges }[] = [
 	{ id: 'changes', label: 'Changes', Icon: IconChanges },
 	{ id: 'files', label: 'Files', Icon: IconFiles },
 	{ id: 'repo', label: 'Git', Icon: IconRepo },
@@ -47,6 +55,10 @@ function WorkspacePageContent({
 	const [currentBranch, setCurrentBranch] = useState<string>('main')
 	const [splitPercent, setSplitPercent] = useState<number>(50)
 	const [agentActions, setAgentActions] = useState<AgentActions | null>(null)
+	const [toolsMenuOpen, setToolsMenuOpen] = useState(false)
+	const [editorFilePath, setEditorFilePath] = useState<string | null>(null)
+	const [pendingChatPrompt, setPendingChatPrompt] = useState<string | null>(null)
+
 	const isDraggingRef = useRef(false)
 	const containerRef = useRef<HTMLDivElement>(null)
 
@@ -90,11 +102,32 @@ function WorkspacePageContent({
 		window.addEventListener('pointerup', handlePointerUp)
 	}
 
-	// Double click divider to reset to 50/50
 	const handleDoubleClick = () => {
 		setSplitPercent(50)
 	}
 
+	const handleOpenInEditor = (filePath: string) => {
+		setEditorFilePath(filePath)
+		if (isWide) {
+			setRightTool('editor')
+		} else {
+			onNavigate('editor')
+		}
+	}
+
+	const handleSendToChat = (contextSnippet: string) => {
+		setPendingChatPrompt(contextSnippet)
+	}
+
+	const handleSelectTool = (toolId: ToolId) => {
+		if (isWide) {
+			setRightTool(toolId)
+		} else {
+			onNavigate(toolId)
+		}
+	}
+
+	const isToolActiveMobile = ['editor', 'terminal', 'artifacts'].includes(activeView)
 	const hideChrome = keyboardOpen && activeView === 'agent' && !isWide
 
 	return (
@@ -168,6 +201,33 @@ function WorkspacePageContent({
 							<IconStatus className="workspace-mobile-nav__icon" />
 							<span>Status</span>
 						</button>
+
+						<button
+							type="button"
+							className={`workspace-mobile-nav__tab${isToolActiveMobile ? ' is-active' : ''}`}
+							onClick={() => setToolsMenuOpen(true)}
+							title="More Tools"
+							aria-label="Tools"
+						>
+							{activeView === 'editor' ? (
+								<IconCode className="workspace-mobile-nav__icon" />
+							) : activeView === 'terminal' ? (
+								<IconTerminal className="workspace-mobile-nav__icon" />
+							) : activeView === 'artifacts' ? (
+								<IconArtifact className="workspace-mobile-nav__icon" />
+							) : (
+								<IconDots className="workspace-mobile-nav__icon" />
+							)}
+							<span>
+								{activeView === 'editor'
+									? 'Editor'
+									: activeView === 'terminal'
+									? 'Term'
+									: activeView === 'artifacts'
+									? 'Artifacts'
+									: 'Tools'}
+							</span>
+						</button>
 					</nav>
 				)}
 
@@ -185,6 +245,8 @@ function WorkspacePageContent({
 									project={project}
 									onRegisterActions={setAgentActions}
 									keyboardOpen={keyboardOpen}
+									initialPrompt={pendingChatPrompt}
+									onClearInitialPrompt={() => setPendingChatPrompt(null)}
 								/>
 							</section>
 
@@ -200,7 +262,7 @@ function WorkspacePageContent({
 								<div className="workspace-divider__handle" />
 							</div>
 
-							{/* Right Pane: Contextual Tools (Changes, Files, Git, Status) */}
+							{/* Right Pane: Contextual Tools */}
 							<section
 								className="workspace-pane workspace-pane--right"
 								style={{ width: `${100 - splitPercent}%` }}
@@ -209,7 +271,7 @@ function WorkspacePageContent({
 								{/* Horizontal Tool Switcher */}
 								<div className="tool-switcher-bar">
 									<div className="tool-switcher-tabs" role="tablist">
-										{RIGHT_TOOLS.map((t) => {
+										{PRIMARY_RIGHT_TOOLS.map((t) => {
 											const isActive = rightTool === t.id
 											const ToolIcon = t.Icon
 											return (
@@ -229,16 +291,85 @@ function WorkspacePageContent({
 												</button>
 											)
 										})}
+
+										{/* If an extended tool is active, display it in the tabs */}
+										{rightTool === 'editor' && (
+											<button
+												type="button"
+												role="tab"
+												aria-selected={true}
+												className="tool-switcher-tab is-active"
+												onClick={() => setRightTool('editor')}
+											>
+												<IconCode className="tool-switcher-tab__icon" />
+												<span>Editor</span>
+											</button>
+										)}
+										{rightTool === 'terminal' && (
+											<button
+												type="button"
+												role="tab"
+												aria-selected={true}
+												className="tool-switcher-tab is-active"
+												onClick={() => setRightTool('terminal')}
+											>
+												<IconTerminal className="tool-switcher-tab__icon" />
+												<span>Terminal</span>
+											</button>
+										)}
+										{rightTool === 'artifacts' && (
+											<button
+												type="button"
+												role="tab"
+												aria-selected={true}
+												className="tool-switcher-tab is-active"
+												onClick={() => setRightTool('artifacts')}
+											>
+												<IconArtifact className="tool-switcher-tab__icon" />
+												<span>Artifacts</span>
+											</button>
+										)}
+
+										{/* Tools '…' Popup Trigger */}
+										<button
+											type="button"
+											className="tool-switcher-tab tool-switcher-tab--more"
+											onClick={() => setToolsMenuOpen(true)}
+											title="More tools (Editor, Terminal, Artifacts)"
+											aria-label="More tools"
+										>
+											<IconDots className="tool-switcher-tab__icon" />
+											<span>Tools</span>
+										</button>
 									</div>
 								</div>
 
 								{/* Tool Pane Content */}
 								<div className="tool-pane-content">
 									{rightTool === 'changes' && <ChangesView project={project} />}
-									{rightTool === 'files' && <FilesView project={project} />}
+									{rightTool === 'files' && (
+										<FilesView project={project} onOpenInEditor={handleOpenInEditor} />
+									)}
 									{rightTool === 'repo' && <RepoView project={project} />}
 									{rightTool === 'status' && (
 										<StatusView project={project} onRefreshProject={refreshStatus} />
+									)}
+									{rightTool === 'editor' && (
+										<EditorView
+											project={project}
+											initialFilePath={editorFilePath}
+											onSendToChat={handleSendToChat}
+											onNavigateToChat={() => onNavigate('agent')}
+										/>
+									)}
+									{rightTool === 'terminal' && <TerminalView project={project} />}
+									{rightTool === 'artifacts' && (
+										<ArtifactsView
+											project={project}
+											onSendToChat={handleSendToChat}
+											onNavigateToChat={() => onNavigate('agent')}
+											onOpenInEditor={handleOpenInEditor}
+										/>
 									)}
 								</div>
 							</section>
@@ -251,17 +382,54 @@ function WorkspacePageContent({
 									project={project}
 									onRegisterActions={setAgentActions}
 									keyboardOpen={keyboardOpen}
+									initialPrompt={pendingChatPrompt}
+									onClearInitialPrompt={() => setPendingChatPrompt(null)}
 								/>
 							)}
 							{activeView === 'changes' && <ChangesView project={project} />}
-							{activeView === 'files' && <FilesView project={project} />}
+							{activeView === 'files' && (
+								<FilesView project={project} onOpenInEditor={handleOpenInEditor} />
+							)}
 							{activeView === 'repo' && <RepoView project={project} />}
 							{activeView === 'status' && (
 								<StatusView project={project} onRefreshProject={refreshStatus} />
 							)}
+							{activeView === 'editor' && (
+								<EditorView
+									project={project}
+									initialFilePath={editorFilePath}
+									onSendToChat={handleSendToChat}
+									onNavigateToChat={() => onNavigate('agent')}
+								/>
+							)}
+							{activeView === 'terminal' && <TerminalView project={project} />}
+							{activeView === 'artifacts' && (
+								<ArtifactsView
+									project={project}
+									onSendToChat={handleSendToChat}
+									onNavigateToChat={() => onNavigate('agent')}
+									onOpenInEditor={handleOpenInEditor}
+								/>
+							)}
 						</div>
 					)}
 				</div>
+
+				{/* Tools Selection Menu Popover */}
+				<ToolsMenu
+					isOpen={toolsMenuOpen}
+					onClose={() => setToolsMenuOpen(false)}
+					onSelectTool={handleSelectTool}
+					activeTool={
+						isWide
+							? ['editor', 'terminal', 'artifacts'].includes(rightTool)
+								? (rightTool as ToolId)
+								: null
+							: ['editor', 'terminal', 'artifacts'].includes(activeView)
+							? (activeView as ToolId)
+							: null
+					}
+				/>
 			</div>
 		</div>
 	)
