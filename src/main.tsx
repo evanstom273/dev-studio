@@ -14,6 +14,13 @@ createRoot(document.getElementById('root')!).render(
 	</StrictMode>,
 )
 
+// Suppress browser automatic PWA install banner / mini-infobar globally
+if (typeof window !== 'undefined') {
+	window.addEventListener('beforeinstallprompt', (e) => {
+		e.preventDefault()
+	})
+}
+
 // Register PWA service worker with auto-update
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
 	window.addEventListener('load', () => {

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { ServerUpdateResult } from '@shared/types/system'
 import { useConnection } from '../hooks/useConnection'
-import { usePwaInstall } from '../hooks/usePwaInstall'
 import { ConnectionBanner } from '../components/ConnectionBanner'
 import { systemApi } from '../services/systemApi'
 import '../styles/settings.css'
@@ -12,7 +11,6 @@ type SettingsPageProps = {
 
 export function SettingsPage({ onBack }: SettingsPageProps) {
 	const { config, connect, disconnect, state } = useConnection()
-	const { isInstallable, install } = usePwaInstall()
 	const [backendUrl, setBackendUrl] = useState(config.backendUrl)
 	const [token, setToken] = useState(config.token)
 	const [githubToken, setGithubToken] = useState(config.githubToken)
@@ -205,19 +203,6 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 					)}
 				</section>
 			)}
-
-			<section className="settings-section">
-				<h2 className="settings-section__title">Progressive Web App (PWA)</h2>
-				{isInstallable ? (
-					<div className="settings-actions">
-						<button type="button" className="btn btn--primary" onClick={() => void install()}>
-							Install Dev Studio App
-						</button>
-					</div>
-				) : (
-					<p className="settings-update-ok">✓ Dev Studio is running in app mode.</p>
-				)}
-			</section>
 		</main>
 	)
 }

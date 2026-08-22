@@ -5,7 +5,6 @@ import { ConnectionBanner } from '../components/ConnectionBanner'
 import { ProjectList } from '../components/ProjectList'
 import { ConnectSheet, CreateRepoSheet } from '../components/projects/ProjectHubSheets'
 import { useConnection } from '../hooks/useConnection'
-import { usePwaInstall } from '../hooks/usePwaInstall'
 import { agentApi } from '../services/agentApi'
 import { projectsApi } from '../services/gitApi'
 import { githubApi } from '../services/githubApi'
@@ -21,7 +20,6 @@ type HubTab = 'recent' | 'github'
 
 export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPageProps) {
 	const { state, config } = useConnection()
-	const { isInstallable, install } = usePwaInstall()
 	const [tab, setTab] = useState<HubTab>('github')
 	const [projects, setProjects] = useState<Project[]>([])
 	const [githubRepos, setGithubRepos] = useState<GitHubRepoSummary[]>([])
@@ -120,11 +118,6 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 						</p>
 					</div>
 					<div className="projects-page__header-actions">
-						{isInstallable && (
-							<button type="button" className="btn btn--primary btn--sm" onClick={() => void install()}>
-								Install App
-							</button>
-						)}
 						{connected ? (
 							<span className="hub-status hub-status--ok">Connected</span>
 						) : (

@@ -58,6 +58,7 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | undef
 }
 
 export type UseSpeechRecognitionOptions = {
+	onTranscript?: (fullTranscript: string) => void
 	onResult?: (finalText: string) => void
 	onInterim?: (interimText: string) => void
 	onError?: (errorMessage: string) => void
@@ -66,6 +67,7 @@ export type UseSpeechRecognitionOptions = {
 }
 
 export function useSpeechRecognition({
+	onTranscript,
 	onResult,
 	onInterim,
 	onError,
@@ -78,18 +80,31 @@ export function useSpeechRecognition({
 	const recognitionRef = useRef<ISpeechRecognition | null>(null)
 	const shouldBeListeningRef = useRef(false)
 	const restartTimeoutRef = useRef<number | null>(null)
-	const lastProcessedIndexRef = useRef(-1)
-	const interimTextRef = useRef('')
+
+	// Session transcript accumulation across mobile auto-restarts
+	const cumulativeTranscriptRef = useRef('')
+	const currentSubsessionFinalRef = useRef('')
+	const currentInterimRef = useRef('')
 
 	const isSupported = typeof window !== 'undefined' && Boolean(getSpeechRecognitionConstructor())
 
 	// Store callbacks in refs to avoid re-binding
+	const onTranscriptRef = useRef(onTranscript)
+	onTranscriptRef.current = onTranscript
 	const onResultRef = useRef(onResult)
 	onResultRef.current = onResult
 	const onInterimRef = useRef(onInterim)
 	onInterimRef.current = onInterim
 	const onErrorRef = useRef(onError)
 	onErrorRef.current = onError
+
+	const emitTranscript = useCallback((text: string) => {
+		const trimmed = text.trim()
+		if (trimmed) {
+			onTranscriptRef.current?.(trimmed)
+			onResultRef.current?.(trimmed)
+		}
+	}, [])
 
 	const cleanup = useCallback(() => {
 		if (restartTimeoutRef.current) {
@@ -110,7 +125,8 @@ export function useSpeechRecognition({
 		}
 		setIsListening(false)
 		setInterimText('')
-		interimTextRef.current = ''
+		currentSubsessionFinalRef.current = ''
+		currentInterimRef.current = ''
 	}, [])
 
 	const initRecognition = useCallback(() => {
@@ -131,46 +147,43 @@ export function useSpeechRecognition({
 			recognition.lang =
 				lang || (typeof navigator !== 'undefined' ? navigator.language : 'en-US') || 'en-US'
 
-			// Each new SpeechRecognition session starts its result index at 0
-			lastProcessedIndexRef.current = -1
-			interimTextRef.current = ''
+			currentSubsessionFinalRef.current = ''
+			currentInterimRef.current = ''
 
 			recognition.onstart = () => {
 				setIsListening(true)
 			}
 
 			recognition.onresult = (event: SpeechRecognitionEvent) => {
-				let finalChunk = ''
-				let currentInterim = ''
+				let subsessionFinal = ''
+				let subsessionInterim = ''
 
 				for (let i = 0; i < event.results.length; i++) {
 					const res = event.results[i]
-					const text = res[0]?.transcript || ''
+					const text = res[0]?.transcript?.trim() || ''
+					if (!text) continue
+
 					if (res.isFinal) {
-						if (i > lastProcessedIndexRef.current) {
-							if (finalChunk && !finalChunk.endsWith(' ') && !text.startsWith(' ')) {
-								finalChunk += ' '
-							}
-							finalChunk += text
-							lastProcessedIndexRef.current = i
-						}
+						subsessionFinal = subsessionFinal ? `${subsessionFinal} ${text}` : text
 					} else {
-						if (i > lastProcessedIndexRef.current) {
-							if (currentInterim && !currentInterim.endsWith(' ') && !text.startsWith(' ')) {
-								currentInterim += ' '
-							}
-							currentInterim += text
-						}
+						subsessionInterim = subsessionInterim ? `${subsessionInterim} ${text}` : text
 					}
 				}
 
-				if (finalChunk.trim()) {
-					onResultRef.current?.(finalChunk.trim())
-				}
+				currentSubsessionFinalRef.current = subsessionFinal
+				currentInterimRef.current = subsessionInterim
 
-				interimTextRef.current = currentInterim.trim()
-				setInterimText(currentInterim.trim())
-				onInterimRef.current?.(currentInterim.trim())
+				const cumulative = cumulativeTranscriptRef.current.trim()
+				const fullTranscript = cumulative
+					? subsessionFinal
+						? `${cumulative} ${subsessionFinal}`
+						: cumulative
+					: subsessionFinal
+
+				emitTranscript(fullTranscript)
+
+				setInterimText(subsessionInterim)
+				onInterimRef.current?.(subsessionInterim)
 			}
 
 			recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -199,15 +212,23 @@ export function useSpeechRecognition({
 			}
 
 			recognition.onend = () => {
-				// Flush any pending interim text if recognition ended without marking it final
-				if (interimTextRef.current.trim()) {
-					const pending = interimTextRef.current.trim()
-					interimTextRef.current = ''
-					setInterimText('')
-					onResultRef.current?.(pending)
-				} else {
-					setInterimText('')
+				// Commit the completed subsession's final text + any leftover interim to cumulativeTranscript
+				let subsessionText = currentSubsessionFinalRef.current.trim()
+				const pendingInterim = currentInterimRef.current.trim()
+
+				if (pendingInterim) {
+					subsessionText = subsessionText ? `${subsessionText} ${pendingInterim}` : pendingInterim
 				}
+
+				if (subsessionText) {
+					cumulativeTranscriptRef.current = cumulativeTranscriptRef.current
+						? `${cumulativeTranscriptRef.current} ${subsessionText}`
+						: subsessionText
+				}
+
+				currentSubsessionFinalRef.current = ''
+				currentInterimRef.current = ''
+				setInterimText('')
 
 				// If user still wants to listen (e.g. browser auto-stopped on mobile), auto-restart with a fresh instance
 				if (shouldBeListeningRef.current) {
@@ -224,7 +245,7 @@ export function useSpeechRecognition({
 								}
 							}
 						}
-					}, 200)
+					}, 150)
 				} else {
 					setIsListening(false)
 				}
@@ -239,7 +260,7 @@ export function useSpeechRecognition({
 			shouldBeListeningRef.current = false
 			return null
 		}
-	}, [continuous, lang])
+	}, [continuous, emitTranscript, lang])
 
 	const stopListening = useCallback(() => {
 		shouldBeListeningRef.current = false
@@ -254,14 +275,34 @@ export function useSpeechRecognition({
 				// ignore stop error
 			}
 		}
+
+		// Flush any pending interim text immediately into the final transcript
+		let subsessionText = currentSubsessionFinalRef.current.trim()
+		const pendingInterim = currentInterimRef.current.trim()
+		if (pendingInterim) {
+			subsessionText = subsessionText ? `${subsessionText} ${pendingInterim}` : pendingInterim
+		}
+		const fullTranscript = cumulativeTranscriptRef.current
+			? subsessionText
+				? `${cumulativeTranscriptRef.current} ${subsessionText}`
+				: cumulativeTranscriptRef.current
+			: subsessionText
+
+		emitTranscript(fullTranscript)
+
+		currentSubsessionFinalRef.current = ''
+		currentInterimRef.current = ''
+		setInterimText('')
 		setIsListening(false)
-	}, [])
+	}, [emitTranscript])
 
 	const startListening = useCallback(() => {
 		cleanup()
 		setError(null)
 		setInterimText('')
-		interimTextRef.current = ''
+		cumulativeTranscriptRef.current = ''
+		currentSubsessionFinalRef.current = ''
+		currentInterimRef.current = ''
 		shouldBeListeningRef.current = true
 
 		const recognition = initRecognition()

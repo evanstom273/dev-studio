@@ -85,21 +85,23 @@ export function PromptComposer({
 
 	const valueRef = useRef(value)
 	valueRef.current = value
+	const initialValueRef = useRef('')
 
-	const handleSpeechResult = useCallback(
-		(spokenChunk: string) => {
-			const chunk = spokenChunk.trim()
-			if (!chunk) return
-			const current = valueRef.current
-			let updated: string
-			if (!current) {
-				updated = chunk
+	const handleTranscript = useCallback(
+		(sessionTranscript: string) => {
+			const base = initialValueRef.current
+			const transcript = sessionTranscript.trim()
+			let combined: string
+			if (!base) {
+				combined = transcript
+			} else if (!transcript) {
+				combined = base
 			} else {
-				const needsSpace = !current.endsWith(' ') && !current.endsWith('\n')
-				updated = `${current}${needsSpace ? ' ' : ''}${chunk}`
+				const needsSpace = !base.endsWith(' ') && !base.endsWith('\n')
+				combined = `${base}${needsSpace ? ' ' : ''}${transcript}`
 			}
-			valueRef.current = updated
-			onChange(updated)
+			valueRef.current = combined
+			onChange(combined)
 		},
 		[onChange],
 	)
@@ -108,10 +110,10 @@ export function PromptComposer({
 		isSupported: isSpeechSupported,
 		isListening,
 		interimText,
-		toggleListening,
+		startListening,
 		stopListening,
 	} = useSpeechRecognition({
-		onResult: handleSpeechResult,
+		onTranscript: handleTranscript,
 		onError: (err) => {
 			setSpeechError(err)
 			setTimeout(() => {
@@ -119,6 +121,15 @@ export function PromptComposer({
 			}, 5000)
 		},
 	})
+
+	const handleToggleListening = useCallback(() => {
+		if (isListening) {
+			stopListening()
+		} else {
+			initialValueRef.current = valueRef.current
+			startListening()
+		}
+	}, [isListening, startListening, stopListening])
 
 	useEffect(() => {
 		const textarea = textareaRef.current
@@ -328,7 +339,7 @@ export function PromptComposer({
 						<button
 							type="button"
 							className={`composer__mic-btn${isListening ? ' is-listening' : ''}${!isSpeechSupported ? ' is-unsupported' : ''}`}
-							onClick={toggleListening}
+							onClick={handleToggleListening}
 							disabled={loading}
 							aria-label={isListening ? 'Stop dictation' : 'Dictate with voice'}
 							title={
