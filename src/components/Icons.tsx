@@ -396,3 +396,23 @@ export function IconDiagram({ className }: IconProps) {
 	)
 }
 
+export function IconMic({ className }: IconProps) {
+	return (
+		<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<path d="M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z" strokeLinecap="round" strokeLinejoin="round" />
+			<path d="M19 10v2a7 7 0 01-14 0v-2M12 19v3M8 22h8" strokeLinecap="round" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+export function IconMicOff({ className }: IconProps) {
+	return (
+		<svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+			<line x1="2" y1="2" x2="22" y2="22" strokeLinecap="round" strokeLinejoin="round" />
+			<path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V5a3 3 0 00-5.68-1.33" strokeLinecap="round" strokeLinejoin="round" />
+			<path d="M19 10v2a7 7 0 01-12 5.19M5 10v2a7 7 0 001.27 4.02M12 19v3M8 22h8" strokeLinecap="round" strokeLinejoin="round" />
+		</svg>
+	)
+}
+
+

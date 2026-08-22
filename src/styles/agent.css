@@ -1125,6 +1125,135 @@
 	height: 13px;
 }
 
+/* Voice Dictation (STT) Button */
+.composer__mic-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	background: var(--bg-elevated);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-xs);
+	color: var(--text-secondary);
+	flex-shrink: 0;
+	transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.composer__mic-btn:hover:not(:disabled) {
+	background: var(--bg-hover);
+	color: var(--text-primary);
+	border-color: var(--border-strong);
+}
+
+.composer__mic-btn.is-listening {
+	background: rgba(239, 68, 68, 0.18);
+	color: #ef4444;
+	border-color: rgba(239, 68, 68, 0.45);
+	animation: mic-pulse 1.4s ease-in-out infinite;
+}
+
+.composer__mic-btn.is-unsupported {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.composer__mic-icon {
+	width: 13px;
+	height: 13px;
+}
+
+@keyframes mic-pulse {
+	0%, 100% {
+		box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45);
+	}
+	50% {
+		box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
+	}
+}
+
+/* Listening Live Bar */
+.composer__listening-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 3px 6px;
+	background: rgba(239, 68, 68, 0.08);
+	border: 1px solid rgba(239, 68, 68, 0.25);
+	border-radius: var(--radius-xs);
+	font-size: 11px;
+	color: var(--text-primary);
+}
+
+.composer__listening-left {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	flex: 1;
+}
+
+.composer__listening-pulse {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: #ef4444;
+	animation: dot-pulse 1.1s ease-in-out infinite;
+	flex-shrink: 0;
+}
+
+.composer__listening-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-style: italic;
+	color: var(--text-secondary);
+	font-size: 11px;
+}
+
+.composer__listening-done {
+	padding: 1px 6px;
+	font-size: 10px;
+	font-weight: 600;
+	background: #ef4444;
+	color: #ffffff;
+	border-radius: var(--radius-xs);
+	flex-shrink: 0;
+	transition: opacity 0.15s;
+}
+
+.composer__listening-done:hover {
+	opacity: 0.9;
+}
+
+/* Speech Error */
+.composer__speech-error {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 3px 6px;
+	background: rgba(248, 113, 113, 0.12);
+	border: 1px solid rgba(248, 113, 113, 0.3);
+	border-radius: var(--radius-xs);
+	font-size: 10.5px;
+	color: #fca5a5;
+}
+
+.composer__speech-error-close {
+	font-size: 14px;
+	line-height: 1;
+	color: #fca5a5;
+	padding: 0 2px;
+	opacity: 0.7;
+	transition: opacity 0.15s;
+}
+
+.composer__speech-error-close:hover {
+	opacity: 1;
+}
+
 .composer__modes {
 	display: flex;
 	align-items: center;

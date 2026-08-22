@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ClipboardEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ClipboardEvent } from 'react'
 import type { AgentMode, AttachmentInfo } from '@shared/types/agent'
 import { AGENT_MODES } from '../types/index'
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import {
 	IconCheck,
 	IconClose,
 	IconCode,
 	IconDocument,
 	IconImage,
+	IconMic,
 	IconPlus,
 	IconSend,
 	IconSparkles,
@@ -79,13 +81,46 @@ export function PromptComposer({
 	const fileInputRef = useRef<HTMLInputElement>(null)
 	const [modelMenuOpen, setModelMenuOpen] = useState(false)
 	const modelMenuRef = useRef<HTMLDivElement>(null)
+	const [speechError, setSpeechError] = useState<string | null>(null)
+
+	const valueRef = useRef(value)
+	valueRef.current = value
+
+	const handleSpeechResult = useCallback(
+		(spokenChunk: string) => {
+			const current = valueRef.current
+			if (!current) {
+				onChange(spokenChunk)
+			} else {
+				const needsSpace = !current.endsWith(' ') && !current.endsWith('\n')
+				onChange(`${current}${needsSpace ? ' ' : ''}${spokenChunk}`)
+			}
+		},
+		[onChange],
+	)
+
+	const {
+		isSupported: isSpeechSupported,
+		isListening,
+		interimText,
+		toggleListening,
+		stopListening,
+	} = useSpeechRecognition({
+		onResult: handleSpeechResult,
+		onError: (err) => {
+			setSpeechError(err)
+			setTimeout(() => {
+				setSpeechError((prev) => (prev === err ? null : prev))
+			}, 5000)
+		},
+	})
 
 	useEffect(() => {
 		const textarea = textareaRef.current
 		if (!textarea) return
 		textarea.style.height = 'auto'
 		textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`
-	}, [value])
+	}, [value, interimText])
 
 	useEffect(() => {
 		if (keyboardOpen) {
@@ -107,6 +142,9 @@ export function PromptComposer({
 
 	const handleSubmit = (event: FormEvent) => {
 		event.preventDefault()
+		if (isListening) {
+			stopListening()
+		}
 		if (loading) {
 			onStop?.()
 			return
@@ -119,6 +157,9 @@ export function PromptComposer({
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault()
+			if (isListening) {
+				stopListening()
+			}
 			if (value.trim() || attachments.length > 0) {
 				onSend()
 			}
@@ -228,6 +269,41 @@ export function PromptComposer({
 					</div>
 				)}
 
+				{/* Speech Recognition Live Status Bar */}
+				{isListening && (
+					<div className="composer__listening-bar" aria-live="polite">
+						<div className="composer__listening-left">
+							<span className="composer__listening-pulse" />
+							<span className="composer__listening-text">
+								{interimText ? `"${interimText}"` : 'Listening… speak now'}
+							</span>
+						</div>
+						<button
+							type="button"
+							className="composer__listening-done"
+							onClick={stopListening}
+							title="Stop dictating"
+						>
+							Done
+						</button>
+					</div>
+				)}
+
+				{/* Speech Error Banner */}
+				{speechError && (
+					<div className="composer__speech-error" role="alert">
+						<span>{speechError}</span>
+						<button
+							type="button"
+							className="composer__speech-error-close"
+							onClick={() => setSpeechError(null)}
+							aria-label="Dismiss speech error"
+						>
+							×
+						</button>
+					</div>
+				)}
+
 				{/* Bottom Action Bar inside Container */}
 				<div className="composer__bottom-bar">
 					<div className="composer__left-actions">
@@ -241,6 +317,24 @@ export function PromptComposer({
 							title="Add context / attachments"
 						>
 							<IconPlus className="composer__add-icon" />
+						</button>
+
+						{/* STT / Speech Dictation Button */}
+						<button
+							type="button"
+							className={`composer__mic-btn${isListening ? ' is-listening' : ''}${!isSpeechSupported ? ' is-unsupported' : ''}`}
+							onClick={toggleListening}
+							disabled={loading}
+							aria-label={isListening ? 'Stop dictation' : 'Dictate with voice'}
+							title={
+								!isSpeechSupported
+									? 'Speech recognition is not supported in this browser'
+									: isListening
+									? 'Listening… tap to stop'
+									: 'Dictate prompt with voice'
+							}
+						>
+							<IconMic className="composer__mic-icon" />
 						</button>
 
 						{/* Mode Toggle Buttons */}
