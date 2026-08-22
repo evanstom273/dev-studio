@@ -52,8 +52,13 @@ export function buildCodexExecArgs(options: {
 		args.push('exec', '--json', '--skip-git-repo-check')
 	}
 
-	if (options.autoApprove) {
+	const sandboxMode = options.mode === 'agent' ? 'workspace-write' : 'read-only'
+	const useApproveForMe = Boolean(options.autoApprove && options.mode === 'agent')
+
+	if (useApproveForMe) {
 		args.push('--approve-for-me')
+	} else if (options.autoApprove) {
+		args.push('-c', 'approval_policy="never"')
 	}
 
 	if (options.model) {
@@ -69,11 +74,12 @@ export function buildCodexExecArgs(options: {
 		args.push('-c', `service_tier="${options.speed}"`)
 	}
 
-	const sandboxMode = options.mode === 'agent' ? 'workspace-write' : 'read-only'
-	if (isResume) {
-		args.push('-c', `sandbox_mode="${sandboxMode}"`)
-	} else {
-		args.push('-s', sandboxMode)
+	if (!useApproveForMe) {
+		if (isResume) {
+			args.push('-c', `sandbox_mode="${sandboxMode}"`)
+		} else {
+			args.push('-s', sandboxMode)
+		}
 	}
 
 	args.push('-')
