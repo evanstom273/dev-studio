@@ -79,11 +79,32 @@ async function main(): Promise<void> {
 	await agy.init()
 
 	const server = createServer(app)
-	const wss = new WebSocketServer({ server, path: '/api/terminal/ws' })
-	setupTerminalWebSocket(wss, terminal, config)
+	const terminalWss = new WebSocketServer({ noServer: true })
+	setupTerminalWebSocket(terminalWss, terminal, config)
 
-	const browserWss = new WebSocketServer({ server, path: '/api/browser/ws' })
+	const browserWss = new WebSocketServer({ noServer: true })
 	setupBrowserWebSocket(browserWss, browser, config)
+
+	server.on('upgrade', (req, socket, head) => {
+		try {
+			const parsedUrl = new URL(req.url ?? '', `http://${req.headers.host || 'localhost'}`)
+			const pathname = parsedUrl.pathname
+
+			if (pathname === '/api/terminal/ws') {
+				terminalWss.handleUpgrade(req, socket, head, (ws) => {
+					terminalWss.emit('connection', ws, req)
+				})
+			} else if (pathname === '/api/browser/ws') {
+				browserWss.handleUpgrade(req, socket, head, (ws) => {
+					browserWss.emit('connection', ws, req)
+				})
+			} else {
+				socket.destroy()
+			}
+		} catch {
+			socket.destroy()
+		}
+	})
 
 	server.listen(config.port, config.host, () => {
 		console.log(`Dev Studio backend listening on http://${config.host}:${config.port}`)

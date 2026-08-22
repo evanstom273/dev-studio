@@ -102,8 +102,30 @@ export function BrowserView({
 	const inputProxyRef = useRef<HTMLInputElement | null>(null)
 	const menuRef = useRef<HTMLDivElement | null>(null)
 
+	const activeTabIdRef = useRef<string | null>(null)
+	activeTabIdRef.current = activeTabId
+
 	const activeTab = tabs.find((t) => t.id === activeTabId) || null
 	const isBookmarked = activeTab ? bookmarks.some((b) => b.url === activeTab.url) : false
+
+	// Render frame to canvas
+	const renderFrame = useCallback((msg: BrowserFrameMessage) => {
+		const canvas = canvasRef.current
+		if (!canvas) return
+
+		const ctx = canvas.getContext('2d')
+		if (!ctx) return
+
+		const img = new Image()
+		img.onload = () => {
+			if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+				canvas.width = img.naturalWidth
+				canvas.height = img.naturalHeight
+			}
+			ctx.drawImage(img, 0, 0)
+		}
+		img.src = `data:image/jpeg;base64,${msg.data}`
+	}, [])
 
 	// Load initial state
 	const loadBrowserState = useCallback(async () => {
@@ -154,86 +176,112 @@ export function BrowserView({
 		}
 	}, [activeTab, isEditingUrl])
 
-	// WebSocket connection setup
+	// Dedicated single WebSocket connection with auto-reconnect
 	useEffect(() => {
-		const wsUrl = browserApi.getWebSocketUrl()
-		const ws = new WebSocket(wsUrl)
-		wsRef.current = ws
+		let isMounted = true
+		let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
+		let ws: WebSocket | null = null
 
-		ws.onopen = () => {
-			if (activeTabId) {
-				ws.send(
+		const connect = () => {
+			if (!isMounted) return
+			const wsUrl = browserApi.getWebSocketUrl()
+			ws = new WebSocket(wsUrl)
+			wsRef.current = ws
+
+			ws.onopen = () => {
+				setIsRunning(true)
+				setError(null)
+				if (activeTabIdRef.current && ws?.readyState === WebSocket.OPEN) {
+					ws.send(
+						JSON.stringify({
+							type: 'subscribe',
+							tabId: activeTabIdRef.current,
+						} satisfies BrowserClientMessage),
+					)
+				}
+			}
+
+			ws.onmessage = (event) => {
+				try {
+					const msg = JSON.parse(event.data) as BrowserServerMessage
+
+					if (msg.type === 'frame') {
+						if (msg.tabId === activeTabIdRef.current) {
+							renderFrame(msg)
+						}
+					} else if (msg.type === 'tabUpdated') {
+						setTabs((prev) => prev.map((t) => (t.id === msg.tab.id ? msg.tab : t)))
+					} else if (msg.type === 'tabClosed') {
+						setTabs((prev) => prev.filter((t) => t.id !== msg.tabId))
+					} else if (msg.type === 'console') {
+						setConsoleLogs((prev) => [msg.entry, ...prev.slice(0, 499)])
+					} else if (msg.type === 'networkError') {
+						setNetworkErrors((prev) => [msg.entry, ...prev.slice(0, 499)])
+					} else if (msg.type === 'downloadUpdated') {
+						setDownloads((prev) => {
+							const idx = prev.findIndex((d) => d.id === msg.item.id)
+							if (idx !== -1) {
+								const copy = [...prev]
+								copy[idx] = msg.item
+								return copy
+							}
+							return [msg.item, ...prev]
+						})
+					} else if (msg.type === 'status') {
+						setIsRunning(msg.isRunning)
+						setIsRecovering(Boolean(msg.isRecovering))
+						if (msg.activeTabId && !activeTabIdRef.current) {
+							setActiveTabId(msg.activeTabId)
+						}
+					}
+				} catch {
+					// ignore parse error
+				}
+			}
+
+			ws.onclose = () => {
+				if (!isMounted) return
+				reconnectTimeout = setTimeout(connect, 2000)
+			}
+
+			ws.onerror = () => {
+				if (ws?.readyState === WebSocket.OPEN) ws.close()
+			}
+		}
+
+		connect()
+
+		return () => {
+			isMounted = false
+			if (reconnectTimeout) clearTimeout(reconnectTimeout)
+			if (ws) ws.close()
+		}
+	}, [renderFrame])
+
+	// Synchronize subscription whenever activeTabId changes
+	useEffect(() => {
+		if (!activeTabId) return
+
+		if (wsRef.current?.readyState === WebSocket.OPEN) {
+			wsRef.current.send(
+				JSON.stringify({
+					type: 'subscribe',
+					tabId: activeTabId,
+				} satisfies BrowserClientMessage),
+			)
+		}
+
+		return () => {
+			if (wsRef.current?.readyState === WebSocket.OPEN) {
+				wsRef.current.send(
 					JSON.stringify({
-						type: 'subscribe',
+						type: 'unsubscribe',
 						tabId: activeTabId,
 					} satisfies BrowserClientMessage),
 				)
 			}
 		}
-
-		ws.onmessage = (event) => {
-			try {
-				const msg = JSON.parse(event.data) as BrowserServerMessage
-
-				if (msg.type === 'frame') {
-					if (msg.tabId === activeTabId) {
-						renderFrame(msg)
-					}
-				} else if (msg.type === 'tabUpdated') {
-					setTabs((prev) => prev.map((t) => (t.id === msg.tab.id ? msg.tab : t)))
-				} else if (msg.type === 'tabClosed') {
-					setTabs((prev) => prev.filter((t) => t.id !== msg.tabId))
-				} else if (msg.type === 'console') {
-					setConsoleLogs((prev) => [msg.entry, ...prev.slice(0, 499)])
-				} else if (msg.type === 'networkError') {
-					setNetworkErrors((prev) => [msg.entry, ...prev.slice(0, 499)])
-				} else if (msg.type === 'downloadUpdated') {
-					setDownloads((prev) => {
-						const idx = prev.findIndex((d) => d.id === msg.item.id)
-						if (idx !== -1) {
-							const copy = [...prev]
-							copy[idx] = msg.item
-							return copy
-						}
-						return [msg.item, ...prev]
-					})
-				} else if (msg.type === 'status') {
-					setIsRunning(msg.isRunning)
-					setIsRecovering(Boolean(msg.isRecovering))
-					if (msg.activeTabId) setActiveTabId(msg.activeTabId)
-				}
-			} catch {
-				// ignore parse error
-			}
-		}
-
-		ws.onerror = () => {
-			// websocket error handled
-		}
-
-		return () => {
-			ws.close()
-		}
 	}, [activeTabId])
-
-	// Render frame to canvas
-	const renderFrame = (msg: BrowserFrameMessage) => {
-		const canvas = canvasRef.current
-		if (!canvas) return
-
-		const ctx = canvas.getContext('2d')
-		if (!ctx) return
-
-		const img = new Image()
-		img.onload = () => {
-			if (canvas.width !== img.width || canvas.height !== img.height) {
-				canvas.width = img.width
-				canvas.height = img.height
-			}
-			ctx.drawImage(img, 0, 0)
-		}
-		img.src = `data:image/jpeg;base64,${msg.data}`
-	}
 
 	// Tab operations
 	const handleCreateTab = async (url?: string) => {

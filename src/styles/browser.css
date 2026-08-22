@@ -541,11 +541,12 @@
 .browser-viewport-container {
 	flex: 1;
 	position: relative;
-	background: #000000;
-	overflow: hidden;
+	background: #09090b;
+	overflow: auto;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	min-height: 100px;
 }
 
 .browser-canvas {
@@ -554,6 +555,8 @@
 	max-height: 100%;
 	cursor: default;
 	touch-action: none;
+	background: #ffffff;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
 }
 
 .browser-input-proxy {

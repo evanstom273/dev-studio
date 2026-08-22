@@ -235,22 +235,39 @@ export class BrowserService {
 		}
 
 		// Attach page event listeners
-		page.on('framenavigated', (frame) => {
+		page.on('framenavigated', async (frame) => {
 			if (frame === page.mainFrame()) {
 				tab.url = frame.url()
-				tab.title = page.title().then((t) => t || tab.url) as unknown as string
+				try {
+					const title = await page.title()
+					if (title) tab.title = title
+				} catch {
+					// ignore
+				}
 				tab.updatedAt = Date.now()
 				void this.updateTabInfo(record)
 			}
 		})
 
-		page.on('load', () => {
+		page.on('load', async () => {
 			tab.isLoading = false
+			try {
+				const title = await page.title()
+				if (title) tab.title = title
+			} catch {
+				// ignore
+			}
 			void this.updateTabInfo(record)
 		})
 
-		page.on('domcontentloaded', () => {
+		page.on('domcontentloaded', async () => {
 			tab.isLoading = false
+			try {
+				const title = await page.title()
+				if (title) tab.title = title
+			} catch {
+				// ignore
+			}
 			void this.updateTabInfo(record)
 		})
 
@@ -782,6 +799,35 @@ export class BrowserService {
 				everyNthFrame: 1,
 			})
 			record.screencastActive = true
+
+			// Immediately capture and emit an initial frame so the client receives a render instantly
+			try {
+				const buf = await record.page.screenshot({ type: 'jpeg', quality: 80 })
+				const sockets = this.subscribers.get(tabId)
+				if (sockets && sockets.size > 0) {
+					const initialMsg = JSON.stringify({
+						type: 'frame',
+						tabId,
+						data: buf.toString('base64'),
+						metadata: {
+							offsetTop: 0,
+							pageScaleFactor: 1,
+							deviceWidth: width,
+							deviceHeight: height,
+							scrollOffsetX: 0,
+							scrollOffsetY: 0,
+							timestamp: Date.now(),
+						},
+						sessionId: 0,
+					} satisfies BrowserServerMessage)
+
+					for (const s of sockets) {
+						if (s.readyState === 1) s.send(initialMsg)
+					}
+				}
+			} catch {
+				// ignore initial frame capture errors
+			}
 		} catch (err) {
 			console.warn('[BrowserService] Screencast start warning:', err instanceof Error ? err.message : err)
 		}
