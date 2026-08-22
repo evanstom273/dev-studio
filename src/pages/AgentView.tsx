@@ -223,6 +223,7 @@ export function AgentView({
 			status: 'running',
 			startedAt: Date.now(),
 			activities: [],
+			entries: [],
 			timestamp: now,
 		}
 		setLiveTimeline(initialTimeline)
@@ -243,6 +244,19 @@ export function AgentView({
 				},
 				(raw) => {
 					const event = raw as StreamEvent
+					if (event.type === 'commentary_delta') {
+						setLiveTimeline((prev) => {
+							if (!prev || !event.content.trim()) return prev
+							const entries = prev.entries ? [...prev.entries] : []
+							const last = entries[entries.length - 1]
+							if (last?.kind === 'commentary') {
+								entries[entries.length - 1] = { ...last, content: `${last.content}${last.content ? '\n' : ''}${event.content.trim()}` }
+							} else {
+								entries.push({ id: `commentary-${Date.now()}-${entries.length}`, kind: 'commentary', content: event.content.trim(), createdAt: Date.now() })
+							}
+							return { ...prev, entries }
+						})
+					}
 					if (event.type === 'message_delta') {
 						agentBuffer += event.content
 						setStreamingContent(agentBuffer)
@@ -263,6 +277,10 @@ export function AgentView({
 							return {
 								...prev,
 								activities: [...baseActivities, event.activity],
+								entries: [
+									...(prev.entries ?? []),
+									{ id: `entry-${event.activity.id}`, kind: 'activity', activityId: event.activity.id, createdAt: event.activity.startedAt },
+								],
 							}
 						})
 					}
@@ -282,6 +300,10 @@ export function AgentView({
 							return {
 								...prev,
 								activities: [...baseActivities, event.activity],
+								entries: [
+									...(prev.entries ?? []),
+									{ id: `entry-${event.activity.id}`, kind: 'activity', activityId: event.activity.id, createdAt: event.activity.startedAt },
+								],
 							}
 						})
 					}
@@ -328,6 +350,10 @@ export function AgentView({
 								completedAt: Date.now(),
 								durationMs: Date.now() - prev.startedAt,
 								activities: hasError ? prev.activities : [...prev.activities, errorActivity],
+								entries: hasError ? prev.entries : [
+									...(prev.entries ?? []),
+									{ id: `entry-${errorActivity.id}`, kind: 'activity', activityId: errorActivity.id, createdAt: errorActivity.startedAt },
+								],
 							}
 						})
 					}
@@ -359,11 +385,11 @@ export function AgentView({
 
 			await loadSession()
 
-			if (timelineSnapshot && timelineSnapshot.activities.length > 0) {
+			if (timelineSnapshot && (timelineSnapshot.activities.length > 0 || Boolean(timelineSnapshot.entries?.length))) {
 				setItems((current) => {
 					const filtered = filterConversationItems(current)
 					const hasPersistedTimeline = filtered.some(
-						(item) => item.kind === 'activity_timeline' && item.activities.length > 0,
+						(item) => item.kind === 'activity_timeline' && (item.activities.length > 0 || Boolean(item.entries?.length)),
 					)
 					if (hasPersistedTimeline) {
 						return filtered
@@ -393,6 +419,7 @@ export function AgentView({
 				status: 'running',
 				startedAt: Date.now(),
 				activities: [startAct],
+				entries: [{ id: `entry-${actId}`, kind: 'activity', activityId: actId, createdAt: startAct.startedAt }],
 				timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
 			}
 			setItems((prev) => [...prev, cmdTimeline])

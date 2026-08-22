@@ -14,6 +14,7 @@ import type {
 } from '../../types/agent.js'
 import type { AgentProvider, SessionTurnContext, TurnExecutionResult } from './agentProvider.js'
 import { setLatestCodexRateLimits, type CodexRateLimitsPayload } from '../codexQuotaService.js'
+import { appendTimelineActivity, appendTimelineCommentary, updateTimelineActivity } from './timeline.js'
 
 type ActiveProcess = {
 	child: ChildProcessWithoutNullStreams
@@ -593,6 +594,7 @@ export class CodexProvider implements AgentProvider {
 				status: 'running',
 				startedAt,
 				activities,
+				entries: [],
 				timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
 			}
 
@@ -654,7 +656,7 @@ export class CodexProvider implements AgentProvider {
 								startedAt: Date.now(),
 								toolName: 'bash',
 							}
-							activities.push(act)
+							appendTimelineActivity(timeline, act)
 							onEvent({ type: 'activity_start', activity: act })
 							onEvent({
 								type: 'turn_status',
@@ -679,9 +681,16 @@ export class CodexProvider implements AgentProvider {
 									output: item.aggregated_output,
 									exitCode: item.exit_code ?? undefined,
 								}
+								updateTimelineActivity(timeline, existing)
 								onEvent({ type: 'activity_complete', activity: existing })
 							}
 							onEvent({ type: 'turn_status', status: 'running', label: 'Thinking…' })
+						} else if (
+							(item.type === 'reasoning' || item.type === 'agent_reasoning' || item.type === 'commentary' || item.type === 'progress') &&
+							item.text
+						) {
+							appendTimelineCommentary(timeline, item.text)
+							onEvent({ type: 'commentary_delta', content: item.text })
 						} else if (item.type === 'agent_message' && item.text) {
 							agentContent += (agentContent ? '\n' : '') + item.text
 							onEvent({ type: 'message_delta', content: item.text })
@@ -696,7 +705,7 @@ export class CodexProvider implements AgentProvider {
 								completedAt: Date.now(),
 								durationMs: 0,
 							}
-							activities.push(act)
+							appendTimelineActivity(timeline, act)
 							onEvent({ type: 'activity_complete', activity: act })
 						}
 					}

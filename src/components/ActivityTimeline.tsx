@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type {
 	ActivityTimelineItem,
 	AgentActivityDetail,
@@ -22,6 +22,33 @@ import {
 	IconSparkles,
 } from './Icons'
 import '../styles/agent.css'
+import { getTimelineActivity, getTimelineEntries } from '../utils/timelineEntries'
+
+type TimelineRenderEntry =
+	| { kind: 'commentary'; id: string; content: string }
+	| { kind: 'activities'; id: string; items: GroupedActivity[] }
+
+function buildTimelineRenderEntries(timeline: ActivityTimelineItem): TimelineRenderEntry[] {
+	const result: TimelineRenderEntry[] = []
+	let activityRun: AgentActivityItem[] = []
+	const flush = () => {
+		if (activityRun.length > 0) {
+			result.push({ kind: 'activities', id: `run-${activityRun[0].id}`, items: groupActivities(activityRun) })
+			activityRun = []
+		}
+	}
+	for (const entry of getTimelineEntries(timeline)) {
+		if (entry.kind === 'commentary') {
+			flush()
+			result.push({ kind: 'commentary', id: entry.id, content: entry.content })
+			continue
+		}
+		const activity = getTimelineActivity(timeline, entry.activityId)
+		if (activity) activityRun.push(activity)
+	}
+	flush()
+	return result
+}
 
 type ActivityTimelineProps = {
 	timeline: ActivityTimelineItem
@@ -309,29 +336,7 @@ export function ActivityTimeline({
 	const isRunning = timeline.status === 'running'
 	const isError = timeline.status === 'error'
 
-	const grouped = useMemo(
-		() => groupActivities(timeline.activities),
-		[timeline.activities],
-	)
-
-	const bodyRef = useRef<HTMLDivElement>(null)
-	const bodyNearBottomRef = useRef(true)
-
-	const handleBodyScroll = () => {
-		if (!bodyRef.current) return
-		const { scrollTop, scrollHeight, clientHeight } = bodyRef.current
-		bodyNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 24
-	}
-
-	useEffect(() => {
-		if (!expanded || !bodyRef.current) return
-		if (isLive) {
-			bodyNearBottomRef.current = true
-		}
-		if (bodyNearBottomRef.current) {
-			bodyRef.current.scrollTop = bodyRef.current.scrollHeight
-		}
-	}, [grouped, expanded, isLive, timeline.activities.length])
+	const renderEntries = useMemo(() => buildTimelineRenderEntries(timeline), [timeline])
 
 	const headerLabel = formatThoughtHeader(
 		timeline.status,
@@ -382,29 +387,30 @@ export function ActivityTimeline({
 			{/* Level 1: Expanded Body */}
 			{expanded && (
 				<div
-					ref={bodyRef}
 					className="activity-timeline__body"
-					onScroll={handleBodyScroll}
 				>
-					{grouped.length === 0 && isRunning && (
+					{renderEntries.length === 0 && isRunning && (
 						<div className="activity-timeline__empty-live">
 							<span className="activity-timeline-row__pulse-dot" />
 							<span className="activity-timeline__empty-text">Waiting for agent activity…</span>
 						</div>
 					)}
 
-					{grouped.length === 0 && !isRunning && isError && (
+					{renderEntries.length === 0 && !isRunning && isError && (
 						<div className="activity-timeline__empty-live">
 							<IconClose className="activity-timeline-row__status-icon activity-timeline-row__status-icon--error" />
 							<span className="activity-timeline__empty-text">Turn failed before any tool activity was recorded.</span>
 						</div>
 					)}
 
-					{grouped.map((item) => {
-						if (item.kind === 'group') {
-							return <GroupedActivityRow key={item.id} group={item} />
+					{renderEntries.map((entry) => {
+						if (entry.kind === 'commentary') {
+							return <p key={entry.id} className="activity-timeline__commentary">{entry.content}</p>
 						}
-						return <SingleActivityRow key={item.activity.id} activity={item.activity} />
+						return entry.items.map((item) => {
+							if (item.kind === 'group') return <GroupedActivityRow key={item.id} group={item} />
+							return <SingleActivityRow key={item.activity.id} activity={item.activity} />
+						})
 					})}
 				</div>
 			)}

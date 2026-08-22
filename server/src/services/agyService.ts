@@ -19,6 +19,7 @@ import type {
 import type { ServerConfig } from '../config.js'
 import { SessionStore } from '../store.js'
 import { AgyPermissionService } from './agyPermissionService.js'
+import { appendTimelineActivity, appendTimelineCommentary, updateTimelineActivity } from './agent/timeline.js'
 
 type PermissionResolver = (approved: boolean) => void
 
@@ -259,7 +260,7 @@ export class AgyService {
 			timeline.status = turnFailed ? 'error' : 'complete'
 			timeline.completedAt = Date.now()
 			timeline.durationMs = timeline.completedAt - timeline.startedAt
-			if (timeline.activities.length > 0) {
+			if (timeline.activities.length > 0 || timeline.entries?.length) {
 				session.items.push(timeline)
 			}
 		}
@@ -371,6 +372,7 @@ export class AgyService {
 			status: 'running',
 			startedAt: Date.now(),
 			activities: [],
+			entries: [],
 			timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
 		}
 		const activeActivities = new Map<string, AgentActivityItem>()
@@ -443,7 +445,7 @@ export class AgyService {
 					completedAt: Date.now(),
 					durationMs: 0,
 				}
-				timeline.activities.push(errorActivity)
+				appendTimelineActivity(timeline, errorActivity)
 				onEvent({ type: 'activity_complete', activity: errorActivity })
 				onEvent({ type: 'error', message: formatted })
 				finish({ agentContent, conversationId, failed: true, timeline })
@@ -501,7 +503,7 @@ export class AgyService {
 									durationMs: 0,
 									toolName: shortToolName(toolName),
 								}
-								timeline.activities.push(blockActivity)
+								appendTimelineActivity(timeline, blockActivity)
 								onEvent({ type: 'activity_complete', activity: blockActivity })
 								onEvent({ type: 'activity', status: 'error', label: `Blocked: ${label} (ask mode)`, toolName })
 								return
@@ -537,11 +539,12 @@ export class AgyService {
 									durationMs: stepDurationMs,
 									toolName: shortToolName(toolName),
 								}
-								timeline.activities.push(activityItem)
+								appendTimelineActivity(timeline, activityItem)
 								if (!isDone) {
 									activeActivities.set(stepKey, activityItem)
 									onEvent({ type: 'activity_start', activity: { ...activityItem } })
 								} else {
+									updateTimelineActivity(timeline, activityItem)
 									onEvent({ type: 'activity_complete', activity: { ...activityItem } })
 								}
 							} else {
@@ -587,8 +590,8 @@ export class AgyService {
 									completedAt: Date.now(),
 									durationMs: 0,
 								}
-								timeline.activities.push(statusActivity)
-								onEvent({ type: 'activity_complete', activity: statusActivity })
+								appendTimelineCommentary(timeline, msg)
+								onEvent({ type: 'commentary_delta', content: msg })
 							}
 						}
 

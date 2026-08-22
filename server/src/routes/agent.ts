@@ -14,7 +14,7 @@ import type { AgentMode, AttachmentInfo, ConversationItem } from '../types/agent
 function filterEmptyTimelines(items: ConversationItem[]): ConversationItem[] {
 	return items.filter((item) => {
 		if (item.kind !== 'activity_timeline') return true
-		return item.activities.length > 0 || item.status === 'running'
+		return item.activities.length > 0 || Boolean(item.entries?.length) || item.status === 'running'
 	})
 }
 

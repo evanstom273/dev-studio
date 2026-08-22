@@ -12,7 +12,7 @@ export function shouldRenderActivityTimeline(
 	isLive = false,
 ): boolean {
 	if (isLive) return true
-	if (timeline.activities.length > 0) return true
+	if (timeline.activities.length > 0 || Boolean(timeline.entries?.length)) return true
 	return timeline.status === 'running'
 }
 

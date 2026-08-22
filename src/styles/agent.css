@@ -572,16 +572,20 @@
 .activity-timeline__body {
 	display: flex;
 	flex-direction: column;
-	gap: 2px;
-	padding: 4px 6px 6px;
+	gap: 4px;
+	padding: 8px 10px 10px;
 	border-top: 1px solid var(--border-subtle);
 	background: var(--bg-elevated);
-	max-height: min(320px, 42vh);
-	overflow-x: hidden;
-	overflow-y: auto;
-	overscroll-behavior: contain;
-	-webkit-overflow-scrolling: touch;
-	scrollbar-gutter: stable;
+	min-width: 0;
+}
+
+.activity-timeline__commentary {
+	margin: 5px 2px;
+	color: var(--text-secondary);
+	font-size: 12.5px;
+	line-height: 1.55;
+	white-space: pre-wrap;
+	word-break: break-word;
 }
 
 .activity-timeline__empty-live {
@@ -671,6 +675,7 @@
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	word-break: break-word;
 	min-width: 0;
 	flex: 1;
 	color: var(--text-primary);
