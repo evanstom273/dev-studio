@@ -7,7 +7,7 @@ export default defineConfig({
 	plugins: [react()],
 	resolve: {
 		alias: {
-			'@shared': resolve(__dirname, 'shared'),
+			'@shared': resolve(import.meta.dirname, 'shared'),
 		},
 	},
 	server: {

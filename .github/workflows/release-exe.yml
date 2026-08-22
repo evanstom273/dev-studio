@@ -1,4 +1,4 @@
-﻿name: Build & Release Desktop App (.exe)
+name: Build & Release Desktop App (.exe)
 
 on:
   workflow_dispatch:
@@ -19,7 +19,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
 
       - name: Install Rust Stable
         uses: dtolnay/rust-toolchain@stable

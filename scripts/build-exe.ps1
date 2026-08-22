@@ -1,4 +1,4 @@
-﻿param(
+param(
     [switch]$DebugBuild
 )
 
@@ -6,7 +6,13 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "=== Dev Studio Desktop (.exe) Builder ===" -ForegroundColor Cyan
 
-# 1. Check if Rust & Cargo are available
+# 1. Ensure Cargo & Rust paths are in PATH without quote interference
+$cargoBin = "$env:USERPROFILE\.cargo\bin"
+if (Test-Path $cargoBin) {
+    $cleanPath = $env:PATH.Replace('"', '')
+    $env:PATH = "$cargoBin;$cleanPath"
+}
+
 try {
     $rustVersion = rustc --version
     Write-Host "Found Rust: $rustVersion" -ForegroundColor Green
@@ -18,9 +24,13 @@ try {
 # 2. Check for C++ Linker (MSVC link.exe)
 $linkCmd = Get-Command link.exe -ErrorAction SilentlyContinue
 if (-not $linkCmd) {
-    Write-Host "`n[Notice] MSVC Linker (link.exe) was not found in PATH." -ForegroundColor Yellow
-    Write-Host "To compile Tauri apps natively on Windows, install C++ Build Tools using:" -ForegroundColor Yellow
-    Write-Host "  winget install Microsoft.VisualStudio.2022.BuildTools --force --override `"--passive --wait --add Microsoft.VisualStudio.Workload.VCTools`"`n" -ForegroundColor Cyan
+    Write-Host "`n[!] Notice: MSVC C++ Linker (link.exe) is not installed on this machine." -ForegroundColor Yellow
+    Write-Host "Tauri requires the Visual C++ Build Tools on Windows." -ForegroundColor Yellow
+    Write-Host "You have two options:" -ForegroundColor Cyan
+    Write-Host "  1. Install C++ tools locally with:" -ForegroundColor White
+    Write-Host "     winget install Microsoft.VisualStudio.2022.BuildTools --force --override `"--passive --wait --add Microsoft.VisualStudio.Workload.VCTools`"`n" -ForegroundColor White
+    Write-Host "  2. Or build the .exe automatically in GitHub Actions:" -ForegroundColor White
+    Write-Host "     Go to GitHub > Actions > 'Build & Release Desktop App (.exe)' > Run workflow`n" -ForegroundColor White
 }
 
 # 3. Build Web Assets
