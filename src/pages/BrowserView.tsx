@@ -66,6 +66,8 @@ export function BrowserView({
 	const [activeTabId, setActiveTabId] = useState<string | null>(null)
 	const [isRunning, setIsRunning] = useState(false)
 	const [isRecovering, setIsRecovering] = useState(false)
+	const [launchError, setLaunchError] = useState<string | null>(null)
+	const [installHint, setInstallHint] = useState<string | null>(null)
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 
@@ -133,7 +135,14 @@ export function BrowserView({
 			const state = await browserApi.getState()
 			setIsRunning(state.isRunning)
 			setIsRecovering(Boolean(state.isRecovering))
+			setLaunchError(state.launchError ?? null)
+			setInstallHint(state.installHint ?? null)
 			setTabs(state.tabs)
+
+			if (state.launchError) {
+				setError(state.launchError)
+				return
+			}
 
 			if (state.tabs.length > 0) {
 				const active = state.activeTabId && state.tabs.some((t) => t.id === state.activeTabId)
@@ -270,9 +279,16 @@ export function BrowserView({
 					} else if (msg.type === 'status') {
 						setIsRunning(msg.isRunning)
 						setIsRecovering(Boolean(msg.isRecovering))
+						setLaunchError(msg.launchError ?? null)
+						setInstallHint(msg.installHint ?? null)
+						if (msg.launchError) {
+							setError(msg.launchError)
+						}
 						if (msg.activeTabId && !activeTabIdRef.current) {
 							setActiveTabId(msg.activeTabId)
 						}
+					} else if (msg.type === 'error') {
+						setError(msg.message)
 					}
 				} catch {
 					// ignore parse error
@@ -764,8 +780,23 @@ export function BrowserView({
 			{/* Error banner */}
 			{error && (
 				<div className="browser-error-banner">
-					<span>{error}</span>
+					<div className="browser-error-banner__content">
+						<span>{error}</span>
+						{installHint && <span className="browser-error-banner__hint">{installHint}</span>}
+					</div>
 					<button type="button" onClick={() => setError(null)}>✕</button>
+				</div>
+			)}
+
+			{/* Browser unavailable setup panel */}
+			{launchError && !loading && (
+				<div className="browser-setup-panel">
+					<p className="browser-setup-panel__title">Browser engine unavailable</p>
+					<p className="browser-setup-panel__message">{launchError}</p>
+					{installHint && <p className="browser-setup-panel__hint">{installHint}</p>}
+					<button type="button" className="browser-setup-panel__retry" onClick={() => void loadBrowserState()}>
+						Retry
+					</button>
 				</div>
 			)}
 

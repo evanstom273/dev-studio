@@ -72,6 +72,14 @@ if (-not $Hidden) {
 
 npm run build:server 2>&1 | Out-Null
 
+Write-Log "Ensuring Playwright Chromium is installed..."
+npm run install:browser 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+	Write-Log "WARNING: Playwright Chromium install failed — Browser tool will not work until fixed"
+} else {
+	Write-Log "Playwright Chromium ready"
+}
+
 while (-not (Test-Path $StopFile)) {
 	Stop-PortListener -TargetPort $Port
 	Write-Log "Starting backend on port $Port..."

@@ -44,6 +44,8 @@ export type BrowserSessionState = {
 	activeTabId: string | null
 	isRunning: boolean
 	isRecovering?: boolean
+	launchError?: string | null
+	installHint?: string | null
 }
 
 export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error'
@@ -283,6 +285,8 @@ export type BrowserStatusMessage = {
 	isRunning: boolean
 	isRecovering?: boolean
 	activeTabId: string | null
+	launchError?: string | null
+	installHint?: string | null
 }
 
 export type BrowserServerMessage =

@@ -30,8 +30,20 @@ export function createBrowserRouter(browser: BrowserService): Router {
 		'/tabs',
 		asyncHandler(async (req, res) => {
 			const body = req.body as CreateTabRequest
-			const tab = await browser.createTab(body)
-			res.status(201).json(tab)
+			try {
+				const tab = await browser.createTab(body)
+				res.status(201).json(tab)
+			} catch (err) {
+				if (browser.getLastLaunchError()) {
+					res.status(503).json({
+						error: browser.getLastLaunchError(),
+						code: 'BROWSER_UNAVAILABLE',
+						installHint: browser.getInstallHint(),
+					})
+					return
+				}
+				throw err
+			}
 		}),
 	)
 

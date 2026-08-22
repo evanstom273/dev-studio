@@ -52,7 +52,7 @@ app.use(express.json({ limit: '50mb' }))
 
 app.use('/api', authMiddleware(config))
 
-app.use('/api', createHealthRouter(config))
+app.use('/api', createHealthRouter(config, browser))
 app.use('/api/projects', createProjectsRouter(projects, config))
 app.use('/api/agent', createAgentRouter(projects, agy, sessions, permissions, config))
 app.use('/api/run', createRunRouter(projects))

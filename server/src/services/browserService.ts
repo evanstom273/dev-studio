@@ -35,6 +35,20 @@ type TabRecord = {
 	screencastActive: boolean
 }
 
+const BROWSER_INSTALL_HINT = 'On the laptop, run: npm run install:browser'
+
+function formatLaunchError(err: unknown): string {
+	const raw = err instanceof Error ? err.message : String(err)
+	if (raw.includes("Executable doesn't exist") || raw.includes('playwright install')) {
+		return 'Chromium is not installed for Playwright on this laptop.'
+	}
+	if (raw.includes('browserType.launchPersistentContext')) {
+		const firstLine = raw.split('\n').find((line) => line.trim() && !line.startsWith('╔'))?.trim()
+		if (firstLine) return firstLine.replace(/^browserType\.launchPersistentContext:\s*/, '')
+	}
+	return raw.split('\n')[0]?.trim() || 'Failed to launch Chromium'
+}
+
 export class BrowserService {
 	readonly config: ServerConfig
 	private browserDir: string
@@ -59,6 +73,7 @@ export class BrowserService {
 	private allClients: Set<WebSocket> = new Set()
 	private isRunning = false
 	private isRecovering = false
+	private lastLaunchError: string | null = null
 
 	constructor(config: ServerConfig) {
 		this.config = config
@@ -80,7 +95,42 @@ export class BrowserService {
 		try {
 			await this.ensureRunning()
 		} catch (err) {
-			console.warn('[BrowserService] Initial Chromium launch deferred:', err instanceof Error ? err.message : err)
+			this.lastLaunchError = formatLaunchError(err)
+			console.warn('[BrowserService] Initial Chromium launch deferred:', this.lastLaunchError)
+		}
+	}
+
+	getInstallHint(): string {
+		return BROWSER_INSTALL_HINT
+	}
+
+	getLastLaunchError(): string | null {
+		return this.lastLaunchError
+	}
+
+	async checkAvailability(): Promise<{ available: boolean; message?: string; installHint?: string }> {
+		if (this.isRunning) {
+			return { available: true }
+		}
+
+		if (this.lastLaunchError) {
+			return {
+				available: false,
+				message: this.lastLaunchError,
+				installHint: BROWSER_INSTALL_HINT,
+			}
+		}
+
+		try {
+			await this.ensureRunning()
+			return { available: true }
+		} catch (err) {
+			const message = formatLaunchError(err)
+			return {
+				available: false,
+				message,
+				installHint: BROWSER_INSTALL_HINT,
+			}
 		}
 	}
 
@@ -164,6 +214,7 @@ export class BrowserService {
 
 			this.isRunning = true
 			this.isRecovering = false
+			this.lastLaunchError = null
 
 			this.context.on('close', () => {
 				console.warn('[BrowserService] Chromium context closed.')
@@ -194,6 +245,7 @@ export class BrowserService {
 		} catch (err) {
 			this.isRunning = false
 			this.isRecovering = false
+			this.lastLaunchError = formatLaunchError(err)
 			this.broadcastStatus()
 			throw err
 		}
@@ -432,12 +484,26 @@ export class BrowserService {
 	// ==========================================
 
 	async getState(): Promise<BrowserSessionState> {
-		await this.ensureRunning()
+		try {
+			await this.ensureRunning()
+		} catch {
+			return {
+				tabs: [],
+				activeTabId: null,
+				isRunning: false,
+				isRecovering: this.isRecovering,
+				launchError: this.lastLaunchError,
+				installHint: BROWSER_INSTALL_HINT,
+			}
+		}
+
 		return {
 			tabs: Array.from(this.tabs.values()).map((t) => t.tab),
 			activeTabId: this.activeTabId,
 			isRunning: this.isRunning,
 			isRecovering: this.isRecovering,
+			launchError: null,
+			installHint: null,
 		}
 	}
 
@@ -743,6 +809,8 @@ export class BrowserService {
 				isRunning: this.isRunning,
 				isRecovering: this.isRecovering,
 				activeTabId: this.activeTabId,
+				launchError: this.lastLaunchError,
+				installHint: this.lastLaunchError ? BROWSER_INSTALL_HINT : null,
 			} satisfies BrowserServerMessage),
 		)
 	}
@@ -1045,6 +1113,8 @@ export class BrowserService {
 			isRunning: this.isRunning,
 			isRecovering: this.isRecovering,
 			activeTabId: this.activeTabId,
+			launchError: this.lastLaunchError,
+			installHint: this.lastLaunchError ? BROWSER_INSTALL_HINT : null,
 		})
 	}
 }

@@ -13,6 +13,7 @@
 		"build": "tsc -b && vite build",
 		"build:server": "npm run build -w server",
 		"build:all": "npm run build:server && npm run build",
+		"install:browser": "npm exec -w server playwright install chromium",
 		"start:server": "npm run start -w server",
 		"laptop": "powershell -ExecutionPolicy Bypass -File scripts/start-laptop.ps1",
 		"laptop:install": "powershell -ExecutionPolicy Bypass -File scripts/install-laptop-task.ps1",
