@@ -78,6 +78,8 @@ export function useSpeechRecognition({
 	const recognitionRef = useRef<ISpeechRecognition | null>(null)
 	const shouldBeListeningRef = useRef(false)
 	const restartTimeoutRef = useRef<number | null>(null)
+	const lastProcessedIndexRef = useRef(-1)
+	const interimTextRef = useRef('')
 
 	const isSupported = typeof window !== 'undefined' && Boolean(getSpeechRecognitionConstructor())
 
@@ -108,38 +110,19 @@ export function useSpeechRecognition({
 		}
 		setIsListening(false)
 		setInterimText('')
+		interimTextRef.current = ''
 	}, [])
 
-	const stopListening = useCallback(() => {
-		shouldBeListeningRef.current = false
-		if (restartTimeoutRef.current) {
-			window.clearTimeout(restartTimeoutRef.current)
-			restartTimeoutRef.current = null
-		}
-		if (recognitionRef.current) {
-			try {
-				recognitionRef.current.stop()
-			} catch {
-				// ignore stop error
-			}
-		}
-		setIsListening(false)
-		setInterimText('')
-	}, [])
-
-	const startListening = useCallback(() => {
+	const initRecognition = useCallback(() => {
 		const Constructor = getSpeechRecognitionConstructor()
 		if (!Constructor) {
 			const msg = 'Speech recognition is not supported in this browser.'
 			setError(msg)
 			onErrorRef.current?.(msg)
-			return
+			setIsListening(false)
+			shouldBeListeningRef.current = false
+			return null
 		}
-
-		cleanup()
-		setError(null)
-		setInterimText('')
-		shouldBeListeningRef.current = true
 
 		try {
 			const recognition = new Constructor()
@@ -147,6 +130,10 @@ export function useSpeechRecognition({
 			recognition.interimResults = true
 			recognition.lang =
 				lang || (typeof navigator !== 'undefined' ? navigator.language : 'en-US') || 'en-US'
+
+			// Each new SpeechRecognition session starts its result index at 0
+			lastProcessedIndexRef.current = -1
+			interimTextRef.current = ''
 
 			recognition.onstart = () => {
 				setIsListening(true)
@@ -156,13 +143,24 @@ export function useSpeechRecognition({
 				let finalChunk = ''
 				let currentInterim = ''
 
-				for (let i = event.resultIndex; i < event.results.length; i++) {
+				for (let i = 0; i < event.results.length; i++) {
 					const res = event.results[i]
 					const text = res[0]?.transcript || ''
 					if (res.isFinal) {
-						finalChunk += text
+						if (i > lastProcessedIndexRef.current) {
+							if (finalChunk && !finalChunk.endsWith(' ') && !text.startsWith(' ')) {
+								finalChunk += ' '
+							}
+							finalChunk += text
+							lastProcessedIndexRef.current = i
+						}
 					} else {
-						currentInterim += text
+						if (i > lastProcessedIndexRef.current) {
+							if (currentInterim && !currentInterim.endsWith(' ') && !text.startsWith(' ')) {
+								currentInterim += ' '
+							}
+							currentInterim += text
+						}
 					}
 				}
 
@@ -170,8 +168,9 @@ export function useSpeechRecognition({
 					onResultRef.current?.(finalChunk.trim())
 				}
 
-				setInterimText(currentInterim)
-				onInterimRef.current?.(currentInterim)
+				interimTextRef.current = currentInterim.trim()
+				setInterimText(currentInterim.trim())
+				onInterimRef.current?.(currentInterim.trim())
 			}
 
 			recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -200,16 +199,29 @@ export function useSpeechRecognition({
 			}
 
 			recognition.onend = () => {
-				setInterimText('')
-				// If user still wants to listen (e.g. browser auto-stopped on mobile), auto-restart
+				// Flush any pending interim text if recognition ended without marking it final
+				if (interimTextRef.current.trim()) {
+					const pending = interimTextRef.current.trim()
+					interimTextRef.current = ''
+					setInterimText('')
+					onResultRef.current?.(pending)
+				} else {
+					setInterimText('')
+				}
+
+				// If user still wants to listen (e.g. browser auto-stopped on mobile), auto-restart with a fresh instance
 				if (shouldBeListeningRef.current) {
 					restartTimeoutRef.current = window.setTimeout(() => {
 						if (shouldBeListeningRef.current) {
-							try {
-								recognition.start()
-							} catch {
-								setIsListening(false)
-								shouldBeListeningRef.current = false
+							const nextRec = initRecognition()
+							if (nextRec) {
+								recognitionRef.current = nextRec
+								try {
+									nextRec.start()
+								} catch {
+									setIsListening(false)
+									shouldBeListeningRef.current = false
+								}
 							}
 						}
 					}, 200)
@@ -218,7 +230,53 @@ export function useSpeechRecognition({
 				}
 			}
 
-			recognitionRef.current = recognition
+			return recognition
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : 'Failed to initialize speech recognition'
+			setError(msg)
+			onErrorRef.current?.(msg)
+			setIsListening(false)
+			shouldBeListeningRef.current = false
+			return null
+		}
+	}, [continuous, lang])
+
+	const stopListening = useCallback(() => {
+		shouldBeListeningRef.current = false
+		if (restartTimeoutRef.current) {
+			window.clearTimeout(restartTimeoutRef.current)
+			restartTimeoutRef.current = null
+		}
+		if (interimTextRef.current.trim()) {
+			const pending = interimTextRef.current.trim()
+			interimTextRef.current = ''
+			setInterimText('')
+			onResultRef.current?.(pending)
+		} else {
+			setInterimText('')
+		}
+		if (recognitionRef.current) {
+			try {
+				recognitionRef.current.stop()
+			} catch {
+				// ignore stop error
+			}
+		}
+		setIsListening(false)
+	}, [])
+
+	const startListening = useCallback(() => {
+		cleanup()
+		setError(null)
+		setInterimText('')
+		interimTextRef.current = ''
+		shouldBeListeningRef.current = true
+
+		const recognition = initRecognition()
+		if (!recognition) return
+
+		recognitionRef.current = recognition
+		try {
 			recognition.start()
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : 'Failed to start speech recognition'
@@ -227,7 +285,7 @@ export function useSpeechRecognition({
 			setIsListening(false)
 			shouldBeListeningRef.current = false
 		}
-	}, [cleanup, continuous, lang])
+	}, [cleanup, initRecognition])
 
 	const toggleListening = useCallback(() => {
 		if (isListening) {
