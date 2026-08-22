@@ -4,6 +4,7 @@ import { ActivityItem } from './ActivityItem'
 import { ActivityTimeline } from './ActivityTimeline'
 import { IconCheck, IconCopy } from './Icons'
 import { MarkdownRenderer } from './MarkdownRenderer'
+import { shouldRenderActivityTimeline } from '../utils/activityTimeline'
 import '../styles/agent.css'
 
 type ConversationProps = {
@@ -85,7 +86,20 @@ export function Conversation({ items, liveTimeline, streamingContent }: Conversa
 		>
 			{items.map((item) => {
 				if (item.kind === 'activity_timeline') {
-					return <ActivityTimeline key={item.id} timeline={item} defaultExpanded={false} />
+					if (!shouldRenderActivityTimeline(item)) {
+						return null
+					}
+
+					const hasActivities = item.activities.length > 0
+					return (
+						<ActivityTimeline
+							key={item.id}
+							timeline={item}
+							defaultExpanded={
+								item.status === 'running' || (hasActivities && item.status === 'error')
+							}
+						/>
+					)
 				}
 
 				if (item.kind === 'activity') {

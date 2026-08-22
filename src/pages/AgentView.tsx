@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
 	ActivityTimelineItem,
 	AgentActivityItem,
@@ -13,6 +13,11 @@ import { Conversation } from '../components/Conversation'
 import { PermissionPrompt } from '../components/PermissionPrompt'
 import { PromptComposer } from '../components/PromptComposer'
 import { agentApi } from '../services/agentApi'
+import {
+	clearLiveStatusActivity,
+	filterConversationItems,
+	upsertLiveStatusActivity,
+} from '../utils/activityTimeline'
 import '../styles/agent.css'
 
 export type AgentActions = {
@@ -45,7 +50,12 @@ export function AgentView({
 	const [error, setError] = useState<string | null>(null)
 	const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([])
 	const [liveTimeline, setLiveTimeline] = useState<ActivityTimelineItem | null>(null)
+	const liveTimelineRef = useRef<ActivityTimelineItem | null>(null)
 	const [streamingContent, setStreamingContent] = useState<string | null>(null)
+
+	useEffect(() => {
+		liveTimelineRef.current = liveTimeline
+	}, [liveTimeline])
 
 	useEffect(() => {
 		if (initialPrompt) {
@@ -57,7 +67,7 @@ export function AgentView({
 	const loadSession = useCallback(async () => {
 		try {
 			const session = await agentApi.getSession(project.id)
-			setItems(session.items)
+			setItems(filterConversationItems(session.items))
 			setMode(session.mode)
 			if (session.model) {
 				setSelectedModel(session.model)
@@ -220,44 +230,51 @@ export function AgentView({
 					if (event.type === 'activity_start') {
 						setLiveTimeline((prev) => {
 							if (!prev) return prev
-							const exists = prev.activities.some((a) => a.id === event.activity.id)
+							const baseActivities = clearLiveStatusActivity(prev.activities)
+							const exists = baseActivities.some((a) => a.id === event.activity.id)
 							if (exists) {
 								return {
 									...prev,
-									activities: prev.activities.map((a) =>
+									activities: baseActivities.map((a) =>
 										a.id === event.activity.id ? event.activity : a,
 									),
 								}
 							}
 							return {
 								...prev,
-								activities: [...prev.activities, event.activity],
+								activities: [...baseActivities, event.activity],
 							}
 						})
 					}
 					if (event.type === 'activity_complete') {
 						setLiveTimeline((prev) => {
 							if (!prev) return prev
-							const exists = prev.activities.some((a) => a.id === event.activity.id)
+							const baseActivities = clearLiveStatusActivity(prev.activities)
+							const exists = baseActivities.some((a) => a.id === event.activity.id)
 							if (exists) {
 								return {
 									...prev,
-									activities: prev.activities.map((a) =>
+									activities: baseActivities.map((a) =>
 										a.id === event.activity.id ? event.activity : a,
 									),
 								}
 							}
 							return {
 								...prev,
-								activities: [...prev.activities, event.activity],
+								activities: [...baseActivities, event.activity],
 							}
 						})
 					}
 					if (event.type === 'turn_status') {
 						setLiveTimeline((prev) => {
 							if (!prev) return prev
+							const activities =
+								event.status === 'running'
+									? upsertLiveStatusActivity(prev.activities, event.label, event.tool)
+									: clearLiveStatusActivity(prev.activities)
 							return {
 								...prev,
+								activities,
 								durationMs: event.durationMs ?? prev.durationMs,
 								usage: event.usage ?? prev.usage,
 								tokensPerSecond: event.tokensPerSecond ?? prev.tokensPerSecond,
@@ -272,9 +289,27 @@ export function AgentView({
 					}
 					if (event.type === 'error') {
 						setError(event.message)
-						setLiveTimeline((prev) =>
-							prev ? { ...prev, status: 'error', completedAt: Date.now() } : null,
-						)
+						setLiveTimeline((prev) => {
+							if (!prev) return null
+							const errorActivity: AgentActivityItem = {
+								id: `act-error-${Date.now()}`,
+								type: 'error',
+								status: 'failed',
+								title: 'Agent error',
+								detail: { error: event.message },
+								startedAt: Date.now(),
+								completedAt: Date.now(),
+								durationMs: 0,
+							}
+							const hasError = prev.activities.some((a) => a.type === 'error')
+							return {
+								...prev,
+								status: 'error',
+								completedAt: Date.now(),
+								durationMs: Date.now() - prev.startedAt,
+								activities: hasError ? prev.activities : [...prev.activities, errorActivity],
+							}
+						})
 					}
 					if (event.type === 'done') {
 						setLiveTimeline((prev) =>
@@ -298,8 +333,25 @@ export function AgentView({
 			)
 		} finally {
 			setLoading(false)
-			await loadSession()
+
+			const timelineSnapshot = liveTimelineRef.current
 			setLiveTimeline(null)
+
+			await loadSession()
+
+			if (timelineSnapshot && timelineSnapshot.activities.length > 0) {
+				setItems((current) => {
+					const filtered = filterConversationItems(current)
+					const hasPersistedTimeline = filtered.some(
+						(item) => item.kind === 'activity_timeline' && item.activities.length > 0,
+					)
+					if (hasPersistedTimeline) {
+						return filtered
+					}
+					return [...filtered, timelineSnapshot]
+				})
+			}
+
 			setStreamingContent(null)
 		}
 	}
@@ -394,7 +446,7 @@ export function AgentView({
 		setStreamingContent(null)
 		try {
 			const session = await agentApi.resetSession(project.id)
-			setItems(session.items)
+			setItems(filterConversationItems(session.items))
 			setMode(session.mode)
 			setPrompt('')
 			setAttachments([])

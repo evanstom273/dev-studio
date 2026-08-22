@@ -187,3 +187,54 @@ test('Single read is not grouped into "Read 1 files"', () => {
 	assert.equal(grouped[0].kind, 'single')
 	assert.equal(grouped[0].activity.title, 'Read WorkspacePage.tsx')
 })
+
+function shouldRenderActivityTimeline(timeline, isLive = false) {
+	if (isLive) return true
+	if (timeline.activities.length > 0) return true
+	return timeline.status === 'running'
+}
+
+function filterConversationItems(items) {
+	return items.filter((item) => {
+		if (item.kind !== 'activity_timeline') return true
+		return shouldRenderActivityTimeline(item)
+	})
+}
+
+test('filterConversationItems removes empty completed timelines', () => {
+	const items = [
+		{ id: 'm1', kind: 'message', role: 'user', content: 'hi' },
+		{
+			id: 't1',
+			kind: 'activity_timeline',
+			status: 'complete',
+			startedAt: 1000,
+			durationMs: 5000,
+			activities: [],
+		},
+		{
+			id: 't2',
+			kind: 'activity_timeline',
+			status: 'complete',
+			startedAt: 2000,
+			activities: [{ id: 'a1', type: 'read', status: 'completed', title: 'Read file.ts' }],
+		},
+	]
+	const filtered = filterConversationItems(items)
+	assert.equal(filtered.length, 2)
+	assert.equal(filtered[1].id, 't2')
+})
+
+test('filterConversationItems keeps running timelines even when empty', () => {
+	const items = [
+		{
+			id: 't-live',
+			kind: 'activity_timeline',
+			status: 'running',
+			startedAt: Date.now(),
+			activities: [],
+		},
+	]
+	const filtered = filterConversationItems(items)
+	assert.equal(filtered.length, 1)
+})
