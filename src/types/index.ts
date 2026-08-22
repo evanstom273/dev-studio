@@ -1,4 +1,4 @@
-export type { AgentMode, AgentSession, BackendHealth, ConversationItem, MessageRole, PermissionRequest, RunCommandRequest, RunCommandResult, StreamEvent, ToolStatus } from '@shared/types/agent'
+export type { ActivityTimelineItem, AgentActivityDetail, AgentActivityItem, AgentActivityStatus, AgentActivityType, AgentMode, AgentSession, BackendHealth, ConversationItem, MessageRole, PermissionRequest, RunCommandRequest, RunCommandResult, StreamEvent, ToolStatus } from '@shared/types/agent'
 export type { ConnectionConfig, ConnectionState, ApiError } from '@shared/types/connection'
 export type { AppRoute, CloneRepoRequest, InitRepoRequest, Project, RegisterProjectRequest, RepoTab, WorkspaceView } from '@shared/types/project'
 export type { BranchRequest, ChangedFile, ChangeStatus, CommitRequest, DiffHunk, DiffLine, DiscardRequest, FileDiff, FileTreeNode, GitBranch, GitCommit, GitStatus, MergeConflict, MergeRequest, PullRequest, PushRequest, RemoteRequest, RevertRequest, StageRequest } from '@shared/types/git'

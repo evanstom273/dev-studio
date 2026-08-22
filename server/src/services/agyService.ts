@@ -5,6 +5,10 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type {
+	ActivityTimelineItem,
+	AgentActivityDetail,
+	AgentActivityItem,
+	AgentActivityType,
 	AgentMode,
 	ConversationItem,
 	PermissionRequest,
@@ -220,6 +224,7 @@ export class AgyService {
 		let conversationId = session.conversationId ?? ''
 		const agentItemId = randomUUID()
 		let turnFailed = false
+		let timeline: ActivityTimelineItem | undefined
 
 		try {
 			const turnResult = await this.runSingleTurn(
@@ -234,6 +239,7 @@ export class AgyService {
 			agentContent = turnResult.agentContent
 			conversationId = turnResult.conversationId || conversationId
 			turnFailed = turnResult.failed
+			timeline = turnResult.timeline
 		} catch (error) {
 			turnFailed = true
 			const message = error instanceof Error ? error.message : 'Agent failed'
@@ -245,6 +251,15 @@ export class AgyService {
 			session.conversationId = null
 		} else if (conversationId) {
 			session.conversationId = conversationId
+		}
+
+		if (timeline) {
+			timeline.status = turnFailed ? 'error' : 'complete'
+			timeline.completedAt = Date.now()
+			timeline.durationMs = timeline.completedAt - timeline.startedAt
+			if (timeline.activities.length > 0 || timeline.durationMs > 0) {
+				session.items.push(timeline)
+			}
 		}
 
 		if (agentContent.trim()) {
@@ -266,6 +281,8 @@ export class AgyService {
 			type: 'done',
 			conversationId: session.conversationId ?? '',
 			status: turnFailed ? 'ERROR' : 'SUCCESS',
+			durationMs: timeline?.durationMs,
+			usage: timeline?.usage,
 		})
 	}
 
@@ -291,7 +308,7 @@ export class AgyService {
 		conversationId: string | null,
 		model: string | undefined,
 		onEvent: (event: StreamEvent) => void,
-	): Promise<{ agentContent: string; conversationId: string; failed: boolean }> {
+	): Promise<{ agentContent: string; conversationId: string; failed: boolean; timeline: ActivityTimelineItem }> {
 		const useStdin = Buffer.byteLength(prompt, 'utf8') > STDIN_PROMPT_BYTES
 		// Repo access via --add-dir; cwd must stay outside the repo or agy sandboxes writes to brain/ only.
 		const args = ['--add-dir', projectPath, '--output-format', 'stream-json', '--print-timeout', AGY_PRINT_TIMEOUT]
@@ -327,22 +344,33 @@ export class AgyService {
 			child.stdin.end()
 		}
 
-		return this.consumeAgyStream(child, activeProcess, projectId, mode, onEvent)
+		return this.consumeAgyStream(child, activeProcess, projectId, projectPath, mode, onEvent)
 	}
 
 	private async consumeAgyStream(
 		child: ChildProcessWithoutNullStreams,
 		activeProcess: ActiveProcess,
 		projectId: string,
+		projectPath: string,
 		mode: AgentMode,
 		onEvent: (event: StreamEvent) => void,
-	): Promise<{ agentContent: string; conversationId: string; failed: boolean }> {
+	): Promise<{ agentContent: string; conversationId: string; failed: boolean; timeline: ActivityTimelineItem }> {
 		let agentContent = ''
 		let conversationId = ''
 		let failed = false
 		let stdoutBuffer = ''
 		let stderrBuffer = ''
 		const permissionRequests = new Map<string, Promise<boolean>>()
+
+		const timeline: ActivityTimelineItem = {
+			id: `timeline-${randomUUID()}`,
+			kind: 'activity_timeline',
+			status: 'running',
+			startedAt: Date.now(),
+			activities: [],
+			timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+		}
+		const activeActivities = new Map<string, AgentActivityItem>()
 
 		const requestCommandApproval = (command: string): Promise<boolean> => {
 			const normalized = command.trim()
@@ -378,14 +406,24 @@ export class AgyService {
 		return new Promise((resolve) => {
 			let settled = false
 
-			const finish = (result: { agentContent: string; conversationId: string; failed: boolean }) => {
+			const finish = (result: { agentContent: string; conversationId: string; failed: boolean; timeline: ActivityTimelineItem }) => {
 				if (settled) return
 				settled = true
 				clearTimeout(turnTimeout)
 				if (this.activeProcesses.get(projectId)?.child === child) {
 					this.activeProcesses.delete(projectId)
 				}
-				resolve(result)
+				for (const act of activeActivities.values()) {
+					if (act.status === 'running') {
+						act.status = result.failed ? 'failed' : 'completed'
+						act.completedAt = Date.now()
+						act.durationMs = act.completedAt - act.startedAt
+					}
+				}
+				timeline.completedAt = Date.now()
+				timeline.durationMs = timeline.completedAt - timeline.startedAt
+				timeline.status = result.failed ? 'error' : 'complete'
+				resolve({ ...result, timeline })
 			}
 
 			const fail = (message: string) => {
@@ -393,7 +431,7 @@ export class AgyService {
 				const formatted = formatAgyError(message, stderrBuffer)
 				void this.logAgy(`turn fail: ${formatted}`)
 				onEvent({ type: 'error', message: formatted })
-				finish({ agentContent, conversationId, failed: true })
+				finish({ agentContent, conversationId, failed: true, timeline })
 			}
 
 			const handleResult = (result: Record<string, unknown>) => {
@@ -406,6 +444,7 @@ export class AgyService {
 
 				const usage = parseUsage(result.usage)
 				const durationMs = toDurationMs(result.duration_seconds)
+				timeline.usage = usage
 				this.emitTurnStatus(onEvent, {
 					status: 'complete',
 					label: 'Done',
@@ -427,13 +466,28 @@ export class AgyService {
 					if (event.event === 'step_update') {
 						const update = event.step_update as Record<string, unknown>
 						const stepType = update.step_type as string
+						const stepKey = String(update.step_id || update.tool_name || randomUUID())
 
 						if (stepType === 'tool') {
 							const toolName = update.tool_name as string
 							const toolInfo = (update.tool_info as Record<string, unknown>) ?? {}
 							const label = formatToolLabel(toolName, toolInfo)
+							const parsed = parseToolActivity(toolName, toolInfo, projectPath)
 
 							if (mode === 'ask' && isWriteTool(toolName)) {
+								const blockActivity: AgentActivityItem = {
+									id: `act-${randomUUID()}`,
+									type: 'error',
+									status: 'failed',
+									title: `Blocked: ${label} (ask mode)`,
+									detail: { error: 'Write operations are blocked in ask mode' },
+									startedAt: Date.now(),
+									completedAt: Date.now(),
+									durationMs: 0,
+									toolName: shortToolName(toolName),
+								}
+								timeline.activities.push(blockActivity)
+								onEvent({ type: 'activity_complete', activity: blockActivity })
 								onEvent({ type: 'activity', status: 'error', label: `Blocked: ${label} (ask mode)`, toolName })
 								return
 							}
@@ -447,10 +501,45 @@ export class AgyService {
 								}
 							}
 
-							if (update.state !== 'DONE') return
-
-							const stepUsage = parseUsage(update.usage)
+							const isDone = update.state === 'DONE' || update.state === 'ERROR'
 							const stepDurationMs = toDurationMs(update.duration_seconds)
+							const stepUsage = parseUsage(update.usage)
+
+							let activityItem = activeActivities.get(stepKey)
+
+							if (!activityItem) {
+								activityItem = {
+									id: `act-${randomUUID()}`,
+									type: parsed.type,
+									status: update.state === 'ERROR' ? 'failed' : isDone ? 'completed' : 'running',
+									title: parsed.title,
+									detail: parsed.detail,
+									startedAt: Date.now() - (stepDurationMs ?? 0),
+									completedAt: isDone ? Date.now() : undefined,
+									durationMs: stepDurationMs,
+									toolName: shortToolName(toolName),
+								}
+								timeline.activities.push(activityItem)
+								if (!isDone) {
+									activeActivities.set(stepKey, activityItem)
+									onEvent({ type: 'activity_start', activity: activityItem })
+								} else {
+									onEvent({ type: 'activity_complete', activity: activityItem })
+								}
+							} else {
+								activityItem.status = update.state === 'ERROR' ? 'failed' : isDone ? 'completed' : 'running'
+								activityItem.title = parsed.title || activityItem.title
+								activityItem.detail = { ...activityItem.detail, ...parsed.detail }
+								if (isDone) {
+									activityItem.completedAt = Date.now()
+									activityItem.durationMs = stepDurationMs ?? (activityItem.completedAt - activityItem.startedAt)
+									activeActivities.delete(stepKey)
+									onEvent({ type: 'activity_complete', activity: activityItem })
+								}
+							}
+
+							if (!isDone) return
+
 							this.emitTurnStatus(onEvent, {
 								status: 'running',
 								label: 'Thinking…',
@@ -463,6 +552,23 @@ export class AgyService {
 									durationMs: stepDurationMs,
 								},
 							})
+						}
+
+						if (stepType === 'status' || (update.status_message && typeof update.status_message === 'string')) {
+							const msg = String(update.status_message || update.label || '')
+							if (msg.trim()) {
+								const statusActivity: AgentActivityItem = {
+									id: `act-${randomUUID()}`,
+									type: 'status',
+									status: 'completed',
+									title: msg,
+									startedAt: Date.now(),
+									completedAt: Date.now(),
+									durationMs: 0,
+								}
+								timeline.activities.push(statusActivity)
+								onEvent({ type: 'activity_complete', activity: statusActivity })
+							}
 						}
 
 						if (stepType === 'agent_response') {
@@ -532,8 +638,8 @@ export class AgyService {
 				if (settled) return
 
 				if (activeProcess.stopped || child.killed) {
-					onEvent({ type: 'done', conversationId: conversationId ?? '', status: 'STOPPED' })
-					finish({ agentContent, conversationId, failed: false })
+					onEvent({ type: 'done', conversationId: conversationId ?? '', status: 'STOPPED', durationMs: Date.now() - timeline.startedAt })
+					finish({ agentContent, conversationId, failed: false, timeline })
 					return
 				}
 
@@ -543,11 +649,11 @@ export class AgyService {
 				}
 
 				if (failed) {
-					finish({ agentContent, conversationId, failed: true })
+					finish({ agentContent, conversationId, failed: true, timeline })
 					return
 				}
 
-				finish({ agentContent, conversationId, failed: false })
+				finish({ agentContent, conversationId, failed: false, timeline })
 			})
 
 			const turnTimeout = setTimeout(() => {
@@ -565,6 +671,217 @@ export class AgyService {
 		} catch {
 			// ignore
 		}
+	}
+}
+
+function parseToolActivity(
+	toolName: string,
+	toolInfo: Record<string, unknown>,
+	projectPath?: string,
+): { type: AgentActivityType; title: string; detail: AgentActivityDetail } {
+	const params = (toolInfo.parameters as Record<string, unknown>) ?? {}
+	const toolSummary = typeof toolInfo.toolSummary === 'string' ? toolInfo.toolSummary : undefined
+	const toolAction = typeof toolInfo.toolAction === 'string' ? toolInfo.toolAction : undefined
+	const errorObj = toolInfo.error as { message?: string } | string | undefined
+	const errorStr = typeof errorObj === 'string' ? errorObj : errorObj?.message
+	const resultObj = toolInfo.result as Record<string, unknown> | string | undefined
+	let outputStr: string | undefined
+	if (typeof resultObj === 'string') {
+		outputStr = resultObj
+	} else if (resultObj && typeof resultObj === 'object') {
+		outputStr = typeof resultObj.output === 'string' ? resultObj.output : typeof resultObj.stdout === 'string' ? resultObj.stdout : undefined
+	}
+
+	const shortPath = (p: unknown): string => {
+		if (typeof p !== 'string' || !p) return ''
+		let clean = p.replace(/\\/g, '/')
+		if (projectPath) {
+			const normProj = projectPath.replace(/\\/g, '/')
+			if (clean.startsWith(normProj)) {
+				clean = clean.slice(normProj.length).replace(/^\//, '')
+			}
+		}
+		return clean
+	}
+
+	const baseName = (p: unknown): string => {
+		const s = shortPath(p)
+		return s.split('/').pop() || s
+	}
+
+	// 1. File read
+	if (toolName.includes('view_file') || toolName.includes('read_file')) {
+		const rawPath = params.AbsolutePath ?? params.FilePath ?? params.path ?? params.file_path
+		const fullRel = shortPath(rawPath)
+		const base = baseName(rawPath)
+		const startLine = typeof params.StartLine === 'number' ? params.StartLine : undefined
+		const endLine = typeof params.EndLine === 'number' ? params.EndLine : undefined
+		const title = toolSummary || (base ? `Read \`${base}\`` : 'Read file')
+		return {
+			type: 'read',
+			title,
+			detail: {
+				filePath: fullRel || base,
+				startLine,
+				endLine,
+				summary: toolSummary,
+				action: toolAction,
+				output: outputStr,
+				error: errorStr,
+			},
+		}
+	}
+
+	// 2. File edit
+	if (
+		toolName.includes('replace_file_content') ||
+		toolName.includes('write_to_file') ||
+		toolName.includes('edit_file') ||
+		toolName.includes('apply_patch')
+	) {
+		const rawPath = params.TargetFile ?? params.FilePath ?? params.path ?? params.file_path
+		const fullRel = shortPath(rawPath)
+		const base = baseName(rawPath)
+		const instruction = typeof params.Instruction === 'string' ? params.Instruction : typeof params.Description === 'string' ? params.Description : undefined
+
+		let additions: number | undefined
+		let deletions: number | undefined
+		let diffSnippet: string | undefined
+
+		if (toolName.includes('replace_file_content')) {
+			const targetContent = typeof params.TargetContent === 'string' ? params.TargetContent : ''
+			const replacementContent = typeof params.ReplacementContent === 'string' ? params.ReplacementContent : ''
+			deletions = targetContent ? targetContent.split('\n').length : 0
+			additions = replacementContent ? replacementContent.split('\n').length : 0
+			if (targetContent || replacementContent) {
+				diffSnippet = `--- ${base}\n+++ ${base}\n` +
+					(targetContent ? targetContent.split('\n').map((l) => `- ${l}`).join('\n') + '\n' : '') +
+					(replacementContent ? replacementContent.split('\n').map((l) => `+ ${l}`).join('\n') : '')
+			}
+		} else if (toolName.includes('write_to_file')) {
+			const codeContent = typeof params.CodeContent === 'string' ? params.CodeContent : ''
+			additions = codeContent ? codeContent.split('\n').length : 0
+			deletions = 0
+		}
+
+		const title = toolSummary || (base ? `Edited \`${base}\`` : 'Edited file')
+		return {
+			type: 'edit',
+			title,
+			detail: {
+				filePath: fullRel || base,
+				instruction,
+				additions,
+				deletions,
+				diff: diffSnippet,
+				summary: toolSummary,
+				action: toolAction,
+				error: errorStr,
+			},
+		}
+	}
+
+	// 3. Command / Shell / Git
+	if (toolName.includes('run_command') || toolName.includes('bash') || toolName.includes('exec') || toolName.includes('powershell')) {
+		const cmd = String(params.CommandLine ?? params.command ?? params.cmd ?? '').trim()
+		if (cmd.startsWith('git ') || cmd.startsWith('gh ')) {
+			let gitTitle = toolSummary
+			if (!gitTitle) {
+				if (cmd.includes('checkout -b') || cmd.includes('switch -c')) {
+					const branchName = cmd.split(/\s+/).pop() ?? ''
+					gitTitle = `Created branch ${branchName}`
+				} else if (cmd.includes('commit')) {
+					gitTitle = 'Committed changes'
+				} else if (cmd.includes('push')) {
+					gitTitle = 'Pushed branch'
+				} else if (cmd.includes('pr create')) {
+					gitTitle = 'Created PR'
+				} else {
+					gitTitle = `$ ${cmd}`
+				}
+			}
+			return {
+				type: 'git',
+				title: gitTitle,
+				detail: {
+					command: cmd,
+					output: outputStr,
+					error: errorStr,
+					summary: toolSummary,
+					action: toolAction,
+				},
+			}
+		}
+
+		const title = toolSummary || (cmd ? `$ ${cmd}` : 'Run command')
+		return {
+			type: 'command',
+			title,
+			detail: {
+				command: cmd,
+				output: outputStr,
+				error: errorStr,
+				summary: toolSummary,
+				action: toolAction,
+			},
+		}
+	}
+
+	// 4. Search
+	if (toolName.includes('grep_search') || toolName.includes('find_by_name') || toolName.includes('search_web')) {
+		const query = String(params.Query ?? params.Pattern ?? params.query ?? params.pattern ?? '').trim()
+		const searchPath = shortPath(params.SearchPath ?? params.SearchDirectory ?? params.path ?? params.dir)
+		let title = toolSummary
+		if (!title) {
+			if (query) {
+				title = `Searched for "${query}"`
+			} else if (searchPath) {
+				title = `Searched in \`${searchPath}\``
+			} else {
+				title = 'Searched codebase'
+			}
+		}
+		return {
+			type: 'search',
+			title,
+			detail: {
+				query: query || undefined,
+				directory: searchPath || undefined,
+				output: outputStr,
+				error: errorStr,
+				summary: toolSummary,
+				action: toolAction,
+			},
+		}
+	}
+
+	// 5. List dir
+	if (toolName.includes('list_dir')) {
+		const dirPath = shortPath(params.DirectoryPath ?? params.path ?? params.dir)
+		const base = baseName(dirPath)
+		const title = toolSummary || (base ? `Listed directory \`${base}\`` : 'Listed directory')
+		return {
+			type: 'tool',
+			title,
+			detail: {
+				directory: dirPath,
+				summary: toolSummary,
+				action: toolAction,
+				output: outputStr,
+				error: errorStr,
+			},
+		}
+	}
+
+	// 6. Generic tool
+	const fallbackTitle = toolSummary || toolAction || shortToolName(toolName)
+	return {
+		type: errorStr ? 'error' : 'tool',
+		title: fallbackTitle,
+		detail: {
+			summary: toolSummary,
+			action: toolAction,
+		},
 	}
 }
 

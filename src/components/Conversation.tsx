@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ConversationItem } from '@shared/types/agent'
-import type { LiveTurnStatus } from '../utils/turnStatus'
+import type { ActivityTimelineItem, ConversationItem } from '@shared/types/agent'
 import { ActivityItem } from './ActivityItem'
-import { AgentStatusBar } from './AgentStatusBar'
+import { ActivityTimeline } from './ActivityTimeline'
 import { IconCheck, IconCopy } from './Icons'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import '../styles/agent.css'
 
 type ConversationProps = {
 	items: ConversationItem[]
-	status?: LiveTurnStatus | null
+	liveTimeline?: ActivityTimelineItem | null
+	streamingContent?: string | null
 }
 
 function MessageCard({ item }: { item: Extract<ConversationItem, { kind: 'message' }> }) {
@@ -55,24 +55,65 @@ function MessageCard({ item }: { item: Extract<ConversationItem, { kind: 'messag
 	)
 }
 
-export function Conversation({ items, status }: ConversationProps) {
-	const endRef = useRef<HTMLDivElement>(null)
+export function Conversation({ items, liveTimeline, streamingContent }: ConversationProps) {
+	const containerRef = useRef<HTMLDivElement>(null)
+	const isNearBottomRef = useRef<boolean>(true)
+
+	const handleScroll = () => {
+		if (!containerRef.current) return
+		const { scrollTop, scrollHeight, clientHeight } = containerRef.current
+		const distanceToBottom = scrollHeight - scrollTop - clientHeight
+		isNearBottomRef.current = distanceToBottom < 60
+	}
 
 	useEffect(() => {
-		endRef.current?.scrollIntoView({ behavior: 'smooth' })
-	}, [items, status])
+		if (isNearBottomRef.current && containerRef.current) {
+			containerRef.current.scrollTo({
+				top: containerRef.current.scrollHeight,
+				behavior: 'smooth',
+			})
+		}
+	}, [items, liveTimeline, streamingContent])
 
 	return (
-		<div className="conversation" role="log" aria-label="Agent conversation">
+		<div
+			ref={containerRef}
+			onScroll={handleScroll}
+			className="conversation"
+			role="log"
+			aria-label="Agent conversation"
+		>
 			{items.map((item) => {
+				if (item.kind === 'activity_timeline') {
+					return <ActivityTimeline key={item.id} timeline={item} defaultExpanded={false} />
+				}
+
 				if (item.kind === 'activity') {
 					return <ActivityItem key={item.id} item={item} />
 				}
 
 				return <MessageCard key={item.id} item={item} />
 			})}
-			{status && <AgentStatusBar status={status} />}
-			<div ref={endRef} style={{ height: 1 }} />
+
+			{/* Active Live Turn Activity Timeline */}
+			{liveTimeline && (
+				<ActivityTimeline key={liveTimeline.id} timeline={liveTimeline} isLive defaultExpanded={true} />
+			)}
+
+			{/* Streaming Agent Response */}
+			{streamingContent && (
+				<MessageCard
+					item={{
+						id: 'streaming-agent-response',
+						kind: 'message',
+						role: 'agent',
+						content: streamingContent,
+						timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+					}}
+				/>
+			)}
+
+			<div style={{ height: 1 }} />
 		</div>
 	)
 }

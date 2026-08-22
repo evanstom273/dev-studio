@@ -16,6 +16,63 @@ export type AgentMode = 'agent' | 'ask' | 'plan'
 
 export type MessageRole = 'user' | 'agent' | 'system'
 
+export type AgentActivityType =
+	| 'status'
+	| 'read'
+	| 'search'
+	| 'edit'
+	| 'command'
+	| 'git'
+	| 'tool'
+	| 'error'
+
+export type AgentActivityStatus = 'running' | 'completed' | 'failed'
+
+export type AgentActivityDetail = {
+	filePath?: string
+	files?: string[]
+	query?: string
+	directory?: string
+	command?: string
+	output?: string
+	error?: string
+	exitCode?: number
+	diff?: string
+	additions?: number
+	deletions?: number
+	matchCount?: number
+	summary?: string
+	action?: string
+	instruction?: string
+	[key: string]: unknown
+}
+
+export type AgentActivityItem = {
+	id: string
+	type: AgentActivityType
+	status: AgentActivityStatus
+	title: string
+	detail?: AgentActivityDetail
+	startedAt: number
+	completedAt?: number
+	durationMs?: number
+	toolName?: string
+}
+
+export type ActivityTimelineItem = {
+	id: string
+	kind: 'activity_timeline'
+	turnId?: string
+	status: 'running' | 'complete' | 'error'
+	startedAt: number
+	completedAt?: number
+	durationMs?: number
+	activities: AgentActivityItem[]
+	usage?: TokenUsage
+	tokensPerSecond?: number
+	timestamp?: string
+}
+
 export type ConversationItem =
 	| {
 			id: string
@@ -33,6 +90,7 @@ export type ConversationItem =
 			timestamp: string
 			toolName?: string
 	  }
+	| ActivityTimelineItem
 
 export type AttachmentInfo = {
 	id: string
@@ -110,6 +168,8 @@ export type StreamEvent =
 			tool?: TurnToolEntry
 	  }
 	| { type: 'activity'; status: 'running' | 'complete' | 'error'; label: string; toolName?: string }
+	| { type: 'activity_start'; activity: AgentActivityItem }
+	| { type: 'activity_complete'; activity: AgentActivityItem }
 	| { type: 'permission_request'; permission: PermissionRequest }
 	| { type: 'done'; conversationId: string; status: string; durationMs?: number; usage?: TokenUsage; tokensPerSecond?: number }
 	| { type: 'error'; message: string }

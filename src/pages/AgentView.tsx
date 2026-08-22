@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AgentMode, AttachmentInfo, ConversationItem, PermissionRequest, StreamEvent } from '@shared/types/agent'
+import type {
+	ActivityTimelineItem,
+	AgentActivityItem,
+	AgentMode,
+	AttachmentInfo,
+	ConversationItem,
+	PermissionRequest,
+	StreamEvent,
+} from '@shared/types/agent'
 import type { Project } from '@shared/types/project'
 import { Conversation } from '../components/Conversation'
 import { PermissionPrompt } from '../components/PermissionPrompt'
 import { PromptComposer } from '../components/PromptComposer'
 import { agentApi } from '../services/agentApi'
-import { mergeTurnStatus, type LiveTurnStatus } from '../utils/turnStatus'
 import '../styles/agent.css'
 
 export type AgentActions = {
@@ -37,7 +44,8 @@ export function AgentView({
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([])
-	const [turnStatus, setTurnStatus] = useState<LiveTurnStatus | null>(null)
+	const [liveTimeline, setLiveTimeline] = useState<ActivityTimelineItem | null>(null)
+	const [streamingContent, setStreamingContent] = useState<string | null>(null)
 
 	useEffect(() => {
 		if (initialPrompt) {
@@ -68,19 +76,6 @@ export function AgentView({
 			})
 			.catch(() => {})
 	}, [loadSession])
-
-	const appendActivity = (label: string, status: 'running' | 'complete' | 'error') => {
-		setItems((prev) => [
-			...prev,
-			{
-				id: `act-${Date.now()}-${Math.random()}`,
-				kind: 'activity',
-				status,
-				label,
-				timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-			},
-		])
-	}
 
 	const handleAddAttachments = async (files: FileList | File[]) => {
 		const fileArray = Array.from(files)
@@ -138,6 +133,16 @@ export function AgentView({
 		try {
 			await agentApi.stopGeneration(project.id)
 			setLoading(false)
+			setLiveTimeline((prev) =>
+				prev
+					? {
+							...prev,
+							status: 'complete',
+							completedAt: Date.now(),
+							durationMs: Date.now() - prev.startedAt,
+						}
+					: null,
+			)
 		} catch (err) {
 			setError(err instanceof Error ? err.message : 'Failed to stop generation')
 		}
@@ -150,7 +155,6 @@ export function AgentView({
 		setLoading(true)
 		setError(null)
 		setPrompt('')
-		setTurnStatus(null)
 
 		const currentAttachments = [...attachments]
 		setAttachments([])
@@ -185,8 +189,18 @@ export function AgentView({
 			{ id: `msg-${Date.now()}`, kind: 'message', role: 'user', content: displayText, timestamp: now, mode },
 		])
 
+		const initialTimeline: ActivityTimelineItem = {
+			id: `live-timeline-${Date.now()}`,
+			kind: 'activity_timeline',
+			status: 'running',
+			startedAt: Date.now(),
+			activities: [],
+			timestamp: now,
+		}
+		setLiveTimeline(initialTimeline)
+		setStreamingContent(null)
+
 		let agentBuffer = ''
-		let agentItemId: string | null = null
 
 		try {
 			await agentApi.sendMessage(
@@ -201,32 +215,54 @@ export function AgentView({
 					const event = raw as StreamEvent
 					if (event.type === 'message_delta') {
 						agentBuffer += event.content
-						if (!agentItemId) {
-							agentItemId = `msg-agent-${Date.now()}`
-							setItems((prev) => [
+						setStreamingContent(agentBuffer)
+					}
+					if (event.type === 'activity_start') {
+						setLiveTimeline((prev) => {
+							if (!prev) return prev
+							const exists = prev.activities.some((a) => a.id === event.activity.id)
+							if (exists) {
+								return {
+									...prev,
+									activities: prev.activities.map((a) =>
+										a.id === event.activity.id ? event.activity : a,
+									),
+								}
+							}
+							return {
 								...prev,
-								{
-									id: agentItemId!,
-									kind: 'message',
-									role: 'agent',
-									content: agentBuffer,
-									timestamp: now,
-									mode,
-								},
-							])
-						} else {
-							setItems((prev) =>
-								prev.map((item) =>
-									item.id === agentItemId ? { ...item, content: agentBuffer } : item,
-								),
-							)
-						}
+								activities: [...prev.activities, event.activity],
+							}
+						})
+					}
+					if (event.type === 'activity_complete') {
+						setLiveTimeline((prev) => {
+							if (!prev) return prev
+							const exists = prev.activities.some((a) => a.id === event.activity.id)
+							if (exists) {
+								return {
+									...prev,
+									activities: prev.activities.map((a) =>
+										a.id === event.activity.id ? event.activity : a,
+									),
+								}
+							}
+							return {
+								...prev,
+								activities: [...prev.activities, event.activity],
+							}
+						})
 					}
 					if (event.type === 'turn_status') {
-						setTurnStatus((prev) => mergeTurnStatus(prev, event))
-					}
-					if (event.type === 'activity') {
-						appendActivity(event.label, event.status)
+						setLiveTimeline((prev) => {
+							if (!prev) return prev
+							return {
+								...prev,
+								durationMs: event.durationMs ?? prev.durationMs,
+								usage: event.usage ?? prev.usage,
+								tokensPerSecond: event.tokensPerSecond ?? prev.tokensPerSecond,
+							}
+						})
 					}
 					if (event.type === 'permission_request') {
 						setPermissionRequests((prev) => {
@@ -236,17 +272,20 @@ export function AgentView({
 					}
 					if (event.type === 'error') {
 						setError(event.message)
+						setLiveTimeline((prev) =>
+							prev ? { ...prev, status: 'error', completedAt: Date.now() } : null,
+						)
 					}
 					if (event.type === 'done') {
-						setTurnStatus((prev) =>
+						setLiveTimeline((prev) =>
 							prev
-								? mergeTurnStatus(prev, {
-										status: 'complete',
-										label: 'Done',
-										durationMs: event.durationMs ?? prev.durationMs,
+								? {
+										...prev,
+										status: event.status === 'ERROR' ? 'error' : 'complete',
+										completedAt: Date.now(),
+										durationMs: event.durationMs ?? (Date.now() - prev.startedAt),
 										usage: event.usage ?? prev.usage,
-										tokensPerSecond: event.tokensPerSecond ?? prev.tokensPerSecond,
-									})
+									}
 								: null,
 						)
 					}
@@ -254,24 +293,91 @@ export function AgentView({
 			)
 		} catch (err) {
 			setError(err instanceof Error ? err.message : 'Failed to send message')
+			setLiveTimeline((prev) =>
+				prev ? { ...prev, status: 'error', completedAt: Date.now() } : null,
+			)
 		} finally {
 			setLoading(false)
-			void loadSession()
-			setTimeout(() => setTurnStatus(null), 2500)
+			await loadSession()
+			setLiveTimeline(null)
+			setStreamingContent(null)
 		}
 	}
 
 	const runCommand = useCallback(
 		async (command: string, label: string) => {
-			appendActivity(label, 'running')
+			const actId = `act-${Date.now()}`
+			const startAct: AgentActivityItem = {
+				id: actId,
+				type: 'command',
+				status: 'running',
+				title: label.startsWith('$') ? label : `$ ${label}`,
+				detail: { command },
+				startedAt: Date.now(),
+			}
+			const cmdTimeline: ActivityTimelineItem = {
+				id: `timeline-${Date.now()}`,
+				kind: 'activity_timeline',
+				status: 'running',
+				startedAt: Date.now(),
+				activities: [startAct],
+				timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+			}
+			setItems((prev) => [...prev, cmdTimeline])
 			try {
 				const result = await agentApi.runCommand({ projectId: project.id, command, label })
-				appendActivity(
-					result.exitCode === 0 ? `${label} passed` : `${label} failed (exit ${result.exitCode})`,
-					result.exitCode === 0 ? 'complete' : 'error',
+				const isSuccess = result.exitCode === 0
+				setItems((prev) =>
+					prev.map((item) => {
+						if (item.id === cmdTimeline.id && item.kind === 'activity_timeline') {
+							return {
+								...item,
+								status: isSuccess ? 'complete' : 'error',
+								completedAt: Date.now(),
+								durationMs: result.durationMs,
+								activities: [
+									{
+										...startAct,
+										status: isSuccess ? 'completed' : 'failed',
+										completedAt: Date.now(),
+										durationMs: result.durationMs,
+										detail: {
+											command,
+											output: result.stdout || undefined,
+											error: result.stderr || undefined,
+											exitCode: result.exitCode,
+										},
+									},
+								],
+							}
+						}
+						return item
+					}),
 				)
 			} catch (err) {
-				appendActivity(err instanceof Error ? err.message : 'Command failed', 'error')
+				setItems((prev) =>
+					prev.map((item) => {
+						if (item.id === cmdTimeline.id && item.kind === 'activity_timeline') {
+							return {
+								...item,
+								status: 'error',
+								completedAt: Date.now(),
+								activities: [
+									{
+										...startAct,
+										status: 'failed',
+										completedAt: Date.now(),
+										detail: {
+											command,
+											error: err instanceof Error ? err.message : 'Command failed',
+										},
+									},
+								],
+							}
+						}
+						return item
+					}),
+				)
 			}
 		},
 		[project.id],
@@ -284,7 +390,8 @@ export function AgentView({
 		setLoading(true)
 		setError(null)
 		setPermissionRequests([])
-		setTurnStatus(null)
+		setLiveTimeline(null)
+		setStreamingContent(null)
 		try {
 			const session = await agentApi.resetSession(project.id)
 			setItems(session.items)
@@ -309,7 +416,11 @@ export function AgentView({
 		<div
 			className={`workspace-pane agent-view${keyboardOpen ? ' agent-view--keyboard-open' : ''}`}
 		>
-			<Conversation items={items} status={turnStatus} />
+			<Conversation
+				items={items}
+				liveTimeline={liveTimeline}
+				streamingContent={streamingContent}
+			/>
 			{error && <div className="agent-error">{error}</div>}
 			<PermissionPrompt projectId={project.id} incoming={permissionRequests} />
 			<PromptComposer
