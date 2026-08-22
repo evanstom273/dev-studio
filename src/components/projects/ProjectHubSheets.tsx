@@ -4,6 +4,8 @@ import { Field, GhInput, Sheet, SheetActions } from '../github/GitHubUi'
 import { useConnection } from '../../hooks/useConnection'
 import { projectsApi } from '../../services/gitApi'
 import { IconFolder } from '../Icons'
+import { findFolderPathByName } from '../../utils/folderSearch'
+import { supportsNativeFolderPicker } from '../../utils/platform'
 
 type ConnectSheetProps = {
 	open: boolean
@@ -227,14 +229,50 @@ export function OpenLocalFolderSheet({ open, onClose, onOpened }: OpenLocalFolde
 		}
 	}
 
+	const handleNativeFolderPick = async () => {
+		const picker = window.showDirectoryPicker
+		if (!supportsNativeFolderPicker() || !picker) return
+		setError('')
+		try {
+			const handle = await picker.call(window, { mode: 'read' })
+			const roots = [browse?.projectsRoot, browse?.homeDir].filter(Boolean) as string[]
+			const found = await findFolderPathByName(roots, handle.name)
+			if (found) {
+				await loadBrowse(found)
+				return
+			}
+			setFolderPath((prev) => prev || handle.name)
+			setError(
+				`Selected "${handle.name}". Paste the full absolute path above if it is not listed below.`,
+			)
+		} catch (err) {
+			if (err instanceof Error && err.name === 'AbortError') return
+			setError(err instanceof Error ? err.message : 'Failed to pick folder')
+		}
+	}
+
 	return (
 		<Sheet open={open} title="Open local folder" onClose={onClose}>
 			<p className="hub-sheet__intro">
-				Browse folders on your laptop or paste an absolute path. The project opens in Dev Studio without
-				copying files.
+				Pick a folder on your laptop, browse below, or paste an absolute path. The project opens in Dev
+				Studio without copying files.
 			</p>
 
 			{error && <div className="panel-message">{error}</div>}
+
+			{supportsNativeFolderPicker() && (
+				<div className="folder-browse__toolbar folder-browse__toolbar--top">
+					<button
+						type="button"
+						className="btn btn--secondary btn--sm"
+						disabled={loading || busy}
+						onClick={() => void handleNativeFolderPick()}
+					>
+						<IconFolder className="btn__icon" />
+						Choose folder…
+					</button>
+				</div>
+			)}
 
 			<Field label="Folder path" hint="Absolute path on your laptop, e.g. C:\Users\you\projects\my-app">
 				<GhInput

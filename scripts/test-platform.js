@@ -12,8 +12,8 @@ function isLocalBackendUrl(url) {
 	}
 }
 
-function canAccessLocalFilesystem(isTauri, backendUrl) {
-	return isTauri || isLocalBackendUrl(backendUrl)
+function canOpenLocalFolder(connected, backendUrl) {
+	return connected && Boolean(backendUrl.trim())
 }
 
 test('isLocalBackendUrl: accepts localhost and loopback', () => {
@@ -22,13 +22,13 @@ test('isLocalBackendUrl: accepts localhost and loopback', () => {
 	assert.equal(isLocalBackendUrl('http://[::1]:3847'), true)
 })
 
-test('isLocalBackendUrl: rejects remote backends', () => {
-	assert.equal(isLocalBackendUrl('https://laptop.tail-xx.ts.net'), false)
+test('isLocalBackendUrl: rejects empty url', () => {
 	assert.equal(isLocalBackendUrl(''), false)
 })
 
-test('canAccessLocalFilesystem: enabled for Tauri or local backend', () => {
-	assert.equal(canAccessLocalFilesystem(true, ''), true)
-	assert.equal(canAccessLocalFilesystem(false, 'http://localhost:3847'), true)
-	assert.equal(canAccessLocalFilesystem(false, 'https://laptop.tail-xx.ts.net'), false)
+test('canOpenLocalFolder: enabled whenever laptop backend is connected', () => {
+	assert.equal(canOpenLocalFolder(true, 'http://localhost:3847'), true)
+	assert.equal(canOpenLocalFolder(true, 'https://laptop.tail-xx.ts.net'), true)
+	assert.equal(canOpenLocalFolder(false, 'http://localhost:3847'), false)
+	assert.equal(canOpenLocalFolder(true, ''), false)
 })

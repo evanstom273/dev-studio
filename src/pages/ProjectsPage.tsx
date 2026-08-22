@@ -9,7 +9,7 @@ import { useConnection } from '../hooks/useConnection'
 import { agentApi } from '../services/agentApi'
 import { projectsApi } from '../services/gitApi'
 import { githubApi } from '../services/githubApi'
-import { canAccessLocalFilesystem, isTauriApp } from '../utils/platform'
+import { canOpenLocalFolder, isTauriApp } from '../utils/platform'
 import '../styles/projects.css'
 import '../styles/github.css'
 
@@ -35,7 +35,7 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 
 	const connected = state.status === 'connected'
 	const hasGithub = Boolean(config.githubToken)
-	const canOpenLocal = connected && canAccessLocalFilesystem(config.backendUrl)
+	const canOpenLocal = canOpenLocalFolder(connected, config.backendUrl)
 
 	const loadRecent = useCallback(async () => {
 		if (!connected) {
