@@ -119,12 +119,16 @@ export function createAgentRouter(
 				content,
 				mode = 'agent',
 				model,
+				reasoningEffort,
+				speed,
 				attachments = [],
 			} = req.body as {
 				projectId: string
 				content: string
 				mode?: AgentMode
 				model?: string
+				reasoningEffort?: string
+				speed?: string
 				attachments?: AttachmentInfo[]
 			}
 
@@ -168,6 +172,10 @@ export function createAgentRouter(
 					model,
 					(streamEvent) => {
 						send('stream', streamEvent)
+					},
+					{
+						reasoningEffort,
+						speed,
 					},
 				)
 			} catch (error) {

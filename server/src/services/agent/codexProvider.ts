@@ -207,7 +207,23 @@ export class CodexProvider implements AgentProvider {
 		})
 	}
 
-	async getModels(): Promise<AgentModelDefinition[]> {
+	private knownModelIds = new Set<string>([
+		'gpt-5.6-sol',
+		'gpt-5.6-terra',
+		'gpt-5.6-luna',
+		'gpt-5.5',
+		'gpt-5.4',
+		'gpt-5.4-mini',
+	])
+	private cachedModels: AgentModelDefinition[] | null = null
+	private cacheTimestamp = 0
+
+	async getModels(refresh = false): Promise<AgentModelDefinition[]> {
+		const now = Date.now()
+		if (!refresh && this.cachedModels && this.cachedModels.length > 0 && now - this.cacheTimestamp < 60000) {
+			return this.cachedModels
+		}
+
 		let configuredModel = 'gpt-5.6-sol'
 		try {
 			const configPath = join(homedir(), '.codex', 'config.toml')
@@ -220,37 +236,256 @@ export class CodexProvider implements AgentProvider {
 			// ignore
 		}
 
-		const knownModels = [
-			{ id: 'gpt-5.6-sol', name: 'GPT-5.6 (Codex)' },
-			{ id: 'gpt-4o', name: 'GPT-4o (Codex)' },
-			{ id: 'o3-mini', name: 'o3-mini (Codex)' },
-			{ id: 'o1', name: 'o1 (Codex)' },
-			{ id: 'gpt-4.1', name: 'GPT-4.1 (Codex)' },
-		]
+		let rawModelsList: Array<{
+			slug: string
+			display_name?: string
+			description?: string
+			priority?: number
+			visibility?: string
+			default_reasoning_level?: string
+			supported_reasoning_levels?: Array<{ effort: string; description?: string }>
+		}> | null = null
 
-		// Ensure configuredModel is present
-		if (!knownModels.some((m) => m.id === configuredModel)) {
-			knownModels.unshift({ id: configuredModel, name: `${configuredModel} (Codex)` })
+		// 1. Try discovering models from CLI `codex debug models`
+		try {
+			rawModelsList = await this.fetchModelsFromCli()
+		} catch {
+			// fallback to next strategy
 		}
 
-		return knownModels.map((m) => ({
-			id: m.id,
-			name: m.name,
-			providerId: 'codex' as const,
-			providerName: 'OpenAI Codex',
-			isDefault: m.id === configuredModel,
-		}))
+		// 2. Try reading from ~/.codex/models_cache.json if CLI discovery failed
+		if (!rawModelsList || rawModelsList.length === 0) {
+			try {
+				const cachePath = join(homedir(), '.codex', 'models_cache.json')
+				if (existsSync(cachePath)) {
+					const rawContent = await readFile(cachePath, 'utf8')
+					const parsed = JSON.parse(rawContent) as { models?: typeof rawModelsList }
+					if (Array.isArray(parsed.models) && parsed.models.length > 0) {
+						rawModelsList = parsed.models
+					}
+				}
+			} catch {
+				// ignore
+			}
+		}
+
+		// 3. Fallback to official Codex 0.149.0 models catalog if all else fails
+		if (!rawModelsList || rawModelsList.length === 0) {
+			rawModelsList = [
+				{
+					slug: 'gpt-5.6-sol',
+					display_name: 'GPT-5.6-Sol',
+					description: 'Latest frontier agentic coding model.',
+					priority: 1,
+					visibility: 'list',
+					default_reasoning_level: 'low',
+					supported_reasoning_levels: [
+						{ effort: 'low', description: 'Fast responses with lighter reasoning' },
+						{ effort: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+						{ effort: 'high', description: 'Greater reasoning depth for complex problems' },
+						{ effort: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+					],
+				},
+				{
+					slug: 'gpt-5.6-terra',
+					display_name: 'GPT-5.6-Terra',
+					description: 'Balanced agentic coding model for everyday work.',
+					priority: 2,
+					visibility: 'list',
+					default_reasoning_level: 'medium',
+					supported_reasoning_levels: [
+						{ effort: 'low', description: 'Fast responses with lighter reasoning' },
+						{ effort: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+						{ effort: 'high', description: 'Greater reasoning depth for complex problems' },
+						{ effort: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+					],
+				},
+				{
+					slug: 'gpt-5.6-luna',
+					display_name: 'GPT-5.6-Luna',
+					description: 'Fast and affordable agentic coding model.',
+					priority: 3,
+					visibility: 'list',
+					default_reasoning_level: 'medium',
+					supported_reasoning_levels: [
+						{ effort: 'low', description: 'Fast responses with lighter reasoning' },
+						{ effort: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+						{ effort: 'high', description: 'Greater reasoning depth for complex problems' },
+						{ effort: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+					],
+				},
+				{
+					slug: 'gpt-5.5',
+					display_name: 'GPT-5.5',
+					description: 'Frontier model for complex coding, research, and real-world work.',
+					priority: 7,
+					visibility: 'list',
+					default_reasoning_level: 'medium',
+					supported_reasoning_levels: [
+						{ effort: 'low', description: 'Fast responses with lighter reasoning' },
+						{ effort: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+						{ effort: 'high', description: 'Greater reasoning depth for complex problems' },
+						{ effort: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+					],
+				},
+				{
+					slug: 'gpt-5.4',
+					display_name: 'GPT-5.4',
+					description: 'Strong model for everyday coding.',
+					priority: 16,
+					visibility: 'list',
+					default_reasoning_level: 'medium',
+					supported_reasoning_levels: [
+						{ effort: 'low', description: 'Fast responses with lighter reasoning' },
+						{ effort: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+						{ effort: 'high', description: 'Greater reasoning depth for complex problems' },
+						{ effort: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+					],
+				},
+				{
+					slug: 'gpt-5.4-mini',
+					display_name: 'GPT-5.4-Mini',
+					description: 'Small, fast, and cost-efficient model for simpler coding tasks.',
+					priority: 23,
+					visibility: 'list',
+					default_reasoning_level: 'medium',
+					supported_reasoning_levels: [
+						{ effort: 'low', description: 'Fast responses with lighter reasoning' },
+						{ effort: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+						{ effort: 'high', description: 'Greater reasoning depth for complex problems' },
+						{ effort: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+					],
+				},
+			]
+		}
+
+		// Filter visible models + ensure configured model is present
+		const visibleModels = rawModelsList.filter(
+			(m) => m.visibility !== 'hide' || m.slug === configuredModel,
+		)
+		visibleModels.sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
+
+		const effortLabelMap: Record<string, string> = {
+			low: 'Light',
+			medium: 'Medium',
+			high: 'High',
+			xhigh: 'Extra High',
+			ultra: 'Ultra',
+			max: 'Max',
+		}
+
+		const speedTiers = [
+			{ tier: 'default', label: 'Standard', description: 'Default speed' },
+			{ tier: 'fast', label: 'Fast', description: '1.5x speed, more usage' },
+		]
+
+		const definitions: AgentModelDefinition[] = visibleModels.map((m) => {
+			this.knownModelIds.add(m.slug)
+			const cleanName = formatCodexModelDisplayName(m.slug, m.display_name)
+			const supportedReasoning = (m.supported_reasoning_levels || []).map((lvl) => ({
+				effort: lvl.effort,
+				label: effortLabelMap[lvl.effort] || capitalize(lvl.effort),
+				description: lvl.description,
+			}))
+
+			return {
+				id: m.slug,
+				name: cleanName,
+				providerId: 'codex' as const,
+				providerName: 'OpenAI Codex',
+				description: m.description,
+				isDefault: m.slug === configuredModel,
+				supportedReasoningEfforts: supportedReasoning.length > 0 ? supportedReasoning : undefined,
+				defaultReasoningEffort: m.default_reasoning_level || 'medium',
+				supportedSpeedTiers: speedTiers,
+				defaultSpeedTier: 'default',
+			}
+		})
+
+		this.cachedModels = definitions
+		this.cacheTimestamp = Date.now()
+		return definitions
+	}
+
+	private async fetchModelsFromCli(): Promise<Array<{
+		slug: string
+		display_name?: string
+		description?: string
+		priority?: number
+		visibility?: string
+		default_reasoning_level?: string
+		supported_reasoning_levels?: Array<{ effort: string; description?: string }>
+	}>> {
+		return new Promise((resolve, reject) => {
+			try {
+				const child = this.spawnCodex(['debug', 'models'], {})
+				let stdout = ''
+				let stderr = ''
+
+				const timeout = setTimeout(() => {
+					child.kill()
+					reject(new Error('codex debug models timed out'))
+				}, 6000)
+
+				child.stdout.on('data', (d: Buffer) => {
+					stdout += d.toString()
+				})
+				child.stderr.on('data', (d: Buffer) => {
+					stderr += d.toString()
+				})
+
+				child.on('close', (code) => {
+					clearTimeout(timeout)
+					if (code === 0 && stdout.trim()) {
+						try {
+							let raw = stdout.trim()
+							if (raw.charCodeAt(0) === 0xfeff) {
+								raw = raw.slice(1)
+							}
+							const parsed = JSON.parse(raw) as {
+								models?: Array<{
+									slug: string
+									display_name?: string
+									description?: string
+									priority?: number
+									visibility?: string
+									default_reasoning_level?: string
+									supported_reasoning_levels?: Array<{ effort: string; description?: string }>
+								}>
+							}
+							if (Array.isArray(parsed.models) && parsed.models.length > 0) {
+								resolve(parsed.models)
+								return
+							}
+						} catch (err) {
+							reject(err)
+							return
+						}
+					}
+					reject(new Error(stderr || `codex debug models exited with code ${code}`))
+				})
+
+				child.on('error', (err) => {
+					clearTimeout(timeout)
+					reject(err)
+				})
+			} catch (err) {
+				reject(err)
+			}
+		})
 	}
 
 	ownsModel(modelId: string): boolean {
+		const clean = modelId.replace(/^(codex|openai):/, '')
 		if (
 			modelId.startsWith('codex:') ||
 			modelId.startsWith('openai:') ||
-			modelId.startsWith('gpt-5') ||
-			modelId === 'o3-mini' ||
-			modelId === 'o1' ||
-			modelId === 'gpt-4o' ||
-			modelId === 'gpt-4.1'
+			modelId.startsWith('gpt-') ||
+			modelId.startsWith('o1') ||
+			modelId.startsWith('o3') ||
+			modelId.startsWith('o4') ||
+			this.knownModelIds.has(clean) ||
+			this.knownModelIds.has(modelId)
 		) {
 			return true
 		}
@@ -280,6 +515,14 @@ export class CodexProvider implements AgentProvider {
 			// Strip prefix if any (e.g. codex:gpt-5.6-sol)
 			const cleanModel = model.replace(/^(codex|openai):/, '')
 			args.push('-m', cleanModel)
+		}
+
+		if (context.reasoningEffort) {
+			args.push('-c', `model_reasoning_effort="${context.reasoningEffort}"`)
+		}
+
+		if (context.speed) {
+			args.push('-c', `service_tier="${context.speed}"`)
 		}
 
 		if (mode === 'ask' || mode === 'plan') {
@@ -525,5 +768,22 @@ export class CodexProvider implements AgentProvider {
 			this.activeProcesses.delete(projectId)
 		}
 	}
+}
+
+function formatCodexModelDisplayName(slug: string, rawDisplayName?: string): string {
+	if (rawDisplayName) {
+		const clean = rawDisplayName.replace(/^GPT-?/i, '').replace(/-/g, ' ').trim()
+		if (clean) return clean
+	}
+	const cleanSlug = slug.replace(/^gpt-?/i, '').replace(/-/g, ' ').trim()
+	return cleanSlug
+		.split(' ')
+		.map((part) => capitalize(part))
+		.join(' ')
+}
+
+function capitalize(str: string): string {
+	if (!str) return ''
+	return str.charAt(0).toUpperCase() + str.slice(1)
 }
 

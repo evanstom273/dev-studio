@@ -28,6 +28,10 @@ export type PromptComposerProps = {
 	availableModels?: string[]
 	modelDefinitions?: AgentModelDefinition[]
 	onModelChange?: (model: string) => void
+	reasoningEffort?: string
+	onReasoningEffortChange?: (effort: string) => void
+	speed?: string
+	onSpeedChange?: (speed: string) => void
 	attachments: AttachmentInfo[]
 	onAddAttachments: (files: FileList | File[]) => void
 	onRemoveAttachment: (id: string) => void
@@ -74,6 +78,10 @@ export function PromptComposer({
 	availableModels = [],
 	modelDefinitions = [],
 	onModelChange,
+	reasoningEffort,
+	onReasoningEffortChange,
+	speed,
+	onSpeedChange,
 	attachments,
 	onAddAttachments,
 	onRemoveAttachment,
@@ -82,6 +90,7 @@ export function PromptComposer({
 	const textareaRef = useRef<HTMLTextAreaElement>(null)
 	const fileInputRef = useRef<HTMLInputElement>(null)
 	const [modelMenuOpen, setModelMenuOpen] = useState(false)
+	const [menuTab, setMenuTab] = useState<'model' | 'effort' | 'speed'>('model')
 	const modelMenuRef = useRef<HTMLDivElement>(null)
 	const [speechError, setSpeechError] = useState<string | null>(null)
 
@@ -198,9 +207,21 @@ export function PromptComposer({
 	}
 
 	const canSend = Boolean(value.trim() || attachments.length > 0)
-	const matchingDef = modelDefinitions.find((d) => d.id === model)
+	const matchingDef = modelDefinitions.find((d) => d.id === model) || modelDefinitions.find((d) => !model && d.isDefault)
+	const isCodexModel = matchingDef?.providerId === 'codex' || (model && (model.startsWith('gpt-') || model.startsWith('codex:') || model.startsWith('o1') || model.startsWith('o3')))
+
+	const currentEffort = reasoningEffort || matchingDef?.defaultReasoningEffort || 'medium'
+	const currentSpeed = speed || matchingDef?.defaultSpeedTier || 'default'
+
+	const activeEffortOption = matchingDef?.supportedReasoningEfforts?.find((e) => e.effort === currentEffort)
+	const effortLabel = activeEffortOption ? activeEffortOption.label : currentEffort.charAt(0).toUpperCase() + currentEffort.slice(1)
+	const activeSpeedOption = matchingDef?.supportedSpeedTiers?.find((s) => s.tier === currentSpeed)
+	const speedLabel = activeSpeedOption ? activeSpeedOption.label : currentSpeed === 'fast' ? 'Fast' : 'Standard'
+
 	const activeModelLabel = matchingDef
-		? matchingDef.name
+		? isCodexModel
+			? `${matchingDef.name} ${effortLabel}`
+			: matchingDef.name
 		: model
 			? model.replace(/^gemini-/, 'Gemini ').replace(/^claude-/, 'Claude ').replace(/^gpt-/, 'GPT ')
 			: 'Default Model'
@@ -394,87 +415,216 @@ export function PromptComposer({
 
 							{modelMenuOpen && (
 								<div className="composer__model-menu" role="menu">
-									<div className="composer__model-menu-header">Select Model</div>
-									{modelDefinitions.length > 0 ? (
+									{isCodexModel && (
+										<div className="composer__model-tabs" role="tablist">
+											<button
+												type="button"
+												role="tab"
+												aria-selected={menuTab === 'model'}
+												className={`composer__model-tab${menuTab === 'model' ? ' is-active' : ''}`}
+												onClick={() => setMenuTab('model')}
+											>
+												Model
+											</button>
+											<button
+												type="button"
+												role="tab"
+												aria-selected={menuTab === 'effort'}
+												className={`composer__model-tab${menuTab === 'effort' ? ' is-active' : ''}`}
+												onClick={() => setMenuTab('effort')}
+											>
+												Effort: {effortLabel}
+											</button>
+											<button
+												type="button"
+												role="tab"
+												aria-selected={menuTab === 'speed'}
+												className={`composer__model-tab${menuTab === 'speed' ? ' is-active' : ''}`}
+												onClick={() => setMenuTab('speed')}
+											>
+												Speed: {speedLabel}
+											</button>
+										</div>
+									)}
+
+									{menuTab === 'effort' && isCodexModel ? (
 										<>
-											{modelDefinitions.some((d) => d.providerId === 'antigravity') && (
+											<div className="composer__model-menu-header">Reasoning Effort</div>
+											{(matchingDef?.supportedReasoningEfforts || [
+												{ effort: 'low', label: 'Light', description: 'Fast responses with lighter reasoning' },
+												{ effort: 'medium', label: 'Medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+												{ effort: 'high', label: 'High', description: 'Greater reasoning depth for complex problems' },
+												{ effort: 'xhigh', label: 'Extra High', description: 'Extra high reasoning depth for complex problems' },
+											]).map((eff) => {
+												const isSelected = currentEffort === eff.effort
+												return (
+													<button
+														key={eff.effort}
+														type="button"
+														className={`composer__model-item${isSelected ? ' is-active' : ''}`}
+														role="menuitem"
+														onClick={() => {
+															onReasoningEffortChange?.(eff.effort)
+														}}
+													>
+														<div className="composer__model-item-content">
+															<span className="composer__model-name" style={{ fontWeight: 600 }}>{eff.label}</span>
+															{eff.description && (
+																<span className="composer__model-item-desc">{eff.description}</span>
+															)}
+														</div>
+														{isSelected && <IconCheck className="composer__model-check" />}
+													</button>
+												)
+											})}
+										</>
+									) : menuTab === 'speed' && isCodexModel ? (
+										<>
+											<div className="composer__model-menu-header">Speed Tier</div>
+											{(matchingDef?.supportedSpeedTiers || [
+												{ tier: 'default', label: 'Standard', description: 'Default speed' },
+												{ tier: 'fast', label: 'Fast', description: '1.5x speed, more usage' },
+											]).map((sp) => {
+												const isSelected = currentSpeed === sp.tier
+												return (
+													<button
+														key={sp.tier}
+														type="button"
+														className={`composer__model-item${isSelected ? ' is-active' : ''}`}
+														role="menuitem"
+														onClick={() => {
+															onSpeedChange?.(sp.tier)
+														}}
+													>
+														<div className="composer__model-item-content">
+															<span className="composer__model-name" style={{ fontWeight: 600 }}>{sp.label}</span>
+															{sp.description && (
+																<span className="composer__model-item-desc">{sp.description}</span>
+															)}
+														</div>
+														{isSelected && <IconCheck className="composer__model-check" />}
+													</button>
+												)
+											})}
+										</>
+									) : (
+										<>
+											<div className="composer__model-menu-header">Select Model</div>
+											{modelDefinitions.length > 0 ? (
 												<>
-													<div className="composer__model-group-title">Google Antigravity</div>
-													{modelDefinitions
-														.filter((d) => d.providerId === 'antigravity')
-														.map((m) => {
-															const isSelected = model === m.id || (!model && m.isDefault)
-															return (
-																<button
-																	key={m.id}
-																	type="button"
-																	className={`composer__model-item${isSelected ? ' is-active' : ''}`}
-																	role="menuitem"
-																	onClick={() => {
-																		onModelChange?.(m.id)
-																		setModelMenuOpen(false)
-																	}}
-																>
-																	<span className="composer__model-name">{m.name}</span>
-																	{isSelected && <IconCheck className="composer__model-check" />}
-																</button>
-															)
-														})}
+													{modelDefinitions.some((d) => d.providerId === 'codex') && (
+														<>
+															<div className="composer__model-group-title">OpenAI Codex (ChatGPT)</div>
+															{modelDefinitions
+																.filter((d) => d.providerId === 'codex')
+																.map((m) => {
+																	const isSelected = model === m.id || (!model && m.isDefault)
+																	return (
+																		<button
+																			key={m.id}
+																			type="button"
+																			className={`composer__model-item${isSelected ? ' is-active' : ''}`}
+																			role="menuitem"
+																			onClick={() => {
+																				onModelChange?.(m.id)
+																				if (m.defaultReasoningEffort) {
+																					onReasoningEffortChange?.(m.defaultReasoningEffort)
+																				}
+																				if (m.defaultSpeedTier) {
+																					onSpeedChange?.(m.defaultSpeedTier)
+																				}
+																			}}
+																		>
+																			<div className="composer__model-item-content">
+																				<div className="composer__model-item-title">
+																					<span className="composer__model-name">{m.name}</span>
+																					<span className="composer__model-provider-badge">Codex</span>
+																				</div>
+																				{m.description && (
+																					<span className="composer__model-item-desc">{m.description}</span>
+																				)}
+																			</div>
+																			{isSelected && <IconCheck className="composer__model-check" />}
+																		</button>
+																	)
+																})}
+														</>
+													)}
+													{modelDefinitions.some((d) => d.providerId === 'antigravity') && (
+														<>
+															<div className="composer__model-group-title">Google Antigravity</div>
+															{modelDefinitions
+																.filter((d) => d.providerId === 'antigravity')
+																.map((m) => {
+																	const isSelected = model === m.id || (!model && m.isDefault)
+																	return (
+																		<button
+																			key={m.id}
+																			type="button"
+																			className={`composer__model-item${isSelected ? ' is-active' : ''}`}
+																			role="menuitem"
+																			onClick={() => {
+																				onModelChange?.(m.id)
+																				setMenuTab('model')
+																				setModelMenuOpen(false)
+																			}}
+																		>
+																			<span className="composer__model-name">{m.name}</span>
+																			{isSelected && <IconCheck className="composer__model-check" />}
+																		</button>
+																	)
+																})}
+														</>
+													)}
 												</>
-											)}
-											{modelDefinitions.some((d) => d.providerId === 'codex') && (
-												<>
-													<div className="composer__model-group-title">OpenAI Codex (ChatGPT)</div>
-													{modelDefinitions
-														.filter((d) => d.providerId === 'codex')
-														.map((m) => {
-															const isSelected = model === m.id || (!model && m.isDefault)
-															return (
-																<button
-																	key={m.id}
-																	type="button"
-																	className={`composer__model-item${isSelected ? ' is-active' : ''}`}
-																	role="menuitem"
-																	onClick={() => {
-																		onModelChange?.(m.id)
-																		setModelMenuOpen(false)
-																	}}
-																>
-																	<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-																		<span className="composer__model-name">{m.name}</span>
-																		<span className="composer__model-provider-badge">Codex</span>
-																	</div>
-																	{isSelected && <IconCheck className="composer__model-check" />}
-																</button>
-															)
-														})}
-												</>
+											) : availableModels.length === 0 ? (
+												<div className="composer__model-item is-active" role="menuitem">
+													<span>Default (CLI configured)</span>
+													<IconCheck className="composer__model-check" />
+												</div>
+											) : (
+												availableModels.map((m) => {
+													const isSelected = model === m || (!model && m.includes('2.5'))
+													return (
+														<button
+															key={m}
+															type="button"
+															className={`composer__model-item${isSelected ? ' is-active' : ''}`}
+															role="menuitem"
+															onClick={() => {
+																onModelChange?.(m)
+																setModelMenuOpen(false)
+															}}
+														>
+															<span className="composer__model-name">{m}</span>
+															{isSelected && <IconCheck className="composer__model-check" />}
+														</button>
+													)
+												})
 											)}
 										</>
-									) : availableModels.length === 0 ? (
-										<div className="composer__model-item is-active" role="menuitem">
-											<span>Default (CLI configured)</span>
-											<IconCheck className="composer__model-check" />
-										</div>
-									) : (
-										availableModels.map((m) => {
-											const isSelected = model === m || (!model && m.includes('2.5'))
-											return (
-												<button
-													key={m}
-													type="button"
-													className={`composer__model-item${isSelected ? ' is-active' : ''}`}
-													role="menuitem"
-													onClick={() => {
-														onModelChange?.(m)
-														setModelMenuOpen(false)
-													}}
-												>
-													<span className="composer__model-name">{m}</span>
-													{isSelected && <IconCheck className="composer__model-check" />}
-												</button>
-											)
-										})
+									)}
+
+									{isCodexModel && (
+										<button
+											type="button"
+											className="composer__model-reset-btn"
+											onClick={() => {
+												const defaultModelDef = modelDefinitions.find((d) => d.providerId === 'codex' && d.isDefault)
+												if (defaultModelDef) {
+													onModelChange?.(defaultModelDef.id)
+													if (defaultModelDef.defaultReasoningEffort) {
+														onReasoningEffortChange?.(defaultModelDef.defaultReasoningEffort)
+													}
+													if (defaultModelDef.defaultSpeedTier) {
+														onSpeedChange?.(defaultModelDef.defaultSpeedTier)
+													}
+												}
+												setMenuTab('model')
+											}}
+										>
+											<span>↺ Reset to default</span>
+										</button>
 									)}
 								</div>
 							)}

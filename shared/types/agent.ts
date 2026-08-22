@@ -104,6 +104,18 @@ export type AttachmentInfo = {
 
 export type AgentProviderId = 'antigravity' | 'codex'
 
+export type ReasoningEffortOption = {
+	effort: string
+	label: string
+	description?: string
+}
+
+export type SpeedOption = {
+	tier: string
+	label: string
+	description?: string
+}
+
 export type AgentModelDefinition = {
 	id: string
 	name: string
@@ -111,6 +123,10 @@ export type AgentModelDefinition = {
 	providerName: string
 	description?: string
 	isDefault?: boolean
+	supportedReasoningEfforts?: ReasoningEffortOption[]
+	defaultReasoningEffort?: string
+	supportedSpeedTiers?: SpeedOption[]
+	defaultSpeedTier?: string
 }
 
 export type ProviderStatusInfo = {
@@ -138,6 +154,8 @@ export type AgentSession = {
 	activeProvider?: AgentProviderId
 	mode: AgentMode
 	model?: string
+	reasoningEffort?: string
+	speed?: string
 	items: ConversationItem[]
 	updatedAt: string
 }
@@ -147,6 +165,8 @@ export type SendMessageRequest = {
 	content: string
 	mode?: AgentMode
 	model?: string
+	reasoningEffort?: string
+	speed?: string
 	attachments?: AttachmentInfo[]
 }
 

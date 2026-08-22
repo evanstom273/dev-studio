@@ -161,6 +161,8 @@ export async function streamAgentMessage(
 	onEvent: (event: unknown) => void,
 	options?: {
 		model?: string
+		reasoningEffort?: string
+		speed?: string
 		attachments?: import('@shared/types/agent').AttachmentInfo[]
 		signal?: AbortSignal
 	},
@@ -176,6 +178,8 @@ export async function streamAgentMessage(
 			content,
 			mode,
 			model: options?.model,
+			reasoningEffort: options?.reasoningEffort,
+			speed: options?.speed,
 			attachments: options?.attachments,
 		}),
 		signal: options?.signal,

@@ -15,6 +15,8 @@ export type SessionTurnContext = {
 	previousProvider?: AgentProviderId
 	conversationId?: string | null
 	codexThreadId?: string | null
+	reasoningEffort?: string
+	speed?: string
 }
 
 export type TurnExecutionResult = {

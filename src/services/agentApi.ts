@@ -63,6 +63,8 @@ export const agentApi: AgentApi = {
 			onEvent,
 			{
 				model: request.model,
+				reasoningEffort: request.reasoningEffort,
+				speed: request.speed,
 				attachments: request.attachments,
 				signal,
 			},

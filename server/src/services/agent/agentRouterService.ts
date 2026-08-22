@@ -122,6 +122,10 @@ export class AgentRouterService {
 		mode: AgentMode,
 		model: string | undefined,
 		onEvent: (event: StreamEvent) => void,
+		options?: {
+			reasoningEffort?: string
+			speed?: string
+		},
 	): Promise<void> {
 		const session = await this.sessions.getOrCreate(projectId)
 		const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -139,6 +143,12 @@ export class AgentRouterService {
 		if (model) {
 			session.model = model
 		}
+		if (options?.reasoningEffort) {
+			session.reasoningEffort = options.reasoningEffort
+		}
+		if (options?.speed) {
+			session.speed = options.speed
+		}
 		await this.sessions.save(session)
 
 		const targetProvider = this.resolveProvider(model || session.model, session.activeProvider)
@@ -154,6 +164,8 @@ export class AgentRouterService {
 			previousProvider,
 			conversationId: session.conversationId,
 			codexThreadId: session.codexThreadId,
+			reasoningEffort: options?.reasoningEffort || session.reasoningEffort,
+			speed: options?.speed || session.speed,
 		}
 
 		onEvent({ type: 'turn_status', status: 'running', label: 'Thinking…' })

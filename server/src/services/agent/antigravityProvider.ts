@@ -45,13 +45,20 @@ export class AntigravityProvider implements AgentProvider {
 
 	ownsModel(modelId: string): boolean {
 		if (
+			modelId.startsWith('gemini-') ||
+			modelId.startsWith('claude-') ||
+			modelId.startsWith('agy:') ||
+			modelId.startsWith('antigravity:')
+		) {
+			return true
+		}
+		if (
 			modelId.startsWith('codex:') ||
 			modelId.startsWith('openai:') ||
-			modelId.startsWith('gpt-5') ||
-			modelId === 'o3-mini' ||
-			modelId === 'o1' ||
-			modelId === 'gpt-4o' ||
-			modelId === 'gpt-4.1'
+			modelId.startsWith('gpt-') ||
+			modelId.startsWith('o1') ||
+			modelId.startsWith('o3') ||
+			modelId.startsWith('o4')
 		) {
 			return false
 		}

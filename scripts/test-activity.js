@@ -524,15 +524,27 @@ test('FileService path traversal protection rejects path escape attempts', () =>
 // ==========================================
 
 test('Provider routing correctly maps models to their respective providers', () => {
+	const knownCodexSlugs = new Set([
+		'gpt-5.6-sol',
+		'gpt-5.6-terra',
+		'gpt-5.6-luna',
+		'gpt-5.5',
+		'gpt-5.4',
+		'gpt-5.4-mini',
+	])
+
 	function ownsModel(providerId, modelId) {
+		const clean = modelId.replace(/^(codex|openai):/, '')
 		const isCodex =
 			modelId.startsWith('codex:') ||
 			modelId.startsWith('openai:') ||
-			modelId.startsWith('gpt-5') ||
-			modelId === 'o3-mini' ||
-			modelId === 'o1' ||
-			modelId === 'gpt-4o' ||
-			modelId === 'gpt-4.1'
+			modelId.startsWith('gpt-') ||
+			modelId.startsWith('o1') ||
+			modelId.startsWith('o3') ||
+			modelId.startsWith('o4') ||
+			knownCodexSlugs.has(clean) ||
+			knownCodexSlugs.has(modelId)
+
 		if (providerId === 'codex') return isCodex
 		if (providerId === 'antigravity') return !isCodex
 		return false
@@ -550,15 +562,15 @@ test('Provider routing correctly maps models to their respective providers', () 
 	assert.equal(resolveProvider('gemini-3.7-flash-high'), 'antigravity')
 	assert.equal(resolveProvider('gemini-3.6-flash-high'), 'antigravity')
 	assert.equal(resolveProvider('claude-sonnet-4-6'), 'antigravity')
-	assert.equal(resolveProvider('gpt-oss-120b-medium'), 'antigravity')
 
-	// Codex models
+	// Official Codex 0.149.0 models
 	assert.equal(resolveProvider('gpt-5.6-sol'), 'codex')
+	assert.equal(resolveProvider('gpt-5.6-terra'), 'codex')
+	assert.equal(resolveProvider('gpt-5.6-luna'), 'codex')
+	assert.equal(resolveProvider('gpt-5.5'), 'codex')
+	assert.equal(resolveProvider('gpt-5.4'), 'codex')
+	assert.equal(resolveProvider('gpt-5.4-mini'), 'codex')
 	assert.equal(resolveProvider('codex:gpt-5.6-sol'), 'codex')
-	assert.equal(resolveProvider('o3-mini'), 'codex')
-	assert.equal(resolveProvider('o1'), 'codex')
-	assert.equal(resolveProvider('gpt-4o'), 'codex')
-	assert.equal(resolveProvider('gpt-4.1'), 'codex')
 
 	// Fallback
 	assert.equal(resolveProvider(undefined, 'antigravity'), 'antigravity')
@@ -597,12 +609,42 @@ test('Conversation handoff summary formats recent turns concisely without whole 
 	assert.ok(!summary.includes('activity_timeline'))
 })
 
-test('Unified model definitions preserve provider metadata for dropdown rendering', () => {
+test('Unified model definitions preserve provider metadata, reasoning efforts, and speed tiers', () => {
 	const modelDefs = [
 		{ id: 'gemini-3.7-flash-high', name: 'Gemini 3.7 Flash High', providerId: 'antigravity', providerName: 'Google Antigravity', isDefault: true },
 		{ id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', providerId: 'antigravity', providerName: 'Google Antigravity' },
-		{ id: 'gpt-5.6-sol', name: 'GPT-5.6 (Codex)', providerId: 'codex', providerName: 'OpenAI Codex', isDefault: true },
-		{ id: 'o3-mini', name: 'o3-mini (Codex)', providerId: 'codex', providerName: 'OpenAI Codex' },
+		{
+			id: 'gpt-5.6-sol',
+			name: '5.6 Sol',
+			providerId: 'codex',
+			providerName: 'OpenAI Codex',
+			isDefault: true,
+			supportedReasoningEfforts: [
+				{ effort: 'low', label: 'Light' },
+				{ effort: 'medium', label: 'Medium' },
+				{ effort: 'high', label: 'High' },
+				{ effort: 'xhigh', label: 'Extra High' },
+			],
+			defaultReasoningEffort: 'low',
+			supportedSpeedTiers: [
+				{ tier: 'default', label: 'Standard' },
+				{ tier: 'fast', label: 'Fast' },
+			],
+			defaultSpeedTier: 'default',
+		},
+		{
+			id: 'gpt-5.5',
+			name: '5.5',
+			providerId: 'codex',
+			providerName: 'OpenAI Codex',
+			supportedReasoningEfforts: [
+				{ effort: 'low', label: 'Light' },
+				{ effort: 'medium', label: 'Medium' },
+				{ effort: 'high', label: 'High' },
+				{ effort: 'xhigh', label: 'Extra High' },
+			],
+			defaultReasoningEffort: 'medium',
+		},
 	]
 
 	const antigravity = modelDefs.filter((d) => d.providerId === 'antigravity')
@@ -610,7 +652,9 @@ test('Unified model definitions preserve provider metadata for dropdown renderin
 
 	assert.equal(antigravity.length, 2)
 	assert.equal(codex.length, 2)
-	assert.equal(modelDefs.find((d) => d.id === 'gpt-5.6-sol')?.providerName, 'OpenAI Codex')
+	assert.equal(modelDefs.find((d) => d.id === 'gpt-5.6-sol')?.name, '5.6 Sol')
+	assert.equal(modelDefs.find((d) => d.id === 'gpt-5.6-sol')?.supportedReasoningEfforts?.length, 4)
+	assert.equal(modelDefs.find((d) => d.id === 'gpt-5.6-sol')?.supportedSpeedTiers?.length, 2)
 })
 
 

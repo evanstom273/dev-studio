@@ -47,6 +47,8 @@ export function AgentView({
 	const [availableModels, setAvailableModels] = useState<string[]>([])
 	const [modelDefinitions, setModelDefinitions] = useState<AgentModelDefinition[]>([])
 	const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined)
+	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState<string | undefined>(undefined)
+	const [selectedSpeed, setSelectedSpeed] = useState<string | undefined>(undefined)
 	const [attachments, setAttachments] = useState<AttachmentInfo[]>([])
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
@@ -73,6 +75,12 @@ export function AgentView({
 			setMode(session.mode)
 			if (session.model) {
 				setSelectedModel(session.model)
+			}
+			if (session.reasoningEffort) {
+				setSelectedReasoningEffort(session.reasoningEffort)
+			}
+			if (session.speed) {
+				setSelectedSpeed(session.speed)
 			}
 		} catch {
 			setItems([])
@@ -229,6 +237,8 @@ export function AgentView({
 					content: promptWithContext,
 					mode,
 					model: selectedModel,
+					reasoningEffort: selectedReasoningEffort,
+					speed: selectedSpeed,
 					attachments: currentAttachments,
 				},
 				(raw) => {
@@ -497,6 +507,10 @@ export function AgentView({
 				availableModels={availableModels}
 				modelDefinitions={modelDefinitions}
 				onModelChange={setSelectedModel}
+				reasoningEffort={selectedReasoningEffort}
+				onReasoningEffortChange={setSelectedReasoningEffort}
+				speed={selectedSpeed}
+				onSpeedChange={setSelectedSpeed}
 				attachments={attachments}
 				onAddAttachments={(files) => void handleAddAttachments(files)}
 				onRemoveAttachment={handleRemoveAttachment}
