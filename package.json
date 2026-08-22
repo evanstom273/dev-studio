@@ -14,6 +14,10 @@
 		"build:server": "npm run build -w server",
 		"build:all": "npm run build:server && npm run build",
 		"start:server": "npm run start -w server",
+		"tauri": "tauri",
+		"tauri:dev": "tauri dev",
+		"tauri:build": "tauri build",
+		"build:exe": "powershell -ExecutionPolicy Bypass -File scripts/build-exe.ps1",
 		"laptop": "powershell -ExecutionPolicy Bypass -File scripts/start-laptop.ps1",
 		"laptop:install": "powershell -ExecutionPolicy Bypass -File scripts/install-laptop-task.ps1",
 		"laptop:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-laptop.ps1",
@@ -48,6 +52,8 @@
 		"react-dom": "^19.2.8"
 	},
 	"devDependencies": {
+		"@tauri-apps/api": "^2.11.1",
+		"@tauri-apps/cli": "^2.11.4",
 		"@types/node": "^24.13.3",
 		"@types/react": "^19.2.17",
 		"@types/react-dom": "^19.2.3",
