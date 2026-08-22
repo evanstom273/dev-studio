@@ -1,6 +1,7 @@
 import type {
 	AgentSession,
 	AvailableModelsResponse,
+	ProviderStatusInfo,
 	RunCommandRequest,
 	RunCommandResult,
 	SendMessageRequest,
@@ -15,6 +16,8 @@ export type AgentApi = {
 	listProjects(): Promise<Project[]>
 	getSession(projectId: string): Promise<AgentSession>
 	getAvailableModels(): Promise<string[]>
+	getAvailableModelsInfo(): Promise<AvailableModelsResponse>
+	getProviders(): Promise<ProviderStatusInfo[]>
 	sendMessage(
 		request: SendMessageRequest,
 		onEvent: (event: unknown) => void,
@@ -42,6 +45,14 @@ export const agentApi: AgentApi = {
 	async getAvailableModels() {
 		const res = await apiFetch<AvailableModelsResponse>('/api/agent/models')
 		return res.models ?? []
+	},
+
+	async getAvailableModelsInfo() {
+		return apiFetch<AvailableModelsResponse>('/api/agent/models')
+	},
+
+	async getProviders() {
+		return apiFetch<ProviderStatusInfo[]>('/api/agent/providers')
 	},
 
 	async sendMessage(request, onEvent, signal) {

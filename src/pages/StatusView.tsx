@@ -406,6 +406,91 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 					)}
 				</section>
 
+				{agyQuota?.providers && agyQuota.providers.length > 0 && (
+					<section className="status-card" aria-labelledby="providers-title">
+						<div className="status-card__header">
+							<h2 id="providers-title" className="status-card__title">
+								<IconSparkles className="status-card__icon" />
+								Coding Agent Providers
+							</h2>
+							<span className="status-card__badge status-card__badge--ok">
+								{agyQuota.providers.filter((p) => p.status === 'ready').length} / {agyQuota.providers.length} Active
+							</span>
+						</div>
+
+						<div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px' }}>
+							{agyQuota.providers.map((provider) => {
+								const isReady = provider.status === 'ready'
+								const isNotAuth = provider.status === 'not_authenticated'
+								const isNotInstalled = provider.status === 'not_installed'
+
+								return (
+									<div
+										key={provider.id}
+										style={{
+											padding: '10px 12px',
+											borderRadius: '8px',
+											background: 'rgba(255, 255, 255, 0.02)',
+											border: '1px solid var(--border-subtle)',
+										}}
+									>
+										<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+											<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+												<strong style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{provider.name}</strong>
+												{provider.version && (
+													<span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{provider.version}</span>
+												)}
+											</div>
+											<span
+												className={`status-card__badge ${
+													isReady
+														? 'status-card__badge--ok'
+														: isNotAuth
+															? 'status-card__badge--warning'
+															: 'status-card__badge--danger'
+												}`}
+											>
+												{isReady
+													? 'Ready'
+													: isNotAuth
+														? 'Sign in required'
+														: isNotInstalled
+															? 'Not installed'
+															: 'Error'}
+											</span>
+										</div>
+
+										{provider.message && (
+											<p style={{ fontSize: '11px', color: isReady ? 'var(--text-secondary)' : 'var(--text-muted)', margin: '4px 0 6px 0' }}>
+												{provider.message}
+											</p>
+										)}
+
+										{provider.models.length > 0 && (
+											<div>
+												<span className="text-muted" style={{ fontSize: '10px', display: 'block', marginBottom: '4px' }}>
+													Available Models ({provider.models.length})
+												</span>
+												<div className="status-models-list">
+													{provider.models.map((m) => (
+														<span
+															key={m.id}
+															className={`status-model-chip ${m.id === agyQuota.activeModel ? 'status-model-chip--active' : ''}`}
+															title={m.id}
+														>
+															{m.name}
+														</span>
+													))}
+												</div>
+											</div>
+										)}
+									</div>
+								)
+							})}
+						</div>
+					</section>
+				)}
+
 				<section className="status-card" aria-labelledby="agy-quota-title">
 					<div className="status-card__header">
 						<h2 id="agy-quota-title" className="status-card__title">

@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { freemem, totalmem, uptime, platform } from 'node:os'
 import { asyncHandler } from '../middleware.js'
 import type { ServerConfig } from '../config.js'
-import type { AgyService } from '../services/agyService.js'
+import type { AgentRouterService } from '../services/agent/agentRouterService.js'
 import type { SessionStore } from '../store.js'
 import { ServerUpdateService } from '../services/serverUpdateService.js'
 import { fetchAgyQuota, summarizeQuotaHealth } from '../services/agyQuotaService.js'
@@ -12,7 +12,7 @@ import type { AgyQuotaUsage } from '../types/system.js'
 
 export function createSystemRouter(
 	config: ServerConfig,
-	agy: AgyService,
+	agentService: AgentRouterService,
 	sessions: SessionStore,
 ): Router {
 	const router = Router()
@@ -24,11 +24,14 @@ export function createSystemRouter(
 			const projectId = queryParam(req, 'projectId')
 			const refresh = queryParam(req, 'refresh') === '1'
 
-			const [authStatus, availableModels, allSessions] = await Promise.all([
+			const [authStatus, availableModelsData, providers, allSessions] = await Promise.all([
 				checkAgyAuth(config.agyPath),
-				agy.getAvailableModels().catch(() => []),
+				agentService.getAvailableModels().catch(() => ({ models: [], modelDefinitions: [] })),
+				agentService.getProviderStatuses().catch(() => []),
 				sessions.getAll(),
 			])
+
+			const availableModels = availableModelsData.models
 
 			let quota: AgyQuotaUsage['quota']
 			let quotaError: string | undefined
@@ -66,6 +69,7 @@ export function createSystemRouter(
 				quotaHealth: quota ? summarizeQuotaHealth(quota) : undefined,
 				activeModel,
 				availableModels,
+				providers,
 				laptopStats: {
 					freeMemBytes,
 					totalMemBytes,

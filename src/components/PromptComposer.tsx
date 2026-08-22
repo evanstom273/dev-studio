@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ClipboardEvent } from 'react'
-import type { AgentMode, AttachmentInfo } from '@shared/types/agent'
+import type { AgentMode, AgentModelDefinition, AttachmentInfo } from '@shared/types/agent'
 import { AGENT_MODES } from '../types/index'
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
 import {
@@ -26,6 +26,7 @@ export type PromptComposerProps = {
 	onModeChange: (mode: AgentMode) => void
 	model?: string
 	availableModels?: string[]
+	modelDefinitions?: AgentModelDefinition[]
 	onModelChange?: (model: string) => void
 	attachments: AttachmentInfo[]
 	onAddAttachments: (files: FileList | File[]) => void
@@ -71,6 +72,7 @@ export function PromptComposer({
 	onModeChange,
 	model,
 	availableModels = [],
+	modelDefinitions = [],
 	onModelChange,
 	attachments,
 	onAddAttachments,
@@ -196,9 +198,12 @@ export function PromptComposer({
 	}
 
 	const canSend = Boolean(value.trim() || attachments.length > 0)
-	const activeModelLabel = model
-		? model.replace(/^gemini-/, '').replace(/^claude-/, '')
-		: 'Default Model'
+	const matchingDef = modelDefinitions.find((d) => d.id === model)
+	const activeModelLabel = matchingDef
+		? matchingDef.name
+		: model
+			? model.replace(/^gemini-/, 'Gemini ').replace(/^claude-/, 'Claude ').replace(/^gpt-/, 'GPT ')
+			: 'Default Model'
 
 	return (
 		<form
@@ -390,7 +395,63 @@ export function PromptComposer({
 							{modelMenuOpen && (
 								<div className="composer__model-menu" role="menu">
 									<div className="composer__model-menu-header">Select Model</div>
-									{availableModels.length === 0 ? (
+									{modelDefinitions.length > 0 ? (
+										<>
+											{modelDefinitions.some((d) => d.providerId === 'antigravity') && (
+												<>
+													<div className="composer__model-group-title">Google Antigravity</div>
+													{modelDefinitions
+														.filter((d) => d.providerId === 'antigravity')
+														.map((m) => {
+															const isSelected = model === m.id || (!model && m.isDefault)
+															return (
+																<button
+																	key={m.id}
+																	type="button"
+																	className={`composer__model-item${isSelected ? ' is-active' : ''}`}
+																	role="menuitem"
+																	onClick={() => {
+																		onModelChange?.(m.id)
+																		setModelMenuOpen(false)
+																	}}
+																>
+																	<span className="composer__model-name">{m.name}</span>
+																	{isSelected && <IconCheck className="composer__model-check" />}
+																</button>
+															)
+														})}
+												</>
+											)}
+											{modelDefinitions.some((d) => d.providerId === 'codex') && (
+												<>
+													<div className="composer__model-group-title">OpenAI Codex (ChatGPT)</div>
+													{modelDefinitions
+														.filter((d) => d.providerId === 'codex')
+														.map((m) => {
+															const isSelected = model === m.id || (!model && m.isDefault)
+															return (
+																<button
+																	key={m.id}
+																	type="button"
+																	className={`composer__model-item${isSelected ? ' is-active' : ''}`}
+																	role="menuitem"
+																	onClick={() => {
+																		onModelChange?.(m.id)
+																		setModelMenuOpen(false)
+																	}}
+																>
+																	<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+																		<span className="composer__model-name">{m.name}</span>
+																		<span className="composer__model-provider-badge">Codex</span>
+																	</div>
+																	{isSelected && <IconCheck className="composer__model-check" />}
+																</button>
+															)
+														})}
+												</>
+											)}
+										</>
+									) : availableModels.length === 0 ? (
 										<div className="composer__model-item is-active" role="menuitem">
 											<span>Default (CLI configured)</span>
 											<IconCheck className="composer__model-check" />

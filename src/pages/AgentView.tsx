@@ -3,6 +3,7 @@ import type {
 	ActivityTimelineItem,
 	AgentActivityItem,
 	AgentMode,
+	AgentModelDefinition,
 	AttachmentInfo,
 	ConversationItem,
 	PermissionRequest,
@@ -44,6 +45,7 @@ export function AgentView({
 	const [prompt, setPrompt] = useState('')
 	const [mode, setMode] = useState<AgentMode>('agent')
 	const [availableModels, setAvailableModels] = useState<string[]>([])
+	const [modelDefinitions, setModelDefinitions] = useState<AgentModelDefinition[]>([])
 	const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined)
 	const [attachments, setAttachments] = useState<AttachmentInfo[]>([])
 	const [loading, setLoading] = useState(false)
@@ -80,11 +82,19 @@ export function AgentView({
 	useEffect(() => {
 		void loadSession()
 		agentApi
-			.getAvailableModels()
-			.then((models) => {
-				setAvailableModels(models)
+			.getAvailableModelsInfo()
+			.then((res) => {
+				setAvailableModels(res.models ?? [])
+				if (res.modelDefinitions) {
+					setModelDefinitions(res.modelDefinitions)
+				}
 			})
-			.catch(() => {})
+			.catch(() => {
+				agentApi
+					.getAvailableModels()
+					.then((models) => setAvailableModels(models))
+					.catch(() => {})
+			})
 	}, [loadSession])
 
 	const handleAddAttachments = async (files: FileList | File[]) => {
@@ -485,6 +495,7 @@ export function AgentView({
 				onModeChange={setMode}
 				model={selectedModel}
 				availableModels={availableModels}
+				modelDefinitions={modelDefinitions}
 				onModelChange={setSelectedModel}
 				attachments={attachments}
 				onAddAttachments={(files) => void handleAddAttachments(files)}

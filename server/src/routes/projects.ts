@@ -47,14 +47,6 @@ export function createProjectsRouter(projects: ProjectService, config: ServerCon
 	)
 
 	router.post(
-		'/:id/remove-local',
-		asyncHandler(async (req, res) => {
-			await projects.removeLocalCopy(param(req, 'id'))
-			res.json({ ok: true })
-		}),
-	)
-
-	router.post(
 		'/open-local',
 		asyncHandler(async (req, res) => {
 			const { path, name } = req.body as { path: string; name?: string }
@@ -101,6 +93,14 @@ export function createProjectsRouter(projects: ProjectService, config: ServerCon
 			const repoName = name ?? url.split('/').pop()?.replace('.git', '') ?? 'repo'
 			const targetPath = path ?? join(process.env.DEV_STUDIO_PROJECTS_ROOT ?? '', repoName)
 			res.json(await projects.clone(url, targetPath, name))
+		}),
+	)
+
+	router.post(
+		'/:id/remove-local',
+		asyncHandler(async (req, res) => {
+			await projects.removeLocalCopy(param(req, 'id'))
+			res.json({ ok: true })
 		}),
 	)
 

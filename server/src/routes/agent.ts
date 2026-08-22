@@ -3,7 +3,8 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { asyncHandler } from '../middleware.js'
 import type { ServerConfig } from '../config.js'
-import type { AgyService, PermissionQueue } from '../services/agyService.js'
+import type { AgentRouterService } from '../services/agent/agentRouterService.js'
+import type { PermissionQueue } from '../services/agyService.js'
 import type { ProjectService } from '../services/projectService.js'
 import { SessionStore } from '../store.js'
 import { param } from '../utils/params.js'
@@ -19,7 +20,7 @@ function filterEmptyTimelines(items: ConversationItem[]): ConversationItem[] {
 
 export function createAgentRouter(
 	projects: ProjectService,
-	agy: AgyService,
+	agentService: AgentRouterService,
 	sessions: SessionStore,
 	permissions: PermissionQueue,
 	config: ServerConfig,
@@ -29,8 +30,16 @@ export function createAgentRouter(
 	router.get(
 		'/models',
 		asyncHandler(async (_req, res) => {
-			const models = await agy.getAvailableModels()
-			res.json({ models })
+			const result = await agentService.getAvailableModels()
+			res.json(result)
+		}),
+	)
+
+	router.get(
+		'/providers',
+		asyncHandler(async (_req, res) => {
+			const statuses = await agentService.getProviderStatuses()
+			res.json(statuses)
 		}),
 	)
 
@@ -42,7 +51,7 @@ export function createAgentRouter(
 				res.status(400).json({ error: 'projectId is required' })
 				return
 			}
-			const stopped = agy.stopTurn(projectId)
+			const stopped = agentService.stopTurn(projectId)
 			res.json({ stopped })
 		}),
 	)
@@ -151,7 +160,7 @@ export function createAgentRouter(
 			permissions.on('permission', onPermission)
 
 			try {
-				await agy.runPrompt(
+				await agentService.runPrompt(
 					projectPath,
 					projectId,
 					content.trim(),
@@ -210,9 +219,10 @@ export function createAgentRouter(
 		'/session/:projectId/reset',
 		asyncHandler(async (req, res) => {
 			const projectId = param(req, 'projectId')
-			agy.resetProjectSession(projectId)
+			agentService.resetProjectSession(projectId)
 			const session = await sessions.getOrCreate(projectId)
 			session.conversationId = null
+			session.codexThreadId = null
 			session.items = []
 			session.updatedAt = new Date().toISOString()
 			await sessions.save(session)

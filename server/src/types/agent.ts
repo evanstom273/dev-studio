@@ -102,14 +102,40 @@ export type AttachmentInfo = {
 	previewUrl?: string
 }
 
+export type AgentProviderId = 'antigravity' | 'codex'
+
+export type AgentModelDefinition = {
+	id: string
+	name: string
+	providerId: AgentProviderId
+	providerName: string
+	description?: string
+	isDefault?: boolean
+}
+
+export type ProviderStatusInfo = {
+	id: AgentProviderId
+	name: string
+	status: 'ready' | 'not_installed' | 'not_authenticated' | 'error'
+	available: boolean
+	authenticated?: boolean
+	version?: string
+	message?: string
+	models: AgentModelDefinition[]
+}
+
 export type AvailableModelsResponse = {
 	models: string[]
+	modelDefinitions?: AgentModelDefinition[]
+	providers?: ProviderStatusInfo[]
 	currentModel?: string
 }
 
 export type AgentSession = {
 	projectId: string
 	conversationId: string | null
+	codexThreadId?: string | null
+	activeProvider?: AgentProviderId
 	mode: AgentMode
 	model?: string
 	items: ConversationItem[]

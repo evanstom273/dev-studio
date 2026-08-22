@@ -18,6 +18,9 @@ import { createPlansRouter } from './routes/plans.js'
 import { createBrowserRouter, setupBrowserWebSocket } from './routes/browser.js'
 import { ProjectService } from './services/projectService.js'
 import { AgyService, PermissionQueue } from './services/agyService.js'
+import { AntigravityProvider } from './services/agent/antigravityProvider.js'
+import { CodexProvider } from './services/agent/codexProvider.js'
+import { AgentRouterService } from './services/agent/agentRouterService.js'
 import { ArtifactService } from './services/artifactService.js'
 import { TerminalSessionManager } from './services/terminalService.js'
 import { ProcessService } from './services/processService.js'
@@ -40,6 +43,10 @@ const plans = new PlanService(config)
 const browser = new BrowserService(config)
 const agy = new AgyService(config, sessions, permissions)
 
+const antigravityProvider = new AntigravityProvider(config, agy)
+const codexProvider = new CodexProvider()
+const agentService = new AgentRouterService(sessions, antigravityProvider, codexProvider)
+
 app.use(
 	cors({
 		origin: config.allowedOrigins.includes('*') ? true : config.allowedOrigins,
@@ -54,7 +61,7 @@ app.use('/api', authMiddleware(config))
 
 app.use('/api', createHealthRouter(config))
 app.use('/api/projects', createProjectsRouter(projects, config))
-app.use('/api/agent', createAgentRouter(projects, agy, sessions, permissions, config))
+app.use('/api/agent', createAgentRouter(projects, agentService, sessions, permissions, config))
 app.use('/api/run', createRunRouter(projects))
 app.use('/api/git', createGitRouter(projects, config))
 app.use('/api/files', createFilesRouter(projects))
@@ -65,7 +72,7 @@ app.use('/api/processes', createProcessesRouter(projects, processes, config))
 app.use('/api/problems', createProblemsRouter(projects, problems, config))
 app.use('/api/plans', createPlansRouter(plans, artifacts))
 app.use('/api/browser', createBrowserRouter(browser))
-app.use('/api/system', createSystemRouter(config, agy, sessions))
+app.use('/api/system', createSystemRouter(config, agentService, sessions))
 
 app.use(errorHandler)
 
@@ -76,7 +83,7 @@ async function main(): Promise<void> {
 	await problems.init()
 	await plans.init()
 	await browser.init()
-	await agy.init()
+	await agentService.init()
 
 	const server = createServer(app)
 	const terminalWss = new WebSocketServer({ noServer: true })

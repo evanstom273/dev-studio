@@ -1,3 +1,5 @@
+import type { ProviderStatusInfo } from './agent.js'
+
 export type ServerUpdateStep = {
 	name: string
 	exitCode: number
@@ -57,6 +59,7 @@ export type AgyQuotaUsage = {
 	}
 	activeModel?: string
 	availableModels: string[]
+	providers?: ProviderStatusInfo[]
 	laptopStats?: {
 		freeMemBytes: number
 		totalMemBytes: number

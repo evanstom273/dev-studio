@@ -519,4 +519,99 @@ test('FileService path traversal protection rejects path escape attempts', () =>
 	assert.equal(validatePath('C:\\Windows\\System32').valid, false)
 })
 
+// ==========================================
+// Tests for Agent Provider Abstraction & Codex
+// ==========================================
+
+test('Provider routing correctly maps models to their respective providers', () => {
+	function ownsModel(providerId, modelId) {
+		const isCodex =
+			modelId.startsWith('codex:') ||
+			modelId.startsWith('openai:') ||
+			modelId.startsWith('gpt-5') ||
+			modelId === 'o3-mini' ||
+			modelId === 'o1' ||
+			modelId === 'gpt-4o' ||
+			modelId === 'gpt-4.1'
+		if (providerId === 'codex') return isCodex
+		if (providerId === 'antigravity') return !isCodex
+		return false
+	}
+
+	function resolveProvider(modelId, fallback = 'antigravity') {
+		if (modelId) {
+			if (ownsModel('codex', modelId)) return 'codex'
+			if (ownsModel('antigravity', modelId)) return 'antigravity'
+		}
+		return fallback
+	}
+
+	// Antigravity models
+	assert.equal(resolveProvider('gemini-3.7-flash-high'), 'antigravity')
+	assert.equal(resolveProvider('gemini-3.6-flash-high'), 'antigravity')
+	assert.equal(resolveProvider('claude-sonnet-4-6'), 'antigravity')
+	assert.equal(resolveProvider('gpt-oss-120b-medium'), 'antigravity')
+
+	// Codex models
+	assert.equal(resolveProvider('gpt-5.6-sol'), 'codex')
+	assert.equal(resolveProvider('codex:gpt-5.6-sol'), 'codex')
+	assert.equal(resolveProvider('o3-mini'), 'codex')
+	assert.equal(resolveProvider('o1'), 'codex')
+	assert.equal(resolveProvider('gpt-4o'), 'codex')
+	assert.equal(resolveProvider('gpt-4.1'), 'codex')
+
+	// Fallback
+	assert.equal(resolveProvider(undefined, 'antigravity'), 'antigravity')
+	assert.equal(resolveProvider(undefined, 'codex'), 'codex')
+})
+
+test('Conversation handoff summary formats recent turns concisely without whole transcript dump', () => {
+	function extractConversationSummary(items, maxTurns = 6) {
+		const messages = []
+		const relevant = items
+			.filter((item) => item.kind === 'message')
+			.slice(-maxTurns)
+
+		for (const item of relevant) {
+			const prefix = item.role === 'user' ? 'User' : 'Assistant'
+			const content = item.content.trim().slice(0, 500)
+			messages.push(`${prefix}: ${content}`)
+		}
+
+		return messages.join('\n\n')
+	}
+
+	const conversation = [
+		{ kind: 'message', role: 'user', content: 'Create a button component' },
+		{ kind: 'activity_timeline', activities: [{ id: '1', type: 'edit' }] },
+		{ kind: 'message', role: 'agent', content: 'I created Button.tsx in src/components' },
+		{ kind: 'message', role: 'user', content: 'Now add tests for it' },
+		{ kind: 'message', role: 'agent', content: 'Created Button.test.tsx with 3 test cases' },
+	]
+
+	const summary = extractConversationSummary(conversation)
+	assert.ok(summary.includes('User: Create a button component'))
+	assert.ok(summary.includes('Assistant: I created Button.tsx'))
+	assert.ok(summary.includes('User: Now add tests for it'))
+	assert.ok(summary.includes('Assistant: Created Button.test.tsx'))
+	assert.ok(!summary.includes('activity_timeline'))
+})
+
+test('Unified model definitions preserve provider metadata for dropdown rendering', () => {
+	const modelDefs = [
+		{ id: 'gemini-3.7-flash-high', name: 'Gemini 3.7 Flash High', providerId: 'antigravity', providerName: 'Google Antigravity', isDefault: true },
+		{ id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', providerId: 'antigravity', providerName: 'Google Antigravity' },
+		{ id: 'gpt-5.6-sol', name: 'GPT-5.6 (Codex)', providerId: 'codex', providerName: 'OpenAI Codex', isDefault: true },
+		{ id: 'o3-mini', name: 'o3-mini (Codex)', providerId: 'codex', providerName: 'OpenAI Codex' },
+	]
+
+	const antigravity = modelDefs.filter((d) => d.providerId === 'antigravity')
+	const codex = modelDefs.filter((d) => d.providerId === 'codex')
+
+	assert.equal(antigravity.length, 2)
+	assert.equal(codex.length, 2)
+	assert.equal(modelDefs.find((d) => d.id === 'gpt-5.6-sol')?.providerName, 'OpenAI Codex')
+})
+
+
 

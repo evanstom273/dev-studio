@@ -302,7 +302,7 @@ export class AgyService {
 		onEvent({ type: 'turn_status', ...patch })
 	}
 
-	private async runSingleTurn(
+	async runSingleTurn(
 		projectPath: string,
 		projectId: string,
 		prompt: string,
