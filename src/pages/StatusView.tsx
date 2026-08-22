@@ -87,16 +87,20 @@ function QuotaBucketRow({
 	bucket,
 	fetchedAtMs,
 	nowMs,
+	showPercentages = false,
 }: {
 	bucket: QuotaBucket
 	fetchedAtMs: number
 	nowMs: number
+	showPercentages?: boolean
 }) {
 	const resetSeconds = bucketResetSeconds(bucket, fetchedAtMs, nowMs)
 	const fillClass = remainingFillClass(bucket.percentRemaining, bucket.available)
-	const barWidth = bucket.available
-		? 100
-		: bucket.percentRemaining === null
+	const barWidth = showPercentages && bucket.percentRemaining !== null
+		? Math.max(1, bucket.percentRemaining)
+		: bucket.available
+			? 100
+			: bucket.percentRemaining === null
 			? 1
 			: Math.max(1, bucket.percentRemaining)
 
@@ -113,8 +117,12 @@ function QuotaBucketRow({
 			</div>
 
 			<div className="status-metric__row">
-				<div className="status-quota-group__val">{bucketStatusLabel(bucket)}</div>
-				{!bucket.available && bucket.percentUsed !== null && (
+				<div className="status-quota-group__val">
+					{showPercentages && bucket.percentRemaining !== null
+						? `${bucket.percentRemaining}% remaining`
+						: bucketStatusLabel(bucket)}
+				</div>
+				{showPercentages && bucket.percentUsed !== null && (
 					<span className="status-metric__percent-badge">
 						{bucket.percentUsed}% used
 					</span>
@@ -141,10 +149,12 @@ function QuotaGroupCard({
 	group,
 	fetchedAtMs,
 	nowMs,
+	showPercentages = false,
 }: {
 	group: QuotaGroup
 	fetchedAtMs: number
 	nowMs: number
+	showPercentages?: boolean
 }) {
 	return (
 		<div className="status-quota-section">
@@ -162,6 +172,7 @@ function QuotaGroupCard({
 					bucket={bucket}
 					fetchedAtMs={fetchedAtMs}
 					nowMs={nowMs}
+					showPercentages={showPercentages}
 				/>
 			))}
 		</div>
@@ -653,6 +664,7 @@ export function StatusView({ project, onRefreshProject }: StatusViewProps) {
 										group={group}
 										fetchedAtMs={codexQuotaFetchedAtMs}
 										nowMs={now}
+										showPercentages
 									/>
 								))}
 							</div>

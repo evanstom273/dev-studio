@@ -51,11 +51,12 @@ function parseCodexRateLimits(payload, planType, accountName, nowMs = Date.now()
 	const buckets = []
 
 	if (payload.primary) {
-		const usedPct = typeof payload.primary.used_percent === 'number' ? payload.primary.used_percent : 0
-		const percentUsed = Math.max(0, Math.min(100, Math.round(usedPct)))
-		const percentRemaining = Math.max(0, 100 - percentUsed)
-		const remainingFraction = percentRemaining / 100
-		const usedFraction = percentUsed / 100
+		const percentUsed = typeof payload.primary.used_percent === 'number'
+			? Math.max(0, Math.min(100, Math.round(payload.primary.used_percent)))
+			: null
+		const percentRemaining = percentUsed === null ? null : Math.max(0, 100 - percentUsed)
+		const remainingFraction = percentRemaining === null ? null : percentRemaining / 100
+		const usedFraction = percentUsed === null ? null : percentUsed / 100
 
 		let resetAt = null
 		let resetSeconds = null
@@ -68,14 +69,16 @@ function parseCodexRateLimits(payload, planType, accountName, nowMs = Date.now()
 		const windowLabel = formatWindowLabel(payload.primary.window_minutes, 'Primary Quota')
 		buckets.push({
 			kind: 'primary',
-			label: `Primary (${windowLabel})`,
+			label: windowLabel === 'Weekly Window (7d)' ? 'Weekly Limit' : `Primary (${windowLabel})`,
 			remainingFraction,
 			usedFraction,
 			percentRemaining,
 			percentUsed,
 			resetAt,
 			resetSeconds,
-			available: percentRemaining > 0 && !payload.rate_limit_reached_type,
+			available: percentRemaining === null
+				? !payload.rate_limit_reached_type
+				: percentRemaining > 0 && !payload.rate_limit_reached_type,
 			description: payload.primary.window_minutes
 				? `${windowLabel} – resets ${resetAt ? new Date(resetAt).toLocaleString() : 'soon'}`
 				: null,
@@ -83,11 +86,12 @@ function parseCodexRateLimits(payload, planType, accountName, nowMs = Date.now()
 	}
 
 	if (payload.secondary) {
-		const usedPct = typeof payload.secondary.used_percent === 'number' ? payload.secondary.used_percent : 0
-		const percentUsed = Math.max(0, Math.min(100, Math.round(usedPct)))
-		const percentRemaining = Math.max(0, 100 - percentUsed)
-		const remainingFraction = percentRemaining / 100
-		const usedFraction = percentUsed / 100
+		const percentUsed = typeof payload.secondary.used_percent === 'number'
+			? Math.max(0, Math.min(100, Math.round(payload.secondary.used_percent)))
+			: null
+		const percentRemaining = percentUsed === null ? null : Math.max(0, 100 - percentUsed)
+		const remainingFraction = percentRemaining === null ? null : percentRemaining / 100
+		const usedFraction = percentUsed === null ? null : percentUsed / 100
 
 		let resetAt = null
 		let resetSeconds = null
@@ -107,7 +111,7 @@ function parseCodexRateLimits(payload, planType, accountName, nowMs = Date.now()
 			percentUsed,
 			resetAt,
 			resetSeconds,
-			available: percentRemaining > 0,
+			available: percentRemaining === null ? true : percentRemaining > 0,
 			description: payload.secondary.window_minutes
 				? `${windowLabel} – resets ${resetAt ? new Date(resetAt).toLocaleString() : 'soon'}`
 				: null,
@@ -330,7 +334,7 @@ test('parseCodexRateLimits: formats rate limits into valid quota groups and buck
 	assert.equal(primary.remainingFraction, 0.99)
 	assert.equal(primary.usedFraction, 0.01)
 	assert.equal(primary.available, true)
-	assert.ok(primary.label.includes('Weekly Window'))
+	assert.equal(primary.label, 'Weekly Limit')
 	assert.ok(primary.resetAt !== null)
 	assert.ok(primary.resetSeconds !== null && primary.resetSeconds > 0)
 })
@@ -376,4 +380,18 @@ test('parseCodexRateLimits: handles secondary bucket and credits when present', 
 	assert.equal(credits.kind, 'credits')
 	assert.equal(credits.available, true)
 	assert.ok(credits.description?.includes('150.00'))
+})
+
+test('parseCodexRateLimits: preserves quota availability when usage percentage is absent', () => {
+	const snapshot = parseCodexRateLimits({
+		primary: { window_minutes: 10080 },
+	})
+	const primary = snapshot.groups[0].buckets[0]
+
+	assert.equal(primary.label, 'Weekly Limit')
+	assert.equal(primary.percentUsed, null)
+	assert.equal(primary.percentRemaining, null)
+	assert.equal(primary.remainingFraction, null)
+	assert.equal(primary.usedFraction, null)
+	assert.equal(primary.available, true)
 })
