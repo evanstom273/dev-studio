@@ -9,10 +9,9 @@ function buildCodexExecArgs(options) {
 		args.push('exec', 'resume', options.threadId, '--json', '--skip-git-repo-check')
 	} else {
 		args.push('exec', '--json', '--skip-git-repo-check')
-	}
-
-	if (options.autoApprove) {
-		args.push('--ask-for-approval', 'never')
+		if (options.autoApprove) {
+			args.push('--approve-for-me')
+		}
 	}
 
 	if (options.model) {
@@ -400,15 +399,15 @@ test('parseCodexRateLimits: preserves quota availability when usage percentage i
 	assert.equal(primary.available, true)
 })
 
-test('buildCodexExecArgs: auto-approve adds --ask-for-approval never', () => {
+test('buildCodexExecArgs: auto-approve adds --approve-for-me on new session', () => {
 	const args = buildCodexExecArgs({
 		threadId: null,
 		mode: 'agent',
 		autoApprove: true,
 	})
 
-	assert.ok(args.includes('--ask-for-approval'))
-	assert.equal(args[args.indexOf('--ask-for-approval') + 1], 'never')
+	assert.ok(args.includes('--approve-for-me'))
+	assert.ok(!args.includes('--ask-for-approval'))
 })
 
 test('buildCodexExecArgs: auto-approve omitted when false', () => {
@@ -418,6 +417,7 @@ test('buildCodexExecArgs: auto-approve omitted when false', () => {
 		autoApprove: false,
 	})
 
+	assert.ok(!args.includes('--approve-for-me'))
 	assert.ok(!args.includes('--ask-for-approval'))
 })
 
@@ -448,10 +448,20 @@ test('Codex item parser: ask mode blocks command activity', () => {
 	assert.equal(act, null)
 })
 
-test('Codex agent messages: commentary during turn, final on completion', () => {
-	const agentMessages = ['Inspecting repo…', 'Implemented the fix.']
-	const commentary = [...agentMessages]
-	const finalAnswer = agentMessages.at(-1)
-	assert.equal(commentary.length, 2)
-	assert.equal(finalAnswer, 'Implemented the fix.')
+test('Codex agent messages: agent_message streams directly to response', () => {
+	const items = [
+		{ type: 'agent_message', text: 'Hello there!' },
+		{ type: 'commentary', text: 'Thinking about solution...' },
+	]
+	let agentContent = ''
+	const commentary = []
+	for (const it of items) {
+		if (it.type === 'agent_message') {
+			agentContent += (agentContent ? '\n\n' : '') + it.text
+		} else if (it.type === 'commentary') {
+			commentary.push(it.text)
+		}
+	}
+	assert.equal(agentContent, 'Hello there!')
+	assert.deepEqual(commentary, ['Thinking about solution...'])
 })
