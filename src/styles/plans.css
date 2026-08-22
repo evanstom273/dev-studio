@@ -1,0 +1,381 @@
+.plans-view {
+	display: flex;
+	height: 100%;
+	background: var(--bg-primary);
+	color: var(--text-primary);
+	overflow: hidden;
+}
+
+.plans-sidebar {
+	width: 260px;
+	background: var(--bg-surface);
+	border-right: 1px solid var(--border-subtle);
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+	.plans-sidebar {
+		width: 100%;
+		border-right: none;
+	}
+}
+
+.plans-sidebar__header {
+	padding: var(--space-md) var(--space-lg);
+	border-bottom: 1px solid var(--border-subtle);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.plans-sidebar__title {
+	font-size: 13px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--text-primary);
+	display: flex;
+	align-items: center;
+	gap: var(--space-xs);
+}
+
+.plans-sidebar__list {
+	flex: 1;
+	overflow-y: auto;
+	padding: var(--space-xs);
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.plan-item {
+	padding: var(--space-md);
+	border-radius: var(--radius-sm);
+	background: transparent;
+	border: 1px solid transparent;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	cursor: pointer;
+	text-align: left;
+	transition: background 0.15s, border-color 0.15s;
+}
+
+.plan-item:hover {
+	background: var(--bg-hover);
+}
+
+.plan-item.is-active {
+	background: var(--accent-subtle);
+	border-color: rgba(139, 122, 200, 0.3);
+}
+
+.plan-item__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+}
+
+.plan-item__title {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--text-primary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.plan-item__meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 11px;
+	color: var(--text-muted);
+}
+
+.plans-main {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	background: var(--bg-primary);
+	overflow: hidden;
+}
+
+.plans-header {
+	padding: var(--space-md) var(--space-lg);
+	background: var(--bg-surface);
+	border-bottom: 1px solid var(--border-subtle);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm);
+}
+
+.plans-header__top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--space-md);
+	flex-wrap: wrap;
+}
+
+.plans-header__title-row {
+	display: flex;
+	align-items: center;
+	gap: var(--space-sm);
+	flex-wrap: wrap;
+}
+
+.plans-header__title {
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--text-primary);
+}
+
+.plans-header__desc {
+	font-size: 13px;
+	color: var(--text-secondary);
+	line-height: 1.4;
+}
+
+.plans-header__actions {
+	display: flex;
+	align-items: center;
+	gap: var(--space-xs);
+	flex-wrap: wrap;
+}
+
+.plan-progress-bar-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.plan-progress-track {
+	height: 6px;
+	background: var(--bg-elevated);
+	border-radius: var(--radius-full);
+	overflow: hidden;
+	border: 1px solid var(--border-subtle);
+}
+
+.plan-progress-fill {
+	height: 100%;
+	background: var(--accent);
+	transition: width 0.3s ease-out;
+}
+
+.plan-progress-text {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 11px;
+	color: var(--text-muted);
+}
+
+.plans-body {
+	flex: 1;
+	overflow-y: auto;
+	padding: var(--space-md) var(--space-lg);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-sm);
+}
+
+.step-card {
+	background: var(--bg-surface);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-md);
+	padding: var(--space-md);
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-xs);
+	transition: border-color 0.15s;
+}
+
+.step-card:hover {
+	border-color: var(--border-medium);
+}
+
+.step-card--in_progress {
+	border-color: var(--accent);
+	background: linear-gradient(to right, rgba(139, 122, 200, 0.06), transparent);
+}
+
+.step-card--completed {
+	border-left: 3px solid #10b981;
+}
+
+.step-card--failed {
+	border-left: 3px solid #ef4444;
+}
+
+.step-card--skipped {
+	opacity: 0.6;
+}
+
+.step-card__top {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--space-sm);
+}
+
+.step-card__left {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--space-sm);
+	flex: 1;
+}
+
+.step-status-btn {
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-muted);
+	font-size: 16px;
+	margin-top: 1px;
+	transition: transform 0.15s, color 0.15s;
+}
+
+.step-status-btn:hover {
+	transform: scale(1.15);
+}
+
+.step-status-icon--pending {
+	color: var(--text-muted);
+}
+
+.step-status-icon--in_progress {
+	color: var(--accent);
+	animation: pulse 1.5s infinite;
+}
+
+.step-status-icon--completed {
+	color: #10b981;
+}
+
+.step-status-icon--failed {
+	color: #ef4444;
+}
+
+.step-status-icon--skipped {
+	color: var(--text-muted);
+}
+
+.step-card__title-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	flex: 1;
+}
+
+.step-card__title {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--text-primary);
+}
+
+.step-card__title--completed {
+	text-decoration: line-through;
+	color: var(--text-muted);
+}
+
+.step-card__detail {
+	font-size: 12px;
+	color: var(--text-secondary);
+	line-height: 1.4;
+}
+
+.step-card__badges {
+	display: flex;
+	align-items: center;
+	gap: var(--space-xs);
+	flex-wrap: wrap;
+	margin-top: 4px;
+}
+
+.step-badge {
+	font-size: 11px;
+	padding: 2px 6px;
+	border-radius: var(--radius-xs);
+	background: var(--bg-elevated);
+	border: 1px solid var(--border-subtle);
+	color: var(--text-secondary);
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	font-family: var(--font-mono, monospace);
+}
+
+.step-badge:hover {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+
+.step-card__actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.plan-status-badge {
+	font-size: 10px;
+	font-weight: 600;
+	padding: 2px 8px;
+	border-radius: var(--radius-xs);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.plan-status-badge--pending {
+	background: var(--bg-elevated);
+	color: var(--text-muted);
+}
+
+.plan-status-badge--in_progress {
+	background: var(--accent-subtle);
+	color: var(--accent);
+	border: 1px solid var(--accent);
+}
+
+.plan-status-badge--completed {
+	background: rgba(16, 185, 129, 0.15);
+	color: #10b981;
+	border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.plan-status-badge--failed {
+	background: rgba(239, 68, 68, 0.15);
+	color: #ef4444;
+	border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.plans-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: var(--space-xl);
+	text-align: center;
+	color: var(--text-muted);
+	gap: var(--space-sm);
+}
+
+@keyframes pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.5;
+	}
+}
+

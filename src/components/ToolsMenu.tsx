@@ -1,6 +1,13 @@
 import { useEffect, useRef } from 'react'
 import type { ToolId } from '@shared/types/project'
-import { IconArtifact, IconCode, IconTerminal } from './Icons'
+import {
+	IconArtifact,
+	IconCode,
+	IconPlan,
+	IconProblem,
+	IconProcess,
+	IconTerminal,
+} from './Icons'
 import '../styles/tools-menu.css'
 
 export type ToolItem = {
@@ -29,6 +36,24 @@ export const AVAILABLE_TOOLS: ToolItem[] = [
 		description: 'Plans, specifications, diagrams & notes',
 		Icon: IconArtifact,
 	},
+	{
+		id: 'processes',
+		label: 'Processes & Servers',
+		description: 'Inspect dev servers, ports and background processes',
+		Icon: IconProcess,
+	},
+	{
+		id: 'problems',
+		label: 'Problems',
+		description: 'Actionable diagnostics, conflicts and errors',
+		Icon: IconProblem,
+	},
+	{
+		id: 'plans',
+		label: 'Tasks / Plans',
+		description: 'Structured agent execution plans and steps',
+		Icon: IconPlan,
+	},
 ]
 
 type ToolsMenuProps = {
@@ -36,9 +61,18 @@ type ToolsMenuProps = {
 	onClose: () => void
 	onSelectTool: (toolId: ToolId) => void
 	activeTool?: ToolId | null
+	problemsCount?: number
+	problemsErrors?: number
 }
 
-export function ToolsMenu({ isOpen, onClose, onSelectTool, activeTool }: ToolsMenuProps) {
+export function ToolsMenu({
+	isOpen,
+	onClose,
+	onSelectTool,
+	activeTool,
+	problemsCount,
+	problemsErrors,
+}: ToolsMenuProps) {
 	const menuRef = useRef<HTMLDivElement>(null)
 
 	useEffect(() => {
@@ -100,7 +134,16 @@ export function ToolsMenu({ isOpen, onClose, onSelectTool, activeTool }: ToolsMe
 									<Icon className="tools-menu__item-icon" />
 								</div>
 								<div className="tools-menu__item-text">
-									<span className="tools-menu__item-label">{tool.label}</span>
+									<div className="tools-menu__item-label-row">
+										<span className="tools-menu__item-label">{tool.label}</span>
+										{tool.id === 'problems' && problemsCount !== undefined && problemsCount > 0 && (
+											<span
+												className={`tools-menu__badge${problemsErrors && problemsErrors > 0 ? ' tools-menu__badge--error' : ''}`}
+											>
+												{problemsCount}
+											</span>
+										)}
+									</div>
 									<span className="tools-menu__item-desc">{tool.description}</span>
 								</div>
 								{isActive && <span className="tools-menu__item-active-dot" />}

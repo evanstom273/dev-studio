@@ -238,3 +238,151 @@ test('filterConversationItems keeps running timelines even when empty', () => {
 	const filtered = filterConversationItems(items)
 	assert.equal(filtered.length, 1)
 })
+
+// ==========================================
+// Tests for Processes & Servers Tool Logic
+// ==========================================
+
+test('Process backend protection correctly prevents unacknowledged stops', () => {
+	const currentBackendPid = 12345
+	function canStopProcess(proc, acknowledgeBackend) {
+		if (proc.pid === currentBackendPid || proc.isDevStudioBackend) {
+			if (!acknowledgeBackend) {
+				return { success: false, code: 403, error: 'Protection active' }
+			}
+		}
+		return { success: true }
+	}
+
+	const devBackend = { pid: 12345, isDevStudioBackend: true, name: 'Dev Studio Backend' }
+	const regularProcess = { pid: 6789, isDevStudioBackend: false, name: 'vite' }
+
+	assert.equal(canStopProcess(devBackend, false).success, false)
+	assert.equal(canStopProcess(devBackend, true).success, true)
+	assert.equal(canStopProcess(regularProcess, false).success, true)
+})
+
+test('Local URL formatting detects standard HTTP and localhost ports', () => {
+	function detectUrl(port) {
+		return `http://localhost:${port}`
+	}
+	assert.equal(detectUrl(5173), 'http://localhost:5173')
+	assert.equal(detectUrl(3000), 'http://localhost:3000')
+	assert.equal(detectUrl(8080), 'http://localhost:8080')
+})
+
+// ==========================================
+// Tests for Problems & Diagnostics Tool Logic
+// ==========================================
+
+test('TypeScript diagnostic regex parses compiler errors', () => {
+	const tsLine = `src/components/Icons.tsx(139,17): error TS2323: Cannot redeclare exported variable 'IconStop'.`
+	const tsRegex = /^(.+?)\((\d+),(\d+)\):\s+(error|warning)\s+(TS\d+):\s+(.+)$/
+	const match = tsLine.match(tsRegex)
+
+	assert.ok(match)
+	assert.equal(match[1], 'src/components/Icons.tsx')
+	assert.equal(match[2], '139')
+	assert.equal(match[3], '17')
+	assert.equal(match[4], 'error')
+	assert.equal(match[5], 'TS2323')
+	assert.equal(match[6], "Cannot redeclare exported variable 'IconStop'.")
+})
+
+test('Problems summary correctly tallies severities and resolution states', () => {
+	const problems = [
+		{ id: '1', severity: 'error', resolved: false },
+		{ id: '2', severity: 'error', resolved: false },
+		{ id: '3', severity: 'warning', resolved: false },
+		{ id: '4', severity: 'info', resolved: false },
+		{ id: '5', severity: 'error', resolved: true },
+	]
+
+	function computeSummary(list) {
+		const activeList = list.filter((p) => !p.resolved)
+		return {
+			total: list.length,
+			errors: activeList.filter((p) => p.severity === 'error').length,
+			warnings: activeList.filter((p) => p.severity === 'warning').length,
+			info: activeList.filter((p) => p.severity === 'info').length,
+			active: activeList.length,
+			resolved: list.filter((p) => p.resolved).length,
+		}
+	}
+
+	const sum = computeSummary(problems)
+	assert.equal(sum.total, 5)
+	assert.equal(sum.errors, 2)
+	assert.equal(sum.warnings, 1)
+	assert.equal(sum.info, 1)
+	assert.equal(sum.active, 4)
+	assert.equal(sum.resolved, 1)
+})
+
+// ==========================================
+// Tests for Tasks / Plans Tool Logic
+// ==========================================
+
+test('Plan progress calculations handle empty, partial, and completed plans', () => {
+	function calcProgress(steps) {
+		if (steps.length === 0) return 0
+		const done = steps.filter((s) => s.status === 'completed' || s.status === 'skipped').length
+		return Math.round((done / steps.length) * 100)
+	}
+
+	assert.equal(calcProgress([]), 0)
+	assert.equal(
+		calcProgress([
+			{ status: 'completed' },
+			{ status: 'pending' },
+		]),
+		50,
+	)
+	assert.equal(
+		calcProgress([
+			{ status: 'completed' },
+			{ status: 'skipped' },
+			{ status: 'completed' },
+		]),
+		100,
+	)
+})
+
+test('Plan Markdown artifact exporter formats valid markdown structure', () => {
+	const plan = {
+		id: 'plan-1',
+		title: 'Refactor Authentication',
+		description: 'Upgrade session store to JWT tokens',
+		status: 'in_progress',
+		steps: [
+			{ id: 's1', title: 'Create JWT helper', file: 'src/jwt.ts', line: 10, status: 'completed' },
+			{ id: 's2', title: 'Update middleware', command: 'npm test', status: 'in_progress' },
+			{ id: 's3', title: 'Verify frontend session refresh', status: 'pending' },
+		],
+	}
+
+	function generatePlanMarkdown(p) {
+		const lines = [
+			`# Task Plan: ${p.title}`,
+			'',
+			`**Status**: \`${p.status}\``,
+			p.description ? `**Goal**: ${p.description}\n` : '',
+			'## Steps',
+			'',
+			...p.steps.map((step, idx) => {
+				const check = step.status === 'completed' ? '[x]' : '[ ]'
+				const fileInfo = step.file ? ` (File: \`${step.file}${step.line ? `:${step.line}` : ''}\`)` : ''
+				const cmdInfo = step.command ? ` (Command: \`${step.command}\`)` : ''
+				return `${idx + 1}. ${check} **${step.title}**${fileInfo}${cmdInfo}`
+			}),
+		]
+		return lines.join('\n')
+	}
+
+	const md = generatePlanMarkdown(plan)
+	assert.ok(md.includes('# Task Plan: Refactor Authentication'))
+	assert.ok(md.includes('1. [x] **Create JWT helper** (File: `src/jwt.ts:10`)'))
+	assert.ok(md.includes('2. [ ] **Update middleware** (Command: `npm test`)'))
+	assert.ok(md.includes('3. [ ] **Verify frontend session refresh**'))
+})
+

@@ -5,6 +5,9 @@ export type { BranchRequest, ChangedFile, ChangeStatus, CommitRequest, DiffHunk,
 export type { CreateGitHubRepoRequest, CreatePullRequestRequest, ClosePullRequestRequest, DeleteRepoRequest, GitHubAuthStatus, GitHubPullRequest, GitHubPullRequestDetail, GitHubPullRequestState, GitHubRepo, GitHubRepoDetails, GitHubRepoInfo, LinkRemoteRequest, MergePullRequestRequest, UpdatePullRequestRequest, UpdateRepoRequest } from '@shared/types/github'
 export type { Artifact, ArtifactType, CreateArtifactRequest, ImportArtifactFromRepoRequest, SaveArtifactToRepoRequest, UpdateArtifactRequest } from '@shared/types/artifact'
 export type { CreateTerminalSessionRequest, TerminalClientMessage, TerminalServerMessage, TerminalSessionInfo } from '@shared/types/terminal'
+export type { DevProcess, NetworkPortInfo, ProcessActionResponse, ProcessCategory, ProcessListResponse, StartProcessRequest } from '@shared/types/process'
+export type { Problem, ProblemFilter, ProblemSeverity, ProblemSource, ProblemSummary } from '@shared/types/problem'
+export type { CreatePlanRequest, Plan, PlanStatus, PlanStep, StepStatus, UpdatePlanRequest } from '@shared/types/plan'
 export type { ToolId } from '@shared/types/project'
 
 export type NavItem = {

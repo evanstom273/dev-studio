@@ -5,6 +5,7 @@ export type TerminalSessionInfo = {
 	cwd: string
 	createdAt: string
 	lastActive: string
+	pid?: number
 }
 
 export type CreateTerminalSessionRequest = {

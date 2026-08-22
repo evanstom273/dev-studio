@@ -24,8 +24,17 @@ export type WorkspaceView =
 	| 'editor'
 	| 'terminal'
 	| 'artifacts'
+	| 'processes'
+	| 'problems'
+	| 'plans'
 
-export type ToolId = 'editor' | 'terminal' | 'artifacts'
+export type ToolId =
+	| 'editor'
+	| 'terminal'
+	| 'artifacts'
+	| 'processes'
+	| 'problems'
+	| 'plans'
 
 export type RepoTab = 'git' | 'github'
 

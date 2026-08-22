@@ -6,6 +6,9 @@ import {
 	IconChanges,
 	IconCode,
 	IconFiles,
+	IconPlan,
+	IconProblem,
+	IconProcess,
 	IconRepo,
 	IconStatus,
 	IconTerminal,
@@ -26,6 +29,9 @@ const ICONS = {
 	editor: IconCode,
 	terminal: IconTerminal,
 	artifacts: IconArtifact,
+	processes: IconProcess,
+	problems: IconProblem,
+	plans: IconPlan,
 } as const
 
 export function BottomNav({ activeView, onNavigate }: BottomNavProps) {
