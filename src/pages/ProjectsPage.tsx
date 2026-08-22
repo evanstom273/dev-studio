@@ -4,11 +4,12 @@ import type { Project } from '@shared/types/project'
 import { ConnectionBanner } from '../components/ConnectionBanner'
 import { IconFolder } from '../components/Icons'
 import { ProjectList } from '../components/ProjectList'
-import { ConnectSheet, CreateRepoSheet } from '../components/projects/ProjectHubSheets'
+import { ConnectSheet, CreateRepoSheet, OpenLocalFolderSheet } from '../components/projects/ProjectHubSheets'
 import { useConnection } from '../hooks/useConnection'
 import { agentApi } from '../services/agentApi'
 import { projectsApi } from '../services/gitApi'
 import { githubApi } from '../services/githubApi'
+import { canAccessLocalFilesystem, isTauriApp } from '../utils/platform'
 import '../styles/projects.css'
 import '../styles/github.css'
 
@@ -30,10 +31,11 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 	const [error, setError] = useState<string | null>(null)
 	const [connectOpen, setConnectOpen] = useState(false)
 	const [createOpen, setCreateOpen] = useState(false)
+	const [localFolderOpen, setLocalFolderOpen] = useState(false)
 
 	const connected = state.status === 'connected'
 	const hasGithub = Boolean(config.githubToken)
-	const isTauriApp = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+	const canOpenLocal = connected && canAccessLocalFilesystem(config.backendUrl)
 
 	const loadRecent = useCallback(async () => {
 		if (!connected) {
@@ -95,6 +97,14 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 		} finally {
 			setOpening(null)
 		}
+	}
+
+	const handleOpenLocalFolderClick = () => {
+		if (isTauriApp()) {
+			void handleOpenLocalFolder()
+			return
+		}
+		setLocalFolderOpen(true)
 	}
 
 	const handleOpenLocalFolder = async () => {
@@ -173,11 +183,11 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 
 			{connected && (
 				<div className="hub-actions">
-					{isTauriApp && (
+					{canOpenLocal && (
 						<button
 							type="button"
 							className="btn btn--secondary btn--sm"
-							onClick={() => void handleOpenLocalFolder()}
+							onClick={handleOpenLocalFolderClick}
 							disabled={Boolean(opening)}
 							title="Open an existing folder on your computer as a project"
 						>
@@ -293,6 +303,11 @@ export function ProjectsPage({ onSelectProject, onOpenSettings }: ProjectsPagePr
 			)}
 
 			<ConnectSheet open={connectOpen} onClose={() => setConnectOpen(false)} />
+			<OpenLocalFolderSheet
+				open={localFolderOpen}
+				onClose={() => setLocalFolderOpen(false)}
+				onOpened={onSelectProject}
+			/>
 			<CreateRepoSheet
 				open={createOpen}
 				onClose={() => setCreateOpen(false)}

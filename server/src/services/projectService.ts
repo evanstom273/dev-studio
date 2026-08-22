@@ -1,6 +1,7 @@
 import { basename, dirname, join, resolve } from 'node:path'
-import { mkdir, rm, stat } from 'node:fs/promises'
-import type { Project } from '../types/project.js'
+import { mkdir, readdir, rm, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import type { BrowseDirectoryResult, Project } from '../types/project.js'
 import { ProjectRegistry } from '../store.js'
 import type { ServerConfig } from '../config.js'
 import { GitService } from './gitService.js'
@@ -90,6 +91,47 @@ export class ProjectService {
 		const project = await this.toProject(normalized, name)
 		if (!project) throw new Error('Failed to open local project')
 		return project
+	}
+
+	async browseDirectory(requestedPath?: string): Promise<BrowseDirectoryResult> {
+		const fallback = this.config.projectsRoot
+		const current = resolve(requestedPath?.trim() || fallback)
+
+		try {
+			const info = await stat(current)
+			if (!info.isDirectory()) {
+				throw new Error(`Path is not a directory: ${current}`)
+			}
+		} catch (err) {
+			if (err instanceof Error && err.message.includes('not a directory')) throw err
+			throw new Error(`Folder does not exist or is inaccessible: ${current}`)
+		}
+
+		let entries: BrowseDirectoryResult['entries'] = []
+		try {
+			const items = await readdir(current, { withFileTypes: true })
+			entries = items
+				.filter((item) => item.isDirectory() && item.name !== '.' && item.name !== '..')
+				.map((item) => ({
+					name: item.name,
+					path: join(current, item.name),
+					isDirectory: true,
+				}))
+				.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+		} catch {
+			entries = []
+		}
+
+		const parentPath = dirname(current)
+		const parent = parentPath !== current ? parentPath : null
+
+		return {
+			path: current,
+			parent,
+			entries,
+			projectsRoot: this.config.projectsRoot,
+			homeDir: homedir(),
+		}
 	}
 
 	async register(path: string, name?: string): Promise<Project> {

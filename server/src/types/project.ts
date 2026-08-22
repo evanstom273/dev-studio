@@ -48,3 +48,17 @@ export type CreateAndOpenRepoRequest = {
 	description?: string
 	private?: boolean
 }
+
+export type BrowseDirectoryEntry = {
+	name: string
+	path: string
+	isDirectory: boolean
+}
+
+export type BrowseDirectoryResult = {
+	path: string
+	parent: string | null
+	entries: BrowseDirectoryEntry[]
+	projectsRoot: string
+	homeDir: string
+}

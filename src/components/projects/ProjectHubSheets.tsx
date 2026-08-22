@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import type { BrowseDirectoryResult, Project } from '@shared/types/project'
 import { Field, GhInput, Sheet, SheetActions } from '../github/GitHubUi'
 import { useConnection } from '../../hooks/useConnection'
+import { projectsApi } from '../../services/gitApi'
+import { IconFolder } from '../Icons'
 
 type ConnectSheetProps = {
 	open: boolean
@@ -165,6 +168,147 @@ export function CreateRepoSheet({ open, onClose, onCreated }: CreateRepoSheetPro
 					onClick={() => void handleCreate()}
 				>
 					{busy ? 'Creating…' : 'Create & open'}
+				</button>
+			</SheetActions>
+		</Sheet>
+	)
+}
+
+type OpenLocalFolderSheetProps = {
+	open: boolean
+	onClose: () => void
+	onOpened: (project: Project) => void
+}
+
+export function OpenLocalFolderSheet({ open, onClose, onOpened }: OpenLocalFolderSheetProps) {
+	const [browse, setBrowse] = useState<BrowseDirectoryResult | null>(null)
+	const [folderPath, setFolderPath] = useState('')
+	const [loading, setLoading] = useState(false)
+	const [busy, setBusy] = useState(false)
+	const [error, setError] = useState('')
+
+	const loadBrowse = async (path?: string) => {
+		setLoading(true)
+		setError('')
+		try {
+			const result = await projectsApi.browse(path)
+			setBrowse(result)
+			setFolderPath(result.path)
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Failed to browse folders')
+		} finally {
+			setLoading(false)
+		}
+	}
+
+	useEffect(() => {
+		if (open) {
+			void loadBrowse()
+		} else {
+			setBrowse(null)
+			setFolderPath('')
+			setError('')
+		}
+	}, [open])
+
+	const handleOpen = async () => {
+		const path = folderPath.trim()
+		if (!path) return
+		setBusy(true)
+		setError('')
+		try {
+			const project = await projectsApi.openLocal({ path })
+			onOpened(project)
+			onClose()
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Failed to open local folder')
+		} finally {
+			setBusy(false)
+		}
+	}
+
+	return (
+		<Sheet open={open} title="Open local folder" onClose={onClose}>
+			<p className="hub-sheet__intro">
+				Browse folders on your laptop or paste an absolute path. The project opens in Dev Studio without
+				copying files.
+			</p>
+
+			{error && <div className="panel-message">{error}</div>}
+
+			<Field label="Folder path" hint="Absolute path on your laptop, e.g. C:\Users\you\projects\my-app">
+				<GhInput
+					value={folderPath}
+					onChange={(e) => setFolderPath(e.target.value)}
+					placeholder={browse?.projectsRoot ?? 'C:\\Users\\you\\projects\\my-app'}
+					autoComplete="off"
+					spellCheck={false}
+				/>
+			</Field>
+
+			<div className="folder-browse">
+				<div className="folder-browse__toolbar">
+					<button
+						type="button"
+						className="btn btn--ghost btn--sm"
+						disabled={loading || !browse?.parent}
+						onClick={() => browse?.parent && void loadBrowse(browse.parent)}
+					>
+						↑ Up
+					</button>
+					{browse && (
+						<>
+							<button
+								type="button"
+								className="btn btn--ghost btn--sm"
+								disabled={loading}
+								onClick={() => void loadBrowse(browse.projectsRoot)}
+							>
+								Projects
+							</button>
+							<button
+								type="button"
+								className="btn btn--ghost btn--sm"
+								disabled={loading}
+								onClick={() => void loadBrowse(browse.homeDir)}
+							>
+								Home
+							</button>
+						</>
+					)}
+				</div>
+
+				<div className="folder-browse__list" aria-label="Folders on laptop">
+					{loading && <p className="folder-browse__hint">Loading folders…</p>}
+					{!loading && browse?.entries.length === 0 && (
+						<p className="folder-browse__hint">No subfolders here</p>
+					)}
+					{!loading &&
+						browse?.entries.map((entry) => (
+							<button
+								key={entry.path}
+								type="button"
+								className="folder-browse__item"
+								onClick={() => void loadBrowse(entry.path)}
+							>
+								<IconFolder className="folder-browse__icon" />
+								<span className="folder-browse__name">{entry.name}</span>
+							</button>
+						))}
+				</div>
+			</div>
+
+			<SheetActions>
+				<button type="button" className="btn btn--ghost" onClick={onClose}>
+					Cancel
+				</button>
+				<button
+					type="button"
+					className="btn btn--primary"
+					disabled={busy || !folderPath.trim()}
+					onClick={() => void handleOpen()}
+				>
+					{busy ? 'Opening…' : 'Open folder'}
 				</button>
 			</SheetActions>
 		</Sheet>
