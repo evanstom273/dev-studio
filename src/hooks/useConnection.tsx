@@ -51,7 +51,12 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
 		setState({ status: 'connecting' })
 
 		const candidates = [...CANDIDATE_URLS]
-		if (typeof window !== 'undefined' && !window.location.hostname.includes('github.io')) {
+		if (
+			typeof window !== 'undefined' &&
+			!window.location.hostname.includes('github.io') &&
+			!window.location.hostname.includes('tauri.localhost') &&
+			window.location.protocol !== 'tauri:'
+		) {
 			candidates.unshift(window.location.origin)
 		}
 

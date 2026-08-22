@@ -21,8 +21,9 @@ if (typeof window !== 'undefined') {
 	})
 }
 
-// Register PWA service worker with auto-update
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+// Register PWA service worker with auto-update (in web/PWA mode only)
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+if ('serviceWorker' in navigator && import.meta.env.PROD && !isTauri) {
 	window.addEventListener('load', () => {
 		navigator.serviceWorker
 			.register('./sw.js')
