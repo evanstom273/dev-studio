@@ -18,7 +18,7 @@
 		"laptop:install": "powershell -ExecutionPolicy Bypass -File scripts/install-laptop-task.ps1",
 		"laptop:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-laptop.ps1",
 		"lint": "oxlint",
-		"test": "node --test scripts/test-activity.js",
+		"test": "node --test scripts/test-activity.js scripts/test-stt.js",
 		"preview": "vite preview"
 	},
 	"dependencies": {
