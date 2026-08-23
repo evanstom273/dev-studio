@@ -1137,6 +1137,41 @@
 	background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
 }
 
+.composer__quick-prompt.is-active {
+	border-color: color-mix(in srgb, var(--accent) 55%, var(--border-subtle));
+	color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated));
+}
+
+.composer__quick-prompt-armed {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	line-height: 1.2;
+	padding: 4px 8px;
+	border-radius: 999px;
+	border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border-subtle));
+	background: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
+	color: var(--accent);
+}
+
+.composer__quick-prompt-armed-clear {
+	appearance: none;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font-size: 14px;
+	line-height: 1;
+	padding: 0;
+	cursor: pointer;
+	opacity: 0.75;
+}
+
+.composer__quick-prompt-armed-clear:hover {
+	opacity: 1;
+}
+
 .composer__quick-prompt:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
