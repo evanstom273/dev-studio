@@ -17,6 +17,8 @@ function buildCodexExecArgs(options) {
 		args.push('-c', 'approval_policy="never"')
 	}
 
+	args.push('-c', 'agents.enabled=true')
+
 	if (options.model) {
 		const cleanModel = options.model.replace(/^(codex|openai):/, '')
 		args.push('-m', cleanModel)
@@ -179,13 +181,22 @@ function parseCodexRateLimits(payload, planType, accountName, nowMs = Date.now()
 	}
 }
 
+test('buildCodexExecArgs: always enables Codex subagents', () => {
+	const args = buildCodexExecArgs({
+		threadId: null,
+		mode: 'agent',
+	})
+
+	assert.ok(args.includes('agents.enabled=true'))
+})
+
 test('buildCodexExecArgs: new session in agent mode uses workspace-write sandbox', () => {
 	const args = buildCodexExecArgs({
 		threadId: null,
 		mode: 'agent',
 	})
 
-	assert.deepEqual(args, ['exec', '--json', '--skip-git-repo-check', '-s', 'workspace-write', '-'])
+	assert.deepEqual(args, ['exec', '--json', '--skip-git-repo-check', '-c', 'agents.enabled=true', '-s', 'workspace-write', '-'])
 	assert.ok(args.includes('-s'))
 	assert.equal(args[args.indexOf('-s') + 1], 'workspace-write')
 	assert.ok(!args.includes('read-only'))
@@ -197,7 +208,7 @@ test('buildCodexExecArgs: new session in ask mode uses read-only sandbox', () =>
 		mode: 'ask',
 	})
 
-	assert.deepEqual(args, ['exec', '--json', '--skip-git-repo-check', '-s', 'read-only', '-'])
+	assert.deepEqual(args, ['exec', '--json', '--skip-git-repo-check', '-c', 'agents.enabled=true', '-s', 'read-only', '-'])
 	assert.ok(args.includes('-s'))
 	assert.equal(args[args.indexOf('-s') + 1], 'read-only')
 	assert.ok(!args.includes('workspace-write'))
@@ -209,7 +220,7 @@ test('buildCodexExecArgs: new session in plan mode uses read-only sandbox', () =
 		mode: 'plan',
 	})
 
-	assert.deepEqual(args, ['exec', '--json', '--skip-git-repo-check', '-s', 'read-only', '-'])
+	assert.deepEqual(args, ['exec', '--json', '--skip-git-repo-check', '-c', 'agents.enabled=true', '-s', 'read-only', '-'])
 	assert.ok(args.includes('-s'))
 	assert.equal(args[args.indexOf('-s') + 1], 'read-only')
 	assert.ok(!args.includes('workspace-write'))
@@ -228,6 +239,8 @@ test('buildCodexExecArgs: resumed session in agent mode sets sandbox_mode="works
 		threadId,
 		'--json',
 		'--skip-git-repo-check',
+		'-c',
+		'agents.enabled=true',
 		'-c',
 		'sandbox_mode="workspace-write"',
 		'-',
@@ -251,6 +264,8 @@ test('buildCodexExecArgs: resumed session in ask mode sets sandbox_mode="read-on
 		'--json',
 		'--skip-git-repo-check',
 		'-c',
+		'agents.enabled=true',
+		'-c',
 		'sandbox_mode="read-only"',
 		'-',
 	])
@@ -272,6 +287,8 @@ test('buildCodexExecArgs: resumed session in plan mode sets sandbox_mode="read-o
 		'--json',
 		'--skip-git-repo-check',
 		'-c',
+		'agents.enabled=true',
+		'-c',
 		'sandbox_mode="read-only"',
 		'-',
 	])
@@ -292,6 +309,8 @@ test('buildCodexExecArgs: cleanly applies model, reasoning effort, and speed tie
 		'exec',
 		'--json',
 		'--skip-git-repo-check',
+		'-c',
+		'agents.enabled=true',
 		'-m',
 		'gpt-5.6-sol',
 		'-c',
