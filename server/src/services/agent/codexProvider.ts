@@ -54,13 +54,27 @@ export function buildCodexExecArgs(options: {
 		args.push('exec', '--json', '--skip-git-repo-check')
 	}
 
-	const sandboxMode = options.mode === 'agent' ? 'workspace-write' : 'read-only'
+	const isAgent = options.mode === 'agent'
+	const sandboxMode = isAgent ? 'workspace-write' : 'read-only'
 
 	if (options.autoApprove) {
-		args.push('-c', 'approval_policy="never"')
+		if (isAgent) {
+			// exec resume does not accept --approve-for-me (that caused intermittent CLI errors).
+			if (isResume) {
+				args.push('--dangerously-bypass-approvals-and-sandbox')
+			} else {
+				args.push('--approve-for-me')
+			}
+		} else {
+			args.push('-c', 'approval_policy="never"')
+		}
 	}
 
 	args.push('-c', 'agents.enabled=true')
+
+	if (isAgent) {
+		args.push('-c', 'sandbox_workspace_write.network_access=true')
+	}
 
 	if (options.model) {
 		const cleanModel = options.model.replace(/^(codex|openai):/, '')

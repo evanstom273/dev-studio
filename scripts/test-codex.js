@@ -11,13 +11,26 @@ function buildCodexExecArgs(options) {
 		args.push('exec', '--json', '--skip-git-repo-check')
 	}
 
-	const sandboxMode = options.mode === 'agent' ? 'workspace-write' : 'read-only'
+	const isAgent = options.mode === 'agent'
+	const sandboxMode = isAgent ? 'workspace-write' : 'read-only'
 
 	if (options.autoApprove) {
-		args.push('-c', 'approval_policy="never"')
+		if (isAgent) {
+			if (isResume) {
+				args.push('--dangerously-bypass-approvals-and-sandbox')
+			} else {
+				args.push('--approve-for-me')
+			}
+		} else {
+			args.push('-c', 'approval_policy="never"')
+		}
 	}
 
 	args.push('-c', 'agents.enabled=true')
+
+	if (isAgent) {
+		args.push('-c', 'sandbox_workspace_write.network_access=true')
+	}
 
 	if (options.model) {
 		const cleanModel = options.model.replace(/^(codex|openai):/, '')
@@ -190,13 +203,42 @@ test('buildCodexExecArgs: always enables Codex subagents', () => {
 	assert.ok(args.includes('agents.enabled=true'))
 })
 
+test('buildCodexExecArgs: agent mode enables sandbox network access', () => {
+	const args = buildCodexExecArgs({
+		threadId: null,
+		mode: 'agent',
+	})
+
+	assert.ok(args.includes('sandbox_workspace_write.network_access=true'))
+})
+
+test('buildCodexExecArgs: ask mode does not enable sandbox network access', () => {
+	const args = buildCodexExecArgs({
+		threadId: null,
+		mode: 'ask',
+	})
+
+	assert.ok(!args.includes('sandbox_workspace_write.network_access=true'))
+})
+
 test('buildCodexExecArgs: new session in agent mode uses workspace-write sandbox', () => {
 	const args = buildCodexExecArgs({
 		threadId: null,
 		mode: 'agent',
 	})
 
-	assert.deepEqual(args, ['exec', '--json', '--skip-git-repo-check', '-c', 'agents.enabled=true', '-s', 'workspace-write', '-'])
+	assert.deepEqual(args, [
+		'exec',
+		'--json',
+		'--skip-git-repo-check',
+		'-c',
+		'agents.enabled=true',
+		'-c',
+		'sandbox_workspace_write.network_access=true',
+		'-s',
+		'workspace-write',
+		'-',
+	])
 	assert.ok(args.includes('-s'))
 	assert.equal(args[args.indexOf('-s') + 1], 'workspace-write')
 	assert.ok(!args.includes('read-only'))
@@ -241,6 +283,8 @@ test('buildCodexExecArgs: resumed session in agent mode sets sandbox_mode="works
 		'--skip-git-repo-check',
 		'-c',
 		'agents.enabled=true',
+		'-c',
+		'sandbox_workspace_write.network_access=true',
 		'-c',
 		'sandbox_mode="workspace-write"',
 		'-',
@@ -311,6 +355,8 @@ test('buildCodexExecArgs: cleanly applies model, reasoning effort, and speed tie
 		'--skip-git-repo-check',
 		'-c',
 		'agents.enabled=true',
+		'-c',
+		'sandbox_workspace_write.network_access=true',
 		'-m',
 		'gpt-5.6-sol',
 		'-c',
@@ -420,18 +466,19 @@ test('parseCodexRateLimits: preserves quota availability when usage percentage i
 	assert.equal(primary.available, true)
 })
 
-test('buildCodexExecArgs: auto-approve agent mode uses approval_policy never with workspace-write sandbox', () => {
+test('buildCodexExecArgs: auto-approve new agent session uses approve-for-me with network access', () => {
 	const args = buildCodexExecArgs({
 		threadId: null,
 		mode: 'agent',
 		autoApprove: true,
 	})
 
-	assert.ok(!args.includes('--approve-for-me'))
-	assert.ok(args.includes('approval_policy="never"'))
+	assert.ok(args.includes('--approve-for-me'))
+	assert.ok(!args.includes('approval_policy="never"'))
+	assert.ok(!args.includes('--dangerously-bypass-approvals-and-sandbox'))
+	assert.ok(args.includes('sandbox_workspace_write.network_access=true'))
 	assert.ok(args.includes('-s'))
 	assert.equal(args[args.indexOf('-s') + 1], 'workspace-write')
-	assert.ok(!args.includes('--ask-for-approval'))
 })
 
 test('buildCodexExecArgs: auto-approve omitted when false', () => {
@@ -442,13 +489,14 @@ test('buildCodexExecArgs: auto-approve omitted when false', () => {
 	})
 
 	assert.ok(!args.includes('--approve-for-me'))
+	assert.ok(!args.includes('--dangerously-bypass-approvals-and-sandbox'))
 	assert.ok(!args.includes('approval_policy="never"'))
+	assert.ok(args.includes('sandbox_workspace_write.network_access=true'))
 	assert.ok(args.includes('-s'))
 	assert.equal(args[args.indexOf('-s') + 1], 'workspace-write')
-	assert.ok(!args.includes('--ask-for-approval'))
 })
 
-test('buildCodexExecArgs: auto-approve resumed agent session uses approval_policy never with sandbox_mode', () => {
+test('buildCodexExecArgs: auto-approve resumed agent session bypasses sandbox (resume lacks approve-for-me)', () => {
 	const args = buildCodexExecArgs({
 		threadId: 'thread-123',
 		mode: 'agent',
@@ -456,7 +504,9 @@ test('buildCodexExecArgs: auto-approve resumed agent session uses approval_polic
 	})
 
 	assert.ok(!args.includes('--approve-for-me'))
-	assert.ok(args.includes('approval_policy="never"'))
+	assert.ok(!args.includes('approval_policy="never"'))
+	assert.ok(args.includes('--dangerously-bypass-approvals-and-sandbox'))
+	assert.ok(args.includes('sandbox_workspace_write.network_access=true'))
 	assert.ok(!args.includes('-s'))
 	assert.ok(args.some((arg) => arg.includes('sandbox_mode="workspace-write"')))
 })
