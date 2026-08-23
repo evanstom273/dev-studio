@@ -226,8 +226,21 @@ export function PromptComposer({
 	}
 
 	const canSend = Boolean(value.trim() || attachments.length > 0)
-	const matchingDef = modelDefinitions.find((d) => d.id === model) || modelDefinitions.find((d) => !model && d.isDefault)
-	const isCodexModel = matchingDef?.providerId === 'codex' || (model && (model.startsWith('gpt-') || model.startsWith('codex:') || model.startsWith('o1') || model.startsWith('o3')))
+	const matchingDef =
+		modelDefinitions.find((d) => d.id === model) ||
+		modelDefinitions.find((d) => !model && d.isDefault)
+	const isCodexModel =
+		matchingDef?.providerId === 'codex' ||
+		Boolean(
+			model &&
+				(model.startsWith('gpt-') ||
+					model.startsWith('codex:') ||
+					model.startsWith('openai:') ||
+					model.startsWith('o1') ||
+					model.startsWith('o3') ||
+					model.startsWith('o4')),
+		)
+	const showCodexSubagentShortcuts = isCodexModel && mode === 'agent'
 
 	const currentEffort = reasoningEffort || matchingDef?.defaultReasoningEffort || 'medium'
 	const currentSpeed = speed || matchingDef?.defaultSpeedTier || 'default'
@@ -264,33 +277,7 @@ export function PromptComposer({
 					accept="image/*,.pdf,.txt,.md,.json,.ts,.tsx,.js,.jsx,.py,.html,.css,.yaml,.yml,.toml,.rs,.go,.java,.c,.cpp,.h"
 				/>
 
-				{/* Primary Prompt Textarea */}
-				<textarea
-					ref={textareaRef}
-					className="composer__input"
-					value={value}
-					onChange={(e) => onChange(e.target.value)}
-					onKeyDown={handleKeyDown}
-					onPaste={handlePaste}
-					onFocus={() => {
-						requestAnimationFrame(() => {
-							textareaRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
-						})
-					}}
-					placeholder={
-						mode === 'ask'
-							? 'Ask a question about the code...'
-							: mode === 'plan'
-							? 'Describe what to plan...'
-							: isCodexModel
-							? 'Ask Dev Studio, or use subagents for parallel work…'
-							: 'Add a follow up or ask Dev Studio...'
-					}
-					rows={1}
-					aria-label="Prompt input"
-				/>
-
-				{isCodexModel && mode === 'agent' && !loading && (
+				{showCodexSubagentShortcuts && (
 					<div className="composer__quick-prompts" aria-label="Codex subagent shortcuts">
 						{armedHiddenPrefix && (
 							<span className="composer__quick-prompt-armed" role="status">
@@ -307,7 +294,7 @@ export function PromptComposer({
 						)}
 						<button
 							type="button"
-							className={`composer__quick-prompt${armedHiddenPrefix ? ' is-active' : ''}`}
+							className={`composer__quick-prompt composer__quick-prompt--primary${armedHiddenPrefix ? ' is-active' : ''}`}
 							onClick={() => setArmedHiddenPrefix(IMPLEMENT_WITH_SUBAGENTS_HIDDEN_PROMPT)}
 							disabled={loading}
 							title="Split into independent workstreams with clear ownership, integrate, then build and test"
@@ -332,6 +319,32 @@ export function PromptComposer({
 						</button>
 					</div>
 				)}
+
+				{/* Primary Prompt Textarea */}
+				<textarea
+					ref={textareaRef}
+					className="composer__input"
+					value={value}
+					onChange={(e) => onChange(e.target.value)}
+					onKeyDown={handleKeyDown}
+					onPaste={handlePaste}
+					onFocus={() => {
+						requestAnimationFrame(() => {
+							textareaRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
+						})
+					}}
+					placeholder={
+						mode === 'ask'
+							? 'Ask a question about the code...'
+							: mode === 'plan'
+							? 'Describe what to plan...'
+							: isCodexModel
+							? 'Describe the task, then tap Implement with subagents above…'
+							: 'Add a follow up or ask Dev Studio...'
+					}
+					rows={1}
+					aria-label="Prompt input"
+				/>
 
 				{/* Attachments Preview Row */}
 				{attachments.length > 0 && (
