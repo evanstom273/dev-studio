@@ -1115,7 +1115,17 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: 6px;
-	padding: 0 2px 4px;
+	padding: 2px 2px 0;
+}
+
+.composer__quick-prompt--primary {
+	border-color: color-mix(in srgb, var(--accent) 45%, var(--border-subtle));
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.composer__quick-prompt--primary:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--accent) 14%, var(--bg-elevated));
 }
 
 .composer__quick-prompt {
