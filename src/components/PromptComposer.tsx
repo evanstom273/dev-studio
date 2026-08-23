@@ -263,11 +263,46 @@ export function PromptComposer({
 							? 'Ask a question about the code...'
 							: mode === 'plan'
 							? 'Describe what to plan...'
+							: isCodexModel
+							? 'Ask Dev Studio, or use subagents for parallel work…'
 							: 'Add a follow up or ask Dev Studio...'
 					}
 					rows={1}
 					aria-label="Prompt input"
 				/>
+
+				{isCodexModel && mode === 'agent' && !loading && (
+					<div className="composer__quick-prompts" aria-label="Codex subagent shortcuts">
+						<button
+							type="button"
+							className="composer__quick-prompt"
+							onClick={() =>
+								onChange(
+									value.trim()
+										? `${value.trim()}\n\nUse Codex subagents to parallelize independent parts of this task. Spawn one subagent per independent workstream, wait for results, then synthesize.`
+										: 'Use Codex subagents to parallelize independent parts of this task. Spawn one subagent per independent workstream, wait for results, then synthesize.',
+								)
+							}
+							disabled={loading}
+						>
+							Parallelize with subagents
+						</button>
+						<button
+							type="button"
+							className="composer__quick-prompt"
+							onClick={() =>
+								onChange(
+									value.trim()
+										? `${value.trim()}\n\nSpawn a research subagent to investigate options in parallel while you continue implementation here.`
+										: 'Spawn a research subagent to investigate options in parallel while you continue implementation here.',
+								)
+							}
+							disabled={loading}
+						>
+							Research subagent
+						</button>
+					</div>
+				)}
 
 				{/* Attachments Preview Row */}
 				{attachments.length > 0 && (

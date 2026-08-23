@@ -24,7 +24,13 @@ export type AgentActivityType =
 	| 'command'
 	| 'git'
 	| 'tool'
+	| 'subagent'
 	| 'error'
+
+export type CollabAgentStateSnapshot = {
+	status: string
+	message?: string
+}
 
 export type AgentActivityStatus = 'running' | 'completed' | 'failed'
 
@@ -44,6 +50,10 @@ export type AgentActivityDetail = {
 	summary?: string
 	action?: string
 	instruction?: string
+	collabTool?: string
+	senderThreadId?: string
+	receiverThreadIds?: string[]
+	agentStates?: Record<string, CollabAgentStateSnapshot>
 	[key: string]: unknown
 }
 

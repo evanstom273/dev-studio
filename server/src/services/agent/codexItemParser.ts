@@ -1,4 +1,9 @@
-import type { AgentActivityItem, AgentActivityType, AgentMode } from '../../types/agent.js'
+import type { AgentActivityItem, AgentActivityStatus, AgentActivityType, AgentMode } from '../../types/agent.js'
+
+export type CodexCollabAgentState = {
+	status?: string
+	message?: string | null
+}
 
 export type CodexStreamItem = {
 	id?: string
@@ -19,6 +24,18 @@ export type CodexStreamItem = {
 	tool?: string
 	additions?: number
 	deletions?: number
+	prompt?: string
+	sender_thread_id?: string
+	receiver_thread_ids?: string[]
+	agents_states?: Record<string, CodexCollabAgentState>
+}
+
+const COLLAB_TOOL_LABELS: Record<string, string> = {
+	spawn_agent: 'Spawn subagent',
+	send_input: 'Send to subagent',
+	resume_agent: 'Resume subagent',
+	wait: 'Wait for subagent',
+	close_agent: 'Close subagent',
 }
 
 function classifyCommand(command: string): AgentActivityType {
@@ -47,8 +64,129 @@ function formatFileChangeTitle(item: CodexStreamItem): string {
 	return `Edited ${path}`
 }
 
+function shortThreadId(threadId: string): string {
+	const trimmed = threadId.trim()
+	if (trimmed.length <= 10) return trimmed
+	return `${trimmed.slice(0, 8)}…`
+}
+
+function mapCollabStatus(status: string | undefined, runningDefault: AgentActivityStatus): AgentActivityStatus {
+	switch (status) {
+		case 'completed':
+			return 'completed'
+		case 'failed':
+			return 'failed'
+		case 'in_progress':
+			return 'running'
+		default:
+			return runningDefault
+	}
+}
+
+function summarizeAgentStates(states: Record<string, CodexCollabAgentState> | undefined): string | undefined {
+	if (!states) return undefined
+	const entries = Object.entries(states)
+	if (entries.length === 0) return undefined
+	return entries
+		.map(([threadId, state]) => `${shortThreadId(threadId)}: ${state.status || 'unknown'}`)
+		.join(', ')
+}
+
+function formatCollabTitle(item: CodexStreamItem, activityStatus: AgentActivityStatus): string {
+	const tool = item.tool || 'collab'
+	const base = COLLAB_TOOL_LABELS[tool] || `Subagent: ${tool.replace(/_/g, ' ')}`
+	const receivers = item.receiver_thread_ids?.length ?? 0
+	const stateSummary = summarizeAgentStates(item.agents_states)
+
+	if (tool === 'spawn_agent') {
+		if (activityStatus === 'running') {
+			return item.prompt?.trim()
+				? `${base}: ${item.prompt.trim().slice(0, 80)}${item.prompt.trim().length > 80 ? '…' : ''}`
+				: `${base}…`
+		}
+		if (receivers > 0) {
+			return `${base} (${receivers} active)`
+		}
+		return `${base} complete`
+	}
+
+	if (tool === 'wait') {
+		if (activityStatus === 'running') {
+			return receivers > 0 ? `Waiting for ${receivers} subagent${receivers === 1 ? '' : 's'}…` : 'Waiting for subagents…'
+		}
+		return stateSummary ? `Subagents ready (${stateSummary})` : 'Subagents finished'
+	}
+
+	if (tool === 'close_agent') {
+		return activityStatus === 'running' ? 'Closing subagent…' : 'Subagent closed'
+	}
+
+	if (tool === 'send_input') {
+		return activityStatus === 'running' ? 'Sending follow-up to subagent…' : 'Sent follow-up to subagent'
+	}
+
+	if (tool === 'resume_agent') {
+		return activityStatus === 'running' ? 'Resuming subagent…' : 'Subagent resumed'
+	}
+
+	return base
+}
+
+function buildCollabActivity(
+	item: CodexStreamItem,
+	existing: AgentActivityItem | undefined,
+	runningDefault: AgentActivityStatus,
+): AgentActivityItem | null {
+	const tool = item.tool
+	if (!tool) return null
+
+	const activityStatus = mapCollabStatus(item.status, runningDefault)
+	const receiverThreadIds = item.receiver_thread_ids ?? existing?.detail?.receiverThreadIds
+	const agentStates = item.agents_states
+		? Object.fromEntries(
+				Object.entries(item.agents_states).map(([threadId, state]) => [
+					threadId,
+					{ status: state.status || 'unknown', message: state.message ?? undefined },
+				]),
+			)
+		: existing?.detail?.agentStates
+
+	return {
+		id: item.id || existing?.id || `act-${Date.now()}`,
+		type: 'subagent',
+		status: activityStatus,
+		title: formatCollabTitle(item, activityStatus),
+		detail: {
+			collabTool: tool,
+			instruction: item.prompt?.trim() || existing?.detail?.instruction,
+			senderThreadId: item.sender_thread_id || existing?.detail?.senderThreadId,
+			receiverThreadIds,
+			agentStates,
+			summary: summarizeAgentStates(item.agents_states ?? agentStates),
+		},
+		startedAt: existing?.startedAt ?? Date.now(),
+		completedAt: activityStatus === 'running' ? undefined : Date.now(),
+		durationMs:
+			activityStatus === 'running' || !existing
+				? undefined
+				: Date.now() - (existing.startedAt ?? Date.now()),
+		toolName: tool,
+	}
+}
+
 export function isCodexCommentaryItemType(type: string | undefined): boolean {
 	return type === 'reasoning' || type === 'agent_reasoning' || type === 'commentary' || type === 'progress'
+}
+
+export function isCodexToolActivityItemType(type: string | undefined): boolean {
+	return (
+		type === 'command_execution' ||
+		type === 'file_change' ||
+		type === 'web_search' ||
+		type === 'mcp_tool_call' ||
+		type === 'collab_tool_call' ||
+		type === 'error'
+	)
 }
 
 export function createRunningActivityFromCodexItem(
@@ -57,6 +195,11 @@ export function createRunningActivityFromCodexItem(
 ): AgentActivityItem | null {
 	const id = item.id || `act-${Date.now()}`
 	const type = item.type || ''
+
+	if (type === 'collab_tool_call') {
+		if (mode !== 'agent') return null
+		return buildCollabActivity(item, undefined, 'running')
+	}
 
 	if (type === 'command_execution') {
 		const command = item.command || 'command'
@@ -126,6 +269,11 @@ export function finalizeActivityFromCodexItem(
 	mode: AgentMode,
 ): AgentActivityItem | null {
 	const type = item.type || ''
+
+	if (type === 'collab_tool_call') {
+		if (mode !== 'agent') return null
+		return buildCollabActivity(item, existing, 'completed')
+	}
 
 	if (type === 'command_execution') {
 		const command = item.command || existing?.detail?.command || 'command'

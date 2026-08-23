@@ -19,6 +19,7 @@ import {
 	createRunningActivityFromCodexItem,
 	finalizeActivityFromCodexItem,
 	isCodexCommentaryItemType,
+	isCodexToolActivityItemType,
 	type CodexStreamItem,
 } from './codexItemParser.js'
 import { appendTimelineActivity, appendTimelineCommentary, updateTimelineActivity } from './timeline.js'
@@ -30,7 +31,8 @@ type ActiveProcess = {
 
 const CODEX_MODE_PROMPT_PREFIX: Record<AgentMode, string> = {
 	agent:
-		'[AGENT MODE] You are a coding agent working directly in Dev Studio. Inspect, edit, and test files in the project workspace as needed.\n\n',
+		'[AGENT MODE] You are a coding agent working directly in Dev Studio. Inspect, edit, and test files in the project workspace as needed.\n' +
+		'[SUBAGENTS] Codex native subagents are enabled. When independent subtasks can run in parallel, spawn subagents with spawn_agent and wait for their results before continuing.\n\n',
 	ask: '[ASK MODE] Answer questions and analyze code only. Do NOT edit files, run commands, or make changes.\n\n',
 	plan: '[PLAN MODE] Create a detailed implementation plan for the task. Do NOT execute changes — only outline steps.\n\n',
 }
@@ -57,6 +59,8 @@ export function buildCodexExecArgs(options: {
 	if (options.autoApprove) {
 		args.push('-c', 'approval_policy="never"')
 	}
+
+	args.push('-c', 'agents.enabled=true')
 
 	if (options.model) {
 		const cleanModel = options.model.replace(/^(codex|openai):/, '')
@@ -699,7 +703,7 @@ export class CodexProvider implements AgentProvider {
 						const item = event.item
 						const itemType = item.type || ''
 
-						if (itemType === 'command_execution' || itemType === 'file_change' || itemType === 'web_search' || itemType === 'mcp_tool_call' || itemType === 'error') {
+						if (isCodexToolActivityItemType(itemType)) {
 							const existing = activities.find((a) => a.id === item.id)
 							const act = finalizeActivityFromCodexItem(existing, item, mode)
 							if (act) {

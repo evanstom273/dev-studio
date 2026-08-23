@@ -697,6 +697,71 @@
 	font-weight: 500;
 }
 
+.activity-timeline-row--subagent .activity-timeline-row__title {
+	color: var(--accent);
+	font-weight: 500;
+}
+
+.activity-timeline-row--subagent.activity-timeline-row--running .activity-timeline-row__type-icon {
+	color: var(--accent);
+}
+
+.activity-timeline-row__subagent-states {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 4px;
+}
+
+.activity-timeline-row__subagent-state {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	font-size: 10px;
+}
+
+.activity-timeline-row__subagent-state-id {
+	font-family: var(--font-mono);
+	color: var(--text-muted);
+	word-break: break-all;
+}
+
+.activity-timeline-row__subagent-state-badge {
+	padding: 1px 6px;
+	border-radius: 999px;
+	font-size: 9px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	background: var(--bg-elevated);
+	color: var(--text-secondary);
+	border: 1px solid var(--border-subtle);
+}
+
+.activity-timeline-row__subagent-state-badge--running,
+.activity-timeline-row__subagent-state-badge--pending_init {
+	color: var(--accent);
+	border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.activity-timeline-row__subagent-state-badge--completed {
+	color: var(--success, #22c55e);
+	border-color: color-mix(in srgb, var(--success, #22c55e) 35%, transparent);
+}
+
+.activity-timeline-row__subagent-state-badge--failed,
+.activity-timeline-row__subagent-state-badge--errored,
+.activity-timeline-row__subagent-state-badge--not_found {
+	color: var(--danger, #ef4444);
+	border-color: color-mix(in srgb, var(--danger, #ef4444) 35%, transparent);
+}
+
+.activity-timeline-row__subagent-state-message {
+	color: var(--text-secondary);
+	flex: 1 1 100%;
+}
+
 .activity-diff-stats {
 	display: inline-flex;
 	align-items: center;
@@ -1044,6 +1109,37 @@
 
 .composer__input::placeholder {
 	color: var(--text-muted);
+}
+
+.composer__quick-prompts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 0 2px 4px;
+}
+
+.composer__quick-prompt {
+	appearance: none;
+	border: 1px solid var(--border-subtle);
+	background: var(--bg-elevated);
+	color: var(--text-secondary);
+	font-size: 11px;
+	line-height: 1.2;
+	padding: 4px 8px;
+	border-radius: 999px;
+	cursor: pointer;
+	transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.composer__quick-prompt:hover:not(:disabled) {
+	border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
+	color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+}
+
+.composer__quick-prompt:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
 }
 
 .composer__attachments {
