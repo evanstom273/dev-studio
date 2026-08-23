@@ -12,11 +12,8 @@ function buildCodexExecArgs(options) {
 	}
 
 	const sandboxMode = options.mode === 'agent' ? 'workspace-write' : 'read-only'
-	const useApproveForMe = Boolean(options.autoApprove && options.mode === 'agent')
 
-	if (useApproveForMe) {
-		args.push('--approve-for-me')
-	} else if (options.autoApprove) {
+	if (options.autoApprove) {
 		args.push('-c', 'approval_policy="never"')
 	}
 
@@ -33,12 +30,10 @@ function buildCodexExecArgs(options) {
 		args.push('-c', `service_tier="${options.speed}"`)
 	}
 
-	if (!useApproveForMe) {
-		if (isResume) {
-			args.push('-c', `sandbox_mode="${sandboxMode}"`)
-		} else {
-			args.push('-s', sandboxMode)
-		}
+	if (isResume) {
+		args.push('-c', `sandbox_mode="${sandboxMode}"`)
+	} else {
+		args.push('-s', sandboxMode)
 	}
 
 	args.push('-')
@@ -406,16 +401,17 @@ test('parseCodexRateLimits: preserves quota availability when usage percentage i
 	assert.equal(primary.available, true)
 })
 
-test('buildCodexExecArgs: auto-approve agent mode uses --approve-for-me without sandbox flags', () => {
+test('buildCodexExecArgs: auto-approve agent mode uses approval_policy never with workspace-write sandbox', () => {
 	const args = buildCodexExecArgs({
 		threadId: null,
 		mode: 'agent',
 		autoApprove: true,
 	})
 
-	assert.ok(args.includes('--approve-for-me'))
-	assert.ok(!args.includes('-s'))
-	assert.ok(!args.some((arg) => arg.includes('sandbox_mode')))
+	assert.ok(!args.includes('--approve-for-me'))
+	assert.ok(args.includes('approval_policy="never"'))
+	assert.ok(args.includes('-s'))
+	assert.equal(args[args.indexOf('-s') + 1], 'workspace-write')
 	assert.ok(!args.includes('--ask-for-approval'))
 })
 
@@ -427,21 +423,23 @@ test('buildCodexExecArgs: auto-approve omitted when false', () => {
 	})
 
 	assert.ok(!args.includes('--approve-for-me'))
+	assert.ok(!args.includes('approval_policy="never"'))
 	assert.ok(args.includes('-s'))
 	assert.equal(args[args.indexOf('-s') + 1], 'workspace-write')
 	assert.ok(!args.includes('--ask-for-approval'))
 })
 
-test('buildCodexExecArgs: auto-approve resumed agent session uses --approve-for-me without sandbox_mode', () => {
+test('buildCodexExecArgs: auto-approve resumed agent session uses approval_policy never with sandbox_mode', () => {
 	const args = buildCodexExecArgs({
 		threadId: 'thread-123',
 		mode: 'agent',
 		autoApprove: true,
 	})
 
-	assert.ok(args.includes('--approve-for-me'))
+	assert.ok(!args.includes('--approve-for-me'))
+	assert.ok(args.includes('approval_policy="never"'))
 	assert.ok(!args.includes('-s'))
-	assert.ok(!args.some((arg) => arg.includes('sandbox_mode')))
+	assert.ok(args.some((arg) => arg.includes('sandbox_mode="workspace-write"')))
 })
 
 test('buildCodexExecArgs: auto-approve ask mode uses approval_policy never and read-only sandbox', () => {

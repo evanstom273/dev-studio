@@ -12,6 +12,7 @@ export type SessionTurnContext = {
 	sessionItems?: ConversationItem[]
 	recentMessagesSummary?: string
 	isProviderSwitch?: boolean
+	isCodexThreadReset?: boolean
 	previousProvider?: AgentProviderId
 	conversationId?: string | null
 	codexThreadId?: string | null

@@ -53,11 +53,8 @@ export function buildCodexExecArgs(options: {
 	}
 
 	const sandboxMode = options.mode === 'agent' ? 'workspace-write' : 'read-only'
-	const useApproveForMe = Boolean(options.autoApprove && options.mode === 'agent')
 
-	if (useApproveForMe) {
-		args.push('--approve-for-me')
-	} else if (options.autoApprove) {
+	if (options.autoApprove) {
 		args.push('-c', 'approval_policy="never"')
 	}
 
@@ -74,12 +71,10 @@ export function buildCodexExecArgs(options: {
 		args.push('-c', `service_tier="${options.speed}"`)
 	}
 
-	if (!useApproveForMe) {
-		if (isResume) {
-			args.push('-c', `sandbox_mode="${sandboxMode}"`)
-		} else {
-			args.push('-s', sandboxMode)
-		}
+	if (isResume) {
+		args.push('-c', `sandbox_mode="${sandboxMode}"`)
+	} else {
+		args.push('-s', sandboxMode)
 	}
 
 	args.push('-')
@@ -570,10 +565,14 @@ export class CodexProvider implements AgentProvider {
 			autoApprove: this.config?.autoApproveTools,
 		})
 
-		// Build prompt with mode instructions and handoff context if switching
+		// Build prompt with mode instructions and handoff context when resuming Dev Studio history
 		let fullPrompt = `${CODEX_MODE_PROMPT_PREFIX[mode]}`
-		if (context.isProviderSwitch && context.recentMessagesSummary) {
-			fullPrompt += `[Previous Conversation Context from ${context.previousProvider || 'previous agent'}:\n${context.recentMessagesSummary}]\n\n`
+		if (context.recentMessagesSummary) {
+			if (context.isProviderSwitch) {
+				fullPrompt += `[Previous Conversation Context from ${context.previousProvider || 'previous agent'}:\n${context.recentMessagesSummary}]\n\n`
+			} else if (context.isCodexThreadReset) {
+				fullPrompt += `[Previous Conversation Context (continuing this Dev Studio session — Codex thread was restarted):\n${context.recentMessagesSummary}]\n\n`
+			}
 		}
 		fullPrompt += content
 
