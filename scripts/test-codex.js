@@ -13,6 +13,8 @@ function buildCodexExecArgs(options) {
 
 	const isAgent = options.mode === 'agent'
 	const sandboxMode = isAgent ? 'workspace-write' : 'read-only'
+	const autoApproveAgent = Boolean(options.autoApprove && isAgent)
+	const useApproveForMe = autoApproveAgent && !isResume
 
 	if (options.autoApprove) {
 		if (isAgent) {
@@ -46,8 +48,10 @@ function buildCodexExecArgs(options) {
 	}
 
 	if (isResume) {
-		args.push('-c', `sandbox_mode="${sandboxMode}"`)
-	} else {
+		if (!autoApproveAgent) {
+			args.push('-c', `sandbox_mode="${sandboxMode}"`)
+		}
+	} else if (!useApproveForMe) {
 		args.push('-s', sandboxMode)
 	}
 
@@ -466,7 +470,7 @@ test('parseCodexRateLimits: preserves quota availability when usage percentage i
 	assert.equal(primary.available, true)
 })
 
-test('buildCodexExecArgs: auto-approve new agent session uses approve-for-me with network access', () => {
+test('buildCodexExecArgs: auto-approve new agent session uses approve-for-me without -s sandbox', () => {
 	const args = buildCodexExecArgs({
 		threadId: null,
 		mode: 'agent',
@@ -476,9 +480,25 @@ test('buildCodexExecArgs: auto-approve new agent session uses approve-for-me wit
 	assert.ok(args.includes('--approve-for-me'))
 	assert.ok(!args.includes('approval_policy="never"'))
 	assert.ok(!args.includes('--dangerously-bypass-approvals-and-sandbox'))
+	assert.ok(!args.includes('-s'))
+	assert.ok(!args.some((arg) => arg.includes('sandbox_mode=')))
 	assert.ok(args.includes('sandbox_workspace_write.network_access=true'))
-	assert.ok(args.includes('-s'))
-	assert.equal(args[args.indexOf('-s') + 1], 'workspace-write')
+})
+
+test('buildCodexExecArgs: auto-approve luna high omits -s sandbox (model switch new session)', () => {
+	const args = buildCodexExecArgs({
+		threadId: null,
+		mode: 'agent',
+		autoApprove: true,
+		model: 'gpt-5.6-luna',
+		reasoningEffort: 'high',
+	})
+
+	assert.ok(args.includes('--approve-for-me'))
+	assert.ok(args.includes('-m'))
+	assert.equal(args[args.indexOf('-m') + 1], 'gpt-5.6-luna')
+	assert.ok(args.includes('model_reasoning_effort="high"'))
+	assert.ok(!args.includes('-s'))
 })
 
 test('buildCodexExecArgs: auto-approve omitted when false', () => {
@@ -508,7 +528,7 @@ test('buildCodexExecArgs: auto-approve resumed agent session bypasses sandbox (r
 	assert.ok(args.includes('--dangerously-bypass-approvals-and-sandbox'))
 	assert.ok(args.includes('sandbox_workspace_write.network_access=true'))
 	assert.ok(!args.includes('-s'))
-	assert.ok(args.some((arg) => arg.includes('sandbox_mode="workspace-write"')))
+	assert.ok(!args.some((arg) => arg.includes('sandbox_mode=')))
 })
 
 test('buildCodexExecArgs: auto-approve ask mode uses approval_policy never and read-only sandbox', () => {

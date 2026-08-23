@@ -56,6 +56,8 @@ export function buildCodexExecArgs(options: {
 
 	const isAgent = options.mode === 'agent'
 	const sandboxMode = isAgent ? 'workspace-write' : 'read-only'
+	const autoApproveAgent = Boolean(options.autoApprove && isAgent)
+	const useApproveForMe = autoApproveAgent && !isResume
 
 	if (options.autoApprove) {
 		if (isAgent) {
@@ -63,6 +65,7 @@ export function buildCodexExecArgs(options: {
 			if (isResume) {
 				args.push('--dangerously-bypass-approvals-and-sandbox')
 			} else {
+				// --approve-for-me already selects workspace-write; do not also pass -s/--sandbox.
 				args.push('--approve-for-me')
 			}
 		} else {
@@ -90,8 +93,10 @@ export function buildCodexExecArgs(options: {
 	}
 
 	if (isResume) {
-		args.push('-c', `sandbox_mode="${sandboxMode}"`)
-	} else {
+		if (!autoApproveAgent) {
+			args.push('-c', `sandbox_mode="${sandboxMode}"`)
+		}
+	} else if (!useApproveForMe) {
 		args.push('-s', sandboxMode)
 	}
 

@@ -22,7 +22,7 @@
 		"laptop:install": "powershell -ExecutionPolicy Bypass -File scripts/install-laptop-task.ps1",
 		"laptop:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-laptop.ps1",
 		"lint": "oxlint",
-		"test": "node --test scripts/test-activity.js scripts/test-stt.js scripts/test-codex.js scripts/test-codex-collab.js scripts/test-platform.js",
+		"test": "node --test scripts/test-activity.js scripts/test-stt.js scripts/test-codex.js scripts/test-codex-collab.js scripts/test-codex-cli-args.js scripts/test-platform.js",
 		"preview": "vite preview"
 	},
 	"dependencies": {
