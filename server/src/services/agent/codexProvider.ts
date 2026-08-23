@@ -19,6 +19,7 @@ import {
 	createRunningActivityFromCodexItem,
 	finalizeActivityFromCodexItem,
 	isCodexCommentaryItemType,
+	isCodexToolActivityItemType,
 	type CodexStreamItem,
 } from './codexItemParser.js'
 import { appendTimelineActivity, appendTimelineCommentary, updateTimelineActivity } from './timeline.js'
@@ -30,7 +31,8 @@ type ActiveProcess = {
 
 const CODEX_MODE_PROMPT_PREFIX: Record<AgentMode, string> = {
 	agent:
-		'[AGENT MODE] You are a coding agent working directly in Dev Studio. Inspect, edit, and test files in the project workspace as needed.\n\n',
+		'[AGENT MODE] You are a coding agent working directly in Dev Studio. Inspect, edit, and test files in the project workspace as needed.\n' +
+		'[SUBAGENTS] Codex native subagents are enabled. When independent subtasks can run in parallel, spawn subagents with spawn_agent and wait for their results before continuing.\n\n',
 	ask: '[ASK MODE] Answer questions and analyze code only. Do NOT edit files, run commands, or make changes.\n\n',
 	plan: '[PLAN MODE] Create a detailed implementation plan for the task. Do NOT execute changes — only outline steps.\n\n',
 }
@@ -52,13 +54,29 @@ export function buildCodexExecArgs(options: {
 		args.push('exec', '--json', '--skip-git-repo-check')
 	}
 
-	const sandboxMode = options.mode === 'agent' ? 'workspace-write' : 'read-only'
-	const useApproveForMe = Boolean(options.autoApprove && options.mode === 'agent')
+	const isAgent = options.mode === 'agent'
+	const sandboxMode = isAgent ? 'workspace-write' : 'read-only'
+	const autoApproveAgent = Boolean(options.autoApprove && isAgent)
+	const useApproveForMe = autoApproveAgent && !isResume
 
-	if (useApproveForMe) {
-		args.push('--approve-for-me')
-	} else if (options.autoApprove) {
-		args.push('-c', 'approval_policy="never"')
+	if (options.autoApprove) {
+		if (isAgent) {
+			// exec resume does not accept --approve-for-me (that caused intermittent CLI errors).
+			if (isResume) {
+				args.push('--dangerously-bypass-approvals-and-sandbox')
+			} else {
+				// --approve-for-me already selects workspace-write; do not also pass -s/--sandbox.
+				args.push('--approve-for-me')
+			}
+		} else {
+			args.push('-c', 'approval_policy="never"')
+		}
+	}
+
+	args.push('-c', 'agents.enabled=true')
+
+	if (isAgent) {
+		args.push('-c', 'sandbox_workspace_write.network_access=true')
 	}
 
 	if (options.model) {
@@ -74,12 +92,12 @@ export function buildCodexExecArgs(options: {
 		args.push('-c', `service_tier="${options.speed}"`)
 	}
 
-	if (!useApproveForMe) {
-		if (isResume) {
+	if (isResume) {
+		if (!autoApproveAgent) {
 			args.push('-c', `sandbox_mode="${sandboxMode}"`)
-		} else {
-			args.push('-s', sandboxMode)
 		}
+	} else if (!useApproveForMe) {
+		args.push('-s', sandboxMode)
 	}
 
 	args.push('-')
@@ -570,10 +588,14 @@ export class CodexProvider implements AgentProvider {
 			autoApprove: this.config?.autoApproveTools,
 		})
 
-		// Build prompt with mode instructions and handoff context if switching
+		// Build prompt with mode instructions and handoff context when resuming Dev Studio history
 		let fullPrompt = `${CODEX_MODE_PROMPT_PREFIX[mode]}`
-		if (context.isProviderSwitch && context.recentMessagesSummary) {
-			fullPrompt += `[Previous Conversation Context from ${context.previousProvider || 'previous agent'}:\n${context.recentMessagesSummary}]\n\n`
+		if (context.recentMessagesSummary) {
+			if (context.isProviderSwitch) {
+				fullPrompt += `[Previous Conversation Context from ${context.previousProvider || 'previous agent'}:\n${context.recentMessagesSummary}]\n\n`
+			} else if (context.isCodexThreadReset) {
+				fullPrompt += `[Previous Conversation Context (continuing this Dev Studio session — Codex thread was restarted):\n${context.recentMessagesSummary}]\n\n`
+			}
 		}
 		fullPrompt += content
 
@@ -700,7 +722,7 @@ export class CodexProvider implements AgentProvider {
 						const item = event.item
 						const itemType = item.type || ''
 
-						if (itemType === 'command_execution' || itemType === 'file_change' || itemType === 'web_search' || itemType === 'mcp_tool_call' || itemType === 'error') {
+						if (isCodexToolActivityItemType(itemType)) {
 							const existing = activities.find((a) => a.id === item.id)
 							const act = finalizeActivityFromCodexItem(existing, item, mode)
 							if (act) {
