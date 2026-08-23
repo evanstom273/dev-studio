@@ -14,12 +14,21 @@ import {
 	IconSparkles,
 	IconStop,
 } from './Icons'
+import {
+	IMPLEMENT_WITH_SUBAGENTS_HIDDEN_PROMPT,
+	PARALLELIZE_WITH_SUBAGENTS_PROMPT,
+	RESEARCH_SUBAGENT_PROMPT,
+} from '../constants/codexSubagentPrompts'
 import '../styles/agent.css'
+
+export type PromptComposerSendOptions = {
+	hiddenPrefix?: string
+}
 
 export type PromptComposerProps = {
 	value: string
 	onChange: (value: string) => void
-	onSend: () => void
+	onSend: (options?: PromptComposerSendOptions) => void
 	onStop?: () => void
 	loading?: boolean
 	mode: AgentMode
@@ -93,6 +102,7 @@ export function PromptComposer({
 	const [menuTab, setMenuTab] = useState<'model' | 'effort' | 'speed'>('model')
 	const modelMenuRef = useRef<HTMLDivElement>(null)
 	const [speechError, setSpeechError] = useState<string | null>(null)
+	const [armedHiddenPrefix, setArmedHiddenPrefix] = useState<string | null>(null)
 
 	const valueRef = useRef(value)
 	valueRef.current = value
@@ -177,8 +187,16 @@ export function PromptComposer({
 			return
 		}
 		if (valueRef.current.trim() || attachments.length > 0) {
-			onSend()
+			onSend(armedHiddenPrefix ? { hiddenPrefix: armedHiddenPrefix } : undefined)
+			setArmedHiddenPrefix(null)
 		}
+	}
+
+	const appendVisiblePrompt = (instruction: string) => {
+		setArmedHiddenPrefix(null)
+		onChange(
+			value.trim() ? `${value.trim()}\n\n${instruction}` : instruction,
+		)
 	}
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -188,7 +206,8 @@ export function PromptComposer({
 				stopListening()
 			}
 			if (valueRef.current.trim() || attachments.length > 0) {
-				onSend()
+				onSend(armedHiddenPrefix ? { hiddenPrefix: armedHiddenPrefix } : undefined)
+				setArmedHiddenPrefix(null)
 			}
 		}
 	}
@@ -207,8 +226,21 @@ export function PromptComposer({
 	}
 
 	const canSend = Boolean(value.trim() || attachments.length > 0)
-	const matchingDef = modelDefinitions.find((d) => d.id === model) || modelDefinitions.find((d) => !model && d.isDefault)
-	const isCodexModel = matchingDef?.providerId === 'codex' || (model && (model.startsWith('gpt-') || model.startsWith('codex:') || model.startsWith('o1') || model.startsWith('o3')))
+	const matchingDef =
+		modelDefinitions.find((d) => d.id === model) ||
+		modelDefinitions.find((d) => !model && d.isDefault)
+	const isCodexModel =
+		matchingDef?.providerId === 'codex' ||
+		Boolean(
+			model &&
+				(model.startsWith('gpt-') ||
+					model.startsWith('codex:') ||
+					model.startsWith('openai:') ||
+					model.startsWith('o1') ||
+					model.startsWith('o3') ||
+					model.startsWith('o4')),
+		)
+	const showCodexSubagentShortcuts = isCodexModel && mode === 'agent'
 
 	const currentEffort = reasoningEffort || matchingDef?.defaultReasoningEffort || 'medium'
 	const currentSpeed = speed || matchingDef?.defaultSpeedTier || 'default'
@@ -245,6 +277,49 @@ export function PromptComposer({
 					accept="image/*,.pdf,.txt,.md,.json,.ts,.tsx,.js,.jsx,.py,.html,.css,.yaml,.yml,.toml,.rs,.go,.java,.c,.cpp,.h"
 				/>
 
+				{showCodexSubagentShortcuts && (
+					<div className="composer__quick-prompts" aria-label="Codex subagent shortcuts">
+						{armedHiddenPrefix && (
+							<span className="composer__quick-prompt-armed" role="status">
+								Parallel implementation armed
+								<button
+									type="button"
+									className="composer__quick-prompt-armed-clear"
+									onClick={() => setArmedHiddenPrefix(null)}
+									aria-label="Clear parallel implementation mode"
+								>
+									×
+								</button>
+							</span>
+						)}
+						<button
+							type="button"
+							className={`composer__quick-prompt composer__quick-prompt--primary${armedHiddenPrefix ? ' is-active' : ''}`}
+							onClick={() => setArmedHiddenPrefix(IMPLEMENT_WITH_SUBAGENTS_HIDDEN_PROMPT)}
+							disabled={loading}
+							title="Split into independent workstreams with clear ownership, integrate, then build and test"
+						>
+							Implement with subagents
+						</button>
+						<button
+							type="button"
+							className="composer__quick-prompt"
+							onClick={() => appendVisiblePrompt(PARALLELIZE_WITH_SUBAGENTS_PROMPT)}
+							disabled={loading}
+						>
+							Parallelize with subagents
+						</button>
+						<button
+							type="button"
+							className="composer__quick-prompt"
+							onClick={() => appendVisiblePrompt(RESEARCH_SUBAGENT_PROMPT)}
+							disabled={loading}
+						>
+							Research subagent
+						</button>
+					</div>
+				)}
+
 				{/* Primary Prompt Textarea */}
 				<textarea
 					ref={textareaRef}
@@ -263,6 +338,8 @@ export function PromptComposer({
 							? 'Ask a question about the code...'
 							: mode === 'plan'
 							? 'Describe what to plan...'
+							: isCodexModel
+							? 'Describe the task, then tap Implement with subagents above…'
 							: 'Add a follow up or ask Dev Studio...'
 					}
 					rows={1}

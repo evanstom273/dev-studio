@@ -11,8 +11,8 @@ function buildCodexExecArgs(options) {
 		args.push('exec', '--json', '--skip-git-repo-check')
 	}
 
-	const sandboxMode = options.mode === 'agent' ? 'workspace-write' : 'read-only'
 	const isAgent = options.mode === 'agent'
+	const sandboxMode = isAgent ? 'workspace-write' : 'read-only'
 	const autoApproveAgent = Boolean(options.autoApprove && isAgent)
 	const useApproveForMe = autoApproveAgent && !isResume
 
@@ -198,6 +198,33 @@ function parseCodexRateLimits(payload, planType, accountName, nowMs = Date.now()
 	}
 }
 
+test('buildCodexExecArgs: always enables Codex subagents', () => {
+	const args = buildCodexExecArgs({
+		threadId: null,
+		mode: 'agent',
+	})
+
+	assert.ok(args.includes('agents.enabled=true'))
+})
+
+test('buildCodexExecArgs: agent mode enables sandbox network access', () => {
+	const args = buildCodexExecArgs({
+		threadId: null,
+		mode: 'agent',
+	})
+
+	assert.ok(args.includes('sandbox_workspace_write.network_access=true'))
+})
+
+test('buildCodexExecArgs: ask mode does not enable sandbox network access', () => {
+	const args = buildCodexExecArgs({
+		threadId: null,
+		mode: 'ask',
+	})
+
+	assert.ok(!args.includes('sandbox_workspace_write.network_access=true'))
+})
+
 test('buildCodexExecArgs: new session in agent mode uses workspace-write sandbox', () => {
 	const args = buildCodexExecArgs({
 		threadId: null,
@@ -227,16 +254,7 @@ test('buildCodexExecArgs: new session in ask mode uses read-only sandbox', () =>
 		mode: 'ask',
 	})
 
-	assert.deepEqual(args, [
-		'exec',
-		'--json',
-		'--skip-git-repo-check',
-		'-c',
-		'agents.enabled=true',
-		'-s',
-		'read-only',
-		'-',
-	])
+	assert.deepEqual(args, ['exec', '--json', '--skip-git-repo-check', '-c', 'agents.enabled=true', '-s', 'read-only', '-'])
 	assert.ok(args.includes('-s'))
 	assert.equal(args[args.indexOf('-s') + 1], 'read-only')
 	assert.ok(!args.includes('workspace-write'))
@@ -248,16 +266,7 @@ test('buildCodexExecArgs: new session in plan mode uses read-only sandbox', () =
 		mode: 'plan',
 	})
 
-	assert.deepEqual(args, [
-		'exec',
-		'--json',
-		'--skip-git-repo-check',
-		'-c',
-		'agents.enabled=true',
-		'-s',
-		'read-only',
-		'-',
-	])
+	assert.deepEqual(args, ['exec', '--json', '--skip-git-repo-check', '-c', 'agents.enabled=true', '-s', 'read-only', '-'])
 	assert.ok(args.includes('-s'))
 	assert.equal(args[args.indexOf('-s') + 1], 'read-only')
 	assert.ok(!args.includes('workspace-write'))
@@ -469,6 +478,8 @@ test('buildCodexExecArgs: auto-approve new agent session uses approve-for-me wit
 	})
 
 	assert.ok(args.includes('--approve-for-me'))
+	assert.ok(!args.includes('approval_policy="never"'))
+	assert.ok(!args.includes('--dangerously-bypass-approvals-and-sandbox'))
 	assert.ok(!args.includes('-s'))
 	assert.ok(!args.some((arg) => arg.includes('sandbox_mode=')))
 	assert.ok(args.includes('sandbox_workspace_write.network_access=true'))
@@ -498,12 +509,14 @@ test('buildCodexExecArgs: auto-approve omitted when false', () => {
 	})
 
 	assert.ok(!args.includes('--approve-for-me'))
+	assert.ok(!args.includes('--dangerously-bypass-approvals-and-sandbox'))
+	assert.ok(!args.includes('approval_policy="never"'))
+	assert.ok(args.includes('sandbox_workspace_write.network_access=true'))
 	assert.ok(args.includes('-s'))
 	assert.equal(args[args.indexOf('-s') + 1], 'workspace-write')
-	assert.ok(!args.includes('--ask-for-approval'))
 })
 
-test('buildCodexExecArgs: auto-approve resumed agent session uses bypass without sandbox_mode', () => {
+test('buildCodexExecArgs: auto-approve resumed agent session bypasses sandbox (resume lacks approve-for-me)', () => {
 	const args = buildCodexExecArgs({
 		threadId: 'thread-123',
 		mode: 'agent',
@@ -511,7 +524,9 @@ test('buildCodexExecArgs: auto-approve resumed agent session uses bypass without
 	})
 
 	assert.ok(!args.includes('--approve-for-me'))
+	assert.ok(!args.includes('approval_policy="never"'))
 	assert.ok(args.includes('--dangerously-bypass-approvals-and-sandbox'))
+	assert.ok(args.includes('sandbox_workspace_write.network_access=true'))
 	assert.ok(!args.includes('-s'))
 	assert.ok(!args.some((arg) => arg.includes('sandbox_mode=')))
 })

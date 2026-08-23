@@ -20,6 +20,7 @@ import {
 	IconSearch,
 	IconBranch,
 	IconSparkles,
+	IconAgent,
 } from './Icons'
 import '../styles/agent.css'
 import { getTimelineActivity, getTimelineEntries } from '../utils/timelineEntries'
@@ -75,6 +76,9 @@ function getActivityIcon(type: string, title: string) {
 	if (type === 'status') {
 		return IconSparkles
 	}
+	if (type === 'subagent') {
+		return IconAgent
+	}
 	return null
 }
 
@@ -111,7 +115,10 @@ function SingleActivityRow({ activity }: { activity: AgentActivityItem }) {
 			(activity.detail?.filePath && activity.detail.filePath !== activity.title) ||
 			activity.detail?.command ||
 			activity.detail?.query ||
-			activity.detail?.directory,
+			activity.detail?.directory ||
+			(activity.detail?.receiverThreadIds && activity.detail.receiverThreadIds.length > 0) ||
+			(activity.detail?.agentStates && Object.keys(activity.detail.agentStates).length > 0) ||
+			activity.detail?.summary,
 	)
 
 	return (
@@ -183,10 +190,46 @@ function SingleActivityRow({ activity }: { activity: AgentActivityItem }) {
 
 					{activity.detail?.instruction && (
 						<div className="activity-timeline-row__detail-item">
-							<span className="activity-timeline-row__detail-key">Instruction:</span>
+							<span className="activity-timeline-row__detail-key">
+								{activity.type === 'subagent' ? 'Task:' : 'Instruction:'}
+							</span>
 							<span className="activity-timeline-row__detail-val">
 								{activity.detail.instruction}
 							</span>
+						</div>
+					)}
+
+					{activity.type === 'subagent' && activity.detail?.summary && (
+						<div className="activity-timeline-row__detail-item">
+							<span className="activity-timeline-row__detail-key">Status:</span>
+							<span className="activity-timeline-row__detail-val">{activity.detail.summary}</span>
+						</div>
+					)}
+
+					{activity.type === 'subagent' &&
+						activity.detail?.receiverThreadIds &&
+						activity.detail.receiverThreadIds.length > 0 && (
+							<div className="activity-timeline-row__detail-item">
+								<span className="activity-timeline-row__detail-key">Threads:</span>
+								<span className="activity-timeline-row__detail-val activity-timeline-row__detail-code">
+									{activity.detail.receiverThreadIds.join(', ')}
+								</span>
+							</div>
+						)}
+
+					{activity.type === 'subagent' && activity.detail?.agentStates && (
+						<div className="activity-timeline-row__subagent-states">
+							{Object.entries(activity.detail.agentStates).map(([threadId, state]) => (
+								<div key={threadId} className="activity-timeline-row__subagent-state">
+									<span className="activity-timeline-row__subagent-state-id">{threadId}</span>
+									<span className={`activity-timeline-row__subagent-state-badge activity-timeline-row__subagent-state-badge--${state.status}`}>
+										{state.status}
+									</span>
+									{state.message && (
+										<span className="activity-timeline-row__subagent-state-message">{state.message}</span>
+									)}
+								</div>
+							))}
 						</div>
 					)}
 

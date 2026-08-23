@@ -168,10 +168,25 @@ export class AgentRouterService {
 			(session.codexThreadReasoning ?? '') === (effectiveReasoning ?? '') &&
 			(session.codexThreadSpeed ?? 'default') === effectiveSpeed
 
+		const isCodexProvider = targetProvider.id === 'codex'
+		const isCodexThreadReset = isCodexProvider && !canResumeCodexThread && !isProviderSwitch
+		const hasPriorConversation = session.items.some(
+			(item) => item.kind === 'message' && item.id !== userItem.id,
+		)
+		const needsConversationHandoff =
+			isProviderSwitch || (isCodexThreadReset && hasPriorConversation)
+
 		const context: SessionTurnContext = {
 			sessionItems: session.items,
-			recentMessagesSummary: isProviderSwitch ? this.extractConversationSummary(session.items) : undefined,
+			recentMessagesSummary: needsConversationHandoff
+				? this.extractConversationSummary(
+						isProviderSwitch
+							? session.items
+							: session.items.filter((item) => item.id !== userItem.id),
+					)
+				: undefined,
 			isProviderSwitch,
+			isCodexThreadReset: isCodexThreadReset && hasPriorConversation,
 			previousProvider,
 			conversationId: session.conversationId,
 			codexThreadId: canResumeCodexThread ? session.codexThreadId : null,
