@@ -12,7 +12,7 @@ import type {
 import type { Project } from '@shared/types/project'
 import { Conversation } from '../components/Conversation'
 import { PermissionPrompt } from '../components/PermissionPrompt'
-import { PromptComposer } from '../components/PromptComposer'
+import { PromptComposer, type PromptComposerSendOptions } from '../components/PromptComposer'
 import { agentApi } from '../services/agentApi'
 import {
 	clearLiveStatusActivity,
@@ -176,7 +176,7 @@ export function AgentView({
 		}
 	}
 
-	const handleSend = async () => {
+	const handleSend = async (options?: PromptComposerSendOptions) => {
 		const trimmed = prompt.trim()
 		if ((!trimmed && attachments.length === 0) || loading) return
 
@@ -193,7 +193,12 @@ export function AgentView({
 			displayText = displayText ? `${displayText}\n\n${attList}` : attList
 		}
 
-		let promptWithContext = trimmed
+		const hiddenPrefix = options?.hiddenPrefix?.trim()
+		let promptWithContext = hiddenPrefix
+			? trimmed
+				? `${hiddenPrefix}\n\n${trimmed}`
+				: hiddenPrefix
+			: trimmed
 		if (currentAttachments.length > 0) {
 			const contextBlocks: string[] = []
 			for (const att of currentAttachments) {
@@ -525,7 +530,7 @@ export function AgentView({
 			<PromptComposer
 				value={prompt}
 				onChange={setPrompt}
-				onSend={() => void handleSend()}
+				onSend={(options) => void handleSend(options)}
 				onStop={() => void handleStop()}
 				loading={loading}
 				mode={mode}
